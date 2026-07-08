@@ -70,7 +70,7 @@ Legend: **[You]** = human required (browser/auth) · **[Claude]** = Claude Code 
 - [ ] **[Claude]** New branch per feature: `git checkout -b 001-sheets-schema-and-api`
 - [ ] **[You + Claude]** `/speckit.tasks` → review → `/speckit.implement`
 - [ ] **[Claude]** Backend deploys: `cd backend && clasp push && clasp deploy`
-- [ ] **[You]** First deployment only: in the deploy dialog set **Execute as: User accessing the web app** and **Who has access: Anyone with a Google account** (the email allowlist does the real gating). You and Jaz each authorize the app once in the browser; re-authorize any time `appsscript.json` scopes change.
+- [ ] **[You]** First deployment only: in the deploy dialog set **Execute as: Me** (the shared account) and **Who has access: Anyone** — so a cross-origin browser `fetch` gets JSON, not a login redirect; the ID token + allowlist do the real gating (feature 002 / research R1). Only the deploying account authorizes the app in the browser; re-authorize it any time `appsscript.json` scopes change (feature 002 adds the external-request scope).
 - [ ] **[Claude]** Frontend scaffold (during feature 006 or earlier if the plan calls for it): Vite + React + TS + Tailwind + shadcn/ui in `/frontend`; GitHub Actions workflow deploying `frontend/dist` to GitHub Pages on merge to main
 - [ ] **[You]** Repo → Settings → Pages → Source: GitHub Actions (one-time toggle)
 - [ ] **[Claude]** UI features get `/impeccable critique` while iterating and `/impeccable polish` + `/impeccable audit` before PR

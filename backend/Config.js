@@ -22,6 +22,14 @@ var API_VERSION = '1.0.0';
 /** Returned by the health ping so clients can identify the service. */
 var SERVICE_NAME = 'household-hq';
 
+/**
+ * The app's Google **Web** OAuth client ID (feature 002; research A2). Every ID token's
+ * `aud` must equal this exactly. Public value — client IDs are not secrets, so it lives
+ * here as a committed constant like SPREADSHEET_ID (D8). Created once in the Cloud Console
+ * (quickstart §1); reused by feature 006's sign-in. Empty ⇒ every token fails closed.
+ */
+var OAUTH_CLIENT_ID = '802775492061-kg5jrp6r84c6e4g1pech6m3q1fk1qi70.apps.googleusercontent.com';
+
 /** Fallback when Settings has no timezone yet (FR-009). */
 var DEFAULT_TIMEZONE = 'America/Los_Angeles';
 
@@ -69,6 +77,15 @@ var STATUSES = ['open', 'done', 'snoozed'];
 var CADENCES = ['weekly', 'biweekly', 'monthly', 'quarterly', 'annually'];
 
 /**
+ * A write action mutates the Sheet. Shared-account callers must confirm an acting-person
+ * on these (feature 002 FR-014/A5); reads and `auth.whoami` do not. Any `*.create`,
+ * `*.update`, or `*.delete` counts.
+ */
+function isWriteAction_(action) {
+  return /\.(create|update|delete)$/.test(String(action));
+}
+
+/**
  * Typed fields per tab, driving both write validation (reject) and read warnings
  * (surface, don't drop — FR-020). Types: text | date | datetime | owner | status |
  * cadence | int | month. Untyped columns are free text.
@@ -89,11 +106,13 @@ var REQUIRED_ON_CREATE = {
 
 // ---------------------------------------------------------------------------
 // Settings seed (data-model.md §Settings). [key, value, notes]; seeded only when the
-// key is absent, so hand-filled values (e.g. allowedEmails) are never overwritten.
+// key is absent, so hand-filled values (e.g. maxEmail) are never overwritten.
 // ---------------------------------------------------------------------------
 
 var SETTINGS_SEED = [
-  ['allowedEmails', '', 'feature 002; "; "-delimited pair of allowed Google emails'],
+  ['maxEmail', '', 'feature 002; Google email that maps to identity "max"'],
+  ['jazEmail', '', 'feature 002; Google email that maps to identity "jaz"'],
+  ['sharedEmails', '', 'feature 002; "; "-delimited shared account(s); auth ok, writes need actingPerson'],
   ['timezone', 'America/Los_Angeles', 'household timezone for all date handling'],
   ['householdCalendarId', '', 'feature 007'],
   ['digestSchedule', '', 'feature 008'],

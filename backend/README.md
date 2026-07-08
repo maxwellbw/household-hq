@@ -44,7 +44,8 @@ and yields "Page Not Found".
 2. **Deploy:** from `backend/`, `clasp push && clasp deploy`. Note the web-app URL.
 3. **Provision:** open the editor (`clasp open-script`) and run `setupDatabase()` — it
    creates the six tabs, headers, plain-text formatting, and seeds Settings. Safe to
-   re-run. Fill in `allowedEmails` in the Settings tab by hand.
+   re-run. Fill in `maxEmail` / `jazEmail` / `sharedEmails` and `OAUTH_CLIENT_ID`
+   (`Config.js`) by hand — see feature 002 quickstart.
 4. **Validate:** follow [`quickstart.md`](../specs/001-sheets-schema-and-api/quickstart.md),
    or run `selfTest()` in the editor (expects `ALL PASS`).
 
