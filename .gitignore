@@ -3,3 +3,4 @@ dist/
 .clasprc.json
 .impeccable/
 .claude/settings.local.json
+.DS_Store

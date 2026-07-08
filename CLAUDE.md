@@ -74,3 +74,7 @@ The Apps Script web app must be deployed as **Execute as: user accessing the app
 ## Design
 
 All UI work follows `DESIGN.md` (Claude-app-inspired warm palette, calendar-first). Use the Impeccable skill: `/impeccable critique` while iterating, `/impeccable polish` before merging UI work.
+
+### Design Context (from PRODUCT.md)
+
+Register: **product**. Two users (Max, Jaz) only — coordination tool, not a general product. Personality: calm, warm, unfussy — "kitchen corkboard, not Jira board." Calendar is home; tasks tether visually to their events. Owner color coding (Max/Jaz/Both) is identity, never decoration. Accessibility target: WCAG 2.1 AA. Full detail: `PRODUCT.md`.
