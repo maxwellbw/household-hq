@@ -12,11 +12,15 @@ var SELFTEST_PREFIX = 'selftest-';
 function selfTest() {
   unitValidators_();
   unitAuth_();
+  unitOccurrenceMath_();
   liveCrudRoundTrip_();
   liveTaskSlices_();
   liveActivityFeed_();
   liveErrorCases_();
   liveHandEditResilience_();
+  liveRecurringGeneration_();
+  liveRecurringCrud_();
+  liveRecurringCatchUp_();
   Logger.log('ALL PASS');
 }
 
@@ -296,4 +300,200 @@ function liveHandEditResilience_() {
 
   deleteRecordById_(TABS.TASKS, adopted[0].id, 'selftest');
   Logger.log('live hand-edit resilience: pass');
+}
+
+// ---------------------------------------------------------------------------
+// Unit: recurring occurrence math (feature 004; no Sheet needed)
+// ---------------------------------------------------------------------------
+
+function unitOccurrenceMath_() {
+  // Month-end / leap-day clamping (research D3).
+  assert_(addMonthsClamped_('2026-01-31', 1) === '2026-02-28', 'Jan 31 +1mo clamps to Feb 28');
+  assert_(addMonthsClamped_('2028-01-31', 1) === '2028-02-29', 'Jan 31 +1mo clamps to Feb 29 in a leap year');
+  assert_(addMonthsClamped_('2026-02-28', 12) === '2027-02-28', 'Feb 28 +12mo stays Feb 28');
+  assert_(addMonthsClamped_('2028-02-29', 12) === '2029-02-28', 'Feb 29 +12mo clamps to Feb 28 in a common year');
+  assert_(addDays_('2026-07-01', 14) === '2026-07-15', 'addDays_ 14-day step');
+
+  // Occurrence windows per cadence — anchor before the window, expect the in-window dates.
+  assert_(
+    occurrencesInWindow_('2026-06-15', 'monthly', '2026-06-30', '2026-09-30').join(',') ===
+    ['2026-07-15', '2026-08-15', '2026-09-15'].join(','),
+    'monthly occurrences within window'
+  );
+  assert_(
+    occurrencesInWindow_('2026-07-01', 'weekly', '2026-07-01', '2026-07-22').join(',') ===
+    ['2026-07-08', '2026-07-15', '2026-07-22'].join(','),
+    'weekly occurrences within window'
+  );
+  assert_(
+    occurrencesInWindow_('2026-07-01', 'biweekly', '2026-07-01', '2026-08-01').join(',') ===
+    ['2026-07-15', '2026-07-29'].join(','),
+    'biweekly occurrences within window'
+  );
+  assert_(
+    occurrencesInWindow_('2026-01-15', 'quarterly', '2026-06-30', '2026-12-31').join(',') ===
+    ['2026-07-15', '2026-10-15'].join(','),
+    'quarterly occurrences within window'
+  );
+  assert_(
+    occurrencesInWindow_('2025-07-15', 'annually', '2026-06-30', '2026-12-31').join(',') ===
+    ['2026-07-15'].join(','),
+    'annually occurrences within window'
+  );
+  assert_(occurrencesInWindow_('2026-01-01', 'monthly', '2030-01-01', '2030-01-31').length === 0,
+    'empty result outside all occurrences');
+
+  // Season wrap-around (research D4).
+  assert_(inSeason_(1, '11', '2') === true, 'Jan in Nov–Feb wrap window');
+  assert_(inSeason_(6, '11', '2') === false, 'Jun outside Nov–Feb wrap window');
+  assert_(inSeason_(6, '', '') === true, 'year-round when season blank');
+  assert_(inSeason_(4, '4', '10') === true, 'boundary month included (season start)');
+  assert_(inSeason_(10, '4', '10') === true, 'boundary month included (season end)');
+
+  // Deterministic id (research D1).
+  var id1 = recurringTaskId_('rule-a', '2026-07-15');
+  var id2 = recurringTaskId_('rule-a', '2026-07-15');
+  var id3 = recurringTaskId_('rule-a', '2026-08-15');
+  assert_(id1 === id2, 'recurringTaskId_ deterministic for same rule+date');
+  assert_(id1 !== id3, 'recurringTaskId_ differs across dates');
+  assert_(id1.indexOf('r') === 0, 'recurringTaskId_ starts with "r"');
+
+  Logger.log('unit occurrence math: pass');
+}
+
+// ---------------------------------------------------------------------------
+// Live: recurring generation — idempotency, tombstone, season skip (US1, FR-003…016)
+// ---------------------------------------------------------------------------
+
+function liveRecurringGeneration_() {
+  var tz = getTimezone_();
+  var today = Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd');
+  var windowEnd = addDays_(today, 30);
+
+  // A monthly rule anchored ~15 days ago, so one occurrence falls inside the 30-day window.
+  var ruleId = SELFTEST_PREFIX + Utilities.getUuid();
+  var anchor = addDays_(today, -15);
+  createRecord_(TABS.RECURRING, {
+    id: ruleId, title: SELFTEST_PREFIX + 'flea meds', cadence: 'monthly',
+    anchorDate: anchor, defaultOwner: 'both', lastGenerated: '', seasonStart: '', seasonEnd: ''
+  }, 'selftest');
+
+  generateForRule_(readRuleById_(ruleId), today, windowEnd);
+  var tasksForRule = function () {
+    return listRecords_(TABS.TASKS).filter(function (t) { return t.recurringId === ruleId; });
+  };
+  var first = tasksForRule();
+  assert_(first.length >= 1, 'generation produces at least one occurrence');
+  first.forEach(function (t) {
+    assert_(t.owner === 'both' && t.status === 'open' && t.id.indexOf('r') === 0,
+      'generated task carries rule owner/status and a deterministic id');
+  });
+  assert_(readRuleById_(ruleId).lastGenerated !== '', 'lastGenerated advances after generation');
+
+  // Re-run: idempotent, no duplicates (SC-002).
+  generateForRule_(readRuleById_(ruleId), today, windowEnd);
+  assert_(tasksForRule().length === first.length, 're-run creates no duplicate occurrences');
+
+  // Delete one occurrence, re-run: not resurrected (FR-013).
+  var deletedId = first[0].id;
+  deleteRecordById_(TABS.TASKS, deletedId, 'selftest');
+  generateForRule_(readRuleById_(ruleId), today, windowEnd);
+  var afterDelete = tasksForRule();
+  assert_(afterDelete.filter(function (t) { return t.id === deletedId; }).length === 0,
+    'deleted occurrence is not resurrected on re-run');
+
+  // Out-of-season rule: generates nothing for the current window. Pick a season 6 months
+  // away from now so the 30-day generation window can never reach into it (a 1-month offset
+  // is unsafe near a month boundary, since a 30-day window can cross into next month).
+  var currentMonth = new Date().getMonth() + 1;
+  var offMonth = ((currentMonth + 5) % 12) + 1;
+  var seasonId = SELFTEST_PREFIX + Utilities.getUuid();
+  createRecord_(TABS.RECURRING, {
+    id: seasonId, title: SELFTEST_PREFIX + 'off season', cadence: 'weekly',
+    anchorDate: addDays_(today, -3), defaultOwner: 'max', lastGenerated: '',
+    seasonStart: String(offMonth), seasonEnd: String(offMonth)
+  }, 'selftest');
+  generateForRule_(readRuleById_(seasonId), today, windowEnd);
+  var seasonTasks = listRecords_(TABS.TASKS).filter(function (t) { return t.recurringId === seasonId; });
+  assert_(seasonTasks.length === 0, 'out-of-season rule generates no occurrences');
+
+  // Cleanup.
+  tasksForRule().concat(afterDelete).forEach(function (t) { deleteRecordById_(TABS.TASKS, t.id, 'selftest'); });
+  deleteRecordById_(TABS.RECURRING, ruleId, 'selftest');
+  deleteRecordById_(TABS.RECURRING, seasonId, 'selftest');
+  Logger.log('live recurring generation: pass');
+}
+
+function readRuleById_(id) {
+  return listRecords_(TABS.RECURRING).filter(function (r) { return r.id === id; })[0];
+}
+
+// ---------------------------------------------------------------------------
+// Live: recurring rule CRUD (US2, FR-001/009/010; research D8)
+// ---------------------------------------------------------------------------
+
+function liveRecurringCrud_() {
+  var created = createRecurring_({
+    title: SELFTEST_PREFIX + 'mow lawn', cadence: 'weekly', anchorDate: '2026-06-01', defaultOwner: 'max'
+  }, 'selftest');
+  assert_(created.lastGenerated === '', 'create leaves lastGenerated blank');
+
+  var updated = updateRecurring_({
+    id: created.id, title: SELFTEST_PREFIX + 'mow the lawn', seasonStart: '4', seasonEnd: '10'
+  }, 'selftest');
+  assert_(updated.title === SELFTEST_PREFIX + 'mow the lawn' &&
+    updated.seasonStart === '4' && updated.seasonEnd === '10',
+    'update persists title and season pair');
+
+  assertFails_('BAD_REQUEST', function () {
+    createRecurring_({ title: 'x', cadence: 'weekly', anchorDate: '2026-06-01', defaultOwner: 'max',
+      lastGenerated: '2026-06-01' }, 'selftest');
+  }, 'lastGenerated on create rejected');
+  assertFails_('BAD_REQUEST', function () {
+    updateRecurring_({ id: created.id, lastGenerated: '2026-06-01' }, 'selftest');
+  }, 'lastGenerated on update rejected');
+  assertFails_('VALIDATION_FAILED', function () {
+    createRecurring_({ title: 'x', cadence: 'weekly', anchorDate: '2026-06-01', defaultOwner: 'max',
+      seasonStart: '4' }, 'selftest');
+  }, 'half season window rejected on create');
+  assertFails_('BAD_REQUEST', function () {
+    createRecurring_({ title: 'x', cadence: 'weekly', anchorDate: '2026-06-01', defaultOwner: 'max',
+      bogus: 'y' }, 'selftest');
+  }, 'unknown field rejected');
+  assertFails_('NOT_FOUND', function () {
+    updateRecurring_({ id: 'no-such-id', title: 'ghost' }, 'selftest');
+  }, 'update unknown id rejected');
+
+  deleteRecordById_(TABS.RECURRING, created.id, 'selftest');
+  assert_(readRuleById_(created.id) === undefined, 'delete removes the rule');
+  Logger.log('live recurring CRUD: pass');
+}
+
+// ---------------------------------------------------------------------------
+// Live: catch-up bound — no backlog for a long-idle rule (US3, FR-016; SC-003)
+// ---------------------------------------------------------------------------
+
+function liveRecurringCatchUp_() {
+  var tz = getTimezone_();
+  var today = Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd');
+  var windowEnd = addDays_(today, 30);
+
+  var ruleId = SELFTEST_PREFIX + Utilities.getUuid();
+  var anchor = addMonthsClamped_(today, -24); // ~2 years in the past, never generated
+  createRecord_(TABS.RECURRING, {
+    id: ruleId, title: SELFTEST_PREFIX + 'catch up', cadence: 'monthly',
+    anchorDate: anchor, defaultOwner: 'jaz', lastGenerated: '', seasonStart: '', seasonEnd: ''
+  }, 'selftest');
+
+  generateForRule_(readRuleById_(ruleId), today, windowEnd);
+  var tasks = listRecords_(TABS.TASKS).filter(function (t) { return t.recurringId === ruleId; });
+  assert_(tasks.length <= 2, 'first run on an old anchor is bounded to the lookahead window, not a backlog');
+  tasks.forEach(function (t) {
+    assert_(t.dueDate >= today && t.dueDate <= windowEnd, 'generated occurrence falls within the window');
+  });
+  assert_(readRuleById_(ruleId).lastGenerated !== '', 'lastGenerated set after catch-up run');
+
+  tasks.forEach(function (t) { deleteRecordById_(TABS.TASKS, t.id, 'selftest'); });
+  deleteRecordById_(TABS.RECURRING, ruleId, 'selftest');
+  Logger.log('live recurring catch-up: pass');
 }

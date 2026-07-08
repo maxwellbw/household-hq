@@ -106,7 +106,10 @@ var HANDLERS = {
   'tasks.delete':   function (p, actor) { return { id: deleteEntity_(TABS.TASKS, p, actor) }; },
 
   'templates.list': function () { return { templates: listRecords_(TABS.TEMPLATES) }; },
-  'recurring.list': function () { return { recurring: listRecords_(TABS.RECURRING) }; },
+  'recurring.list':   function () { return { recurring: listRecords_(TABS.RECURRING) }; },
+  'recurring.create': function (p, actor) { return { recurring: createRecurring_(p, actor) }; },
+  'recurring.update': function (p, actor) { return { recurring: updateRecurring_(p, actor) }; },
+  'recurring.delete': function (p, actor) { return { id: deleteEntity_(TABS.RECURRING, p, actor) }; },
   'settings.list':  function () { return { settings: readSettingsMap_() }; },
 
   // Feature 003: read the household activity feed (newest-first, bounded; read-only).
