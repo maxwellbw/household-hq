@@ -2,6 +2,8 @@
 
 Read this at the start of every session. It is the bridge between Spec Kit's artifacts and day-to-day work.
 
+For "what's built, what's in progress, what's not started yet" at a glance, see `BACKLOG.md`. Update it (stage + PR link) whenever a feature crosses a Spec Kit stage or a PR merges — this includes every step of the "start feature NNN" loop below.
+
 ## What this project is
 
 A two-user (Max + Jaz) household manager: calendar-first UI, tasks assignable to `max` / `jaz` / `both`, recurring chores, event prep-checklist templates, email digests, Google Calendar sync, and (later) a weather-aware dog-walk window finder. Full context: `docs/household-hq-project-brief.md`. Guiding principles: `.specify/memory/constitution.md` — the constitution wins on any conflict.

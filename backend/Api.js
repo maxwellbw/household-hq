@@ -75,6 +75,7 @@ function doPost(e) {
     if (body.action !== 'ping') {
       identity = authenticate_(body.action, body.token, payload);
       actor = identity.actor;
+      identity.actingPerson = payload.actingPerson; // preserve for read-side slice perspective (003 D4)
       delete payload.actingPerson; // pop before entity validation — keeps 001's envelope frozen (A5)
     }
     return okOut_(handler(payload, actor, identity));
@@ -97,14 +98,19 @@ var HANDLERS = {
   'events.update': function (p, actor) { return { event: updateEvent_(p, actor) }; },
   'events.delete': function (p, actor) { return { id: deleteEntity_(TABS.EVENTS, p, actor) }; },
 
-  'tasks.list':    function () { return { tasks: listRecords_(TABS.TASKS) }; },
-  'tasks.create':  function (p, actor) { return { task: createTask_(p, actor) }; },
-  'tasks.update':  function (p, actor) { return { task: updateTask_(p, actor) }; },
-  'tasks.delete':  function (p, actor) { return { id: deleteEntity_(TABS.TASKS, p, actor) }; },
+  'tasks.list':     function (p, actor, identity) { return listTasks_(p, actor, identity); },
+  'tasks.create':   function (p, actor) { return { task: createTask_(p, actor) }; },
+  'tasks.update':   function (p, actor) { return { task: updateTask_(p, actor) }; },
+  'tasks.complete': function (p, actor) { return completeTask_(p, actor); },
+  'tasks.reopen':   function (p, actor) { return reopenTask_(p, actor); },
+  'tasks.delete':   function (p, actor) { return { id: deleteEntity_(TABS.TASKS, p, actor) }; },
 
   'templates.list': function () { return { templates: listRecords_(TABS.TEMPLATES) }; },
   'recurring.list': function () { return { recurring: listRecords_(TABS.RECURRING) }; },
   'settings.list':  function () { return { settings: readSettingsMap_() }; },
+
+  // Feature 003: read the household activity feed (newest-first, bounded; read-only).
+  'activity.list':  function (p) { return listActivity_(p); },
 
   // Feature 002: "who am I" — identity + whether the client must confirm Max/Jaz (FR-009).
   'auth.whoami':    function (p, actor, identity) { return whoami_(identity); }
@@ -158,41 +164,81 @@ function updateEvent_(payload, actor) {
 // Tasks (US2)
 // ---------------------------------------------------------------------------
 
+/**
+ * List tasks, optionally sliced relative to the verified caller (FR-008/009/010). `filter`
+ * ∈ mine|theirs|ours|all|default (default `all`, preserving 001). The slice's person is
+ * derived server-side — never from a client "who am I" (FR-009): the caller's actor for a
+ * personal account, or a confirmed `actingPerson` for the shared account on the
+ * identity-relative slices (mine/theirs/default). `both` tasks live in ours/default only, so
+ * mine/theirs/ours are disjoint and union to all. Slices include every status (owner-only).
+ */
+function listTasks_(payload, actor, identity) {
+  var filter = payload.filter != null ? String(payload.filter).trim() : 'all';
+  if (filter === '') filter = 'all';
+  if (TASK_FILTERS.indexOf(filter) < 0) {
+    fail_('VALIDATION_FAILED', 'Unknown filter "' + filter + '".', 'filter');
+  }
+  var tasks = listRecords_(TABS.TASKS);
+  if (filter === 'all') return { tasks: tasks };
+  if (filter === 'ours') {
+    return { tasks: tasks.filter(function (t) { return t.owner === 'both'; }) };
+  }
+  var person = slicePerson_(actor, identity); // mine/theirs/default need a person
+  var other = person === 'max' ? 'jaz' : 'max';
+  var pred;
+  if (filter === 'mine') pred = function (t) { return t.owner === person; };
+  else if (filter === 'theirs') pred = function (t) { return t.owner === other; };
+  else /* default */ pred = function (t) { return t.owner === person || t.owner === 'both'; };
+  return { tasks: tasks.filter(pred) };
+}
+
+/**
+ * The person an identity-relative slice is computed for. Personal accounts are themselves;
+ * the shared account (no person) must confirm `actingPerson` ∈ {max,jaz}, mirroring 002's
+ * write disambiguation (research D4). Never trusts a client identity for a personal caller.
+ */
+function slicePerson_(actor, identity) {
+  if (actor === 'max' || actor === 'jaz') return actor;
+  var ap = identity && identity.actingPerson != null
+    ? String(identity.actingPerson).trim().toLowerCase() : '';
+  if (ap === 'max' || ap === 'jaz') return ap;
+  fail_('ACTING_PERSON_REQUIRED', 'Confirm Max or Jaz to use an identity-relative filter.');
+}
+
 function createTask_(payload, actor) {
   rejectUnknownFields_(TABS.TASKS, payload);
   requireFields_(payload, REQUIRED_ON_CREATE.Tasks);
+  // New tasks always start `open` — there is no way to create one in another status
+  // (feature 003 FR-001, tightening 001). An explicit non-open status is a client mistake;
+  // complete a task after creating it via tasks.complete.
+  if (payload.hasOwnProperty('status') && String(payload.status).trim() !== ''
+      && String(payload.status).trim() !== 'open') {
+    fail_('BAD_REQUEST', 'New tasks always start "open"; use tasks.complete afterwards.', 'status');
+  }
   validateFields_(TABS.TASKS, payload);
   var rec = fullRecord_(TABS.TASKS, payload);
-  if (rec.status === '') rec.status = 'open'; // default (data-model.md)
-  // completedBy/completedAt are server-managed (FR-007): never honor a client-supplied
-  // value — derive solely from the status. Creating a task already marked done stamps it.
+  rec.status = 'open';
+  // completedBy/completedAt are server-managed (FR-002): a client-supplied value is ignored.
   rec.completedBy = '';
   rec.completedAt = '';
-  if (rec.status === 'done') {
-    rec.completedBy = actor;
-    rec.completedAt = nowIso_();
-  }
   return createRecord_(TABS.TASKS, rec, actor);
 }
 
 function updateTask_(payload, actor) {
   rejectUnknownFields_(TABS.TASKS, payload);
   requireFields_(payload, ['id']);
-  validateFields_(TABS.TASKS, payload);
-  var patch = mutablePatch_(TABS.TASKS, payload);
-  // completedBy/completedAt are server-managed (FR-007): drop any client-supplied value.
-  delete patch.completedBy;
-  delete patch.completedAt;
-  // Status transitions manage the completion stamp (data-model.md lifecycle).
-  if (patch.hasOwnProperty('status')) {
-    if (patch.status === 'done') {
-      patch.completedBy = actor;
-      patch.completedAt = nowIso_();
-    } else if (patch.status === 'open') {
-      patch.completedBy = '';
-      patch.completedAt = '';
+  // Lifecycle fields are not editable here — completion has exactly one path so the feed
+  // never shows a completion as a generic "update" (feature 003 FR-015; supersedes 001's
+  // status-via-update semantics, contracts/api-003.md). Use tasks.complete / tasks.reopen.
+  ['status', 'completedBy', 'completedAt'].forEach(function (f) {
+    if (payload.hasOwnProperty(f)) {
+      fail_('BAD_REQUEST', 'Use tasks.complete / tasks.reopen to change status; "' + f +
+        '" is not editable via tasks.update.', f);
     }
-  }
+  });
+  validateFields_(TABS.TASKS, payload);
+  // Only title/owner/dueDate reach the patch; dueDate may be cleared (empty string) (FR-005).
+  var patch = mutablePatch_(TABS.TASKS, payload);
   return updateRecordById_(TABS.TASKS, String(payload.id).trim(), patch, actor);
 }
 
@@ -204,4 +250,35 @@ function mutablePatch_(tabName, payload) {
     if (payload.hasOwnProperty(name)) patch[name] = String(payload[name]).trim();
   });
   return patch;
+}
+
+/**
+ * Complete a task (FR-002/003): status→done, stamp the verified completer + time, log
+ * `complete`. Already-done is a no-change (changed:false, no new log row). One completion
+ * closes a `both` task. Returns { task, changed }.
+ */
+function completeTask_(payload, actor) {
+  requireFields_(payload, ['id']);
+  return setTaskLifecycle_(String(payload.id).trim(), 'done', actor, 'complete');
+}
+
+/**
+ * Reopen a task (FR-004): status→open, clear completion, log `reopen`. Either user may
+ * reopen anything; the prior completion stays in the log. Already-open is a no-change.
+ */
+function reopenTask_(payload, actor) {
+  requireFields_(payload, ['id']);
+  return setTaskLifecycle_(String(payload.id).trim(), 'open', actor, 'reopen');
+}
+
+// ---------------------------------------------------------------------------
+// Activity feed (US3)
+// ---------------------------------------------------------------------------
+
+/**
+ * The household activity feed (FR-011/012/013): newest-first, bounded by `limit`
+ * (default/max from Config) and optional ISO `since`. Read-only — never writes the log.
+ */
+function listActivity_(payload) {
+  return { activity: readActivityFeed_({ limit: payload.limit, since: payload.since }) };
 }

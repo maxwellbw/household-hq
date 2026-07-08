@@ -13,6 +13,8 @@ function selfTest() {
   unitValidators_();
   unitAuth_();
   liveCrudRoundTrip_();
+  liveTaskSlices_();
+  liveActivityFeed_();
   liveErrorCases_();
   liveHandEditResilience_();
   Logger.log('ALL PASS');
@@ -138,12 +140,30 @@ function liveCrudRoundTrip_() {
   var listed = listRecords_(TABS.TASKS).filter(function (t) { return t.id === id; });
   assert_(listed.length === 1, 'list contains the task once');
 
-  var done = updateTask_({ id: id, status: 'done' }, actor);
-  assert_(done.status === 'done' && done.completedBy === actor && done.completedAt !== '',
-    'done stamps completedBy/completedAt');
+  // Completion is a dedicated action now (feature 003): complete stamps, re-complete is a
+  // no-change (FR-003), reopen clears + logs 'reopen'; status via update is refused (FR-015).
+  var done = completeTask_({ id: id }, actor);
+  assert_(done.changed === true && done.task.status === 'done' &&
+    done.task.completedBy === actor && done.task.completedAt !== '',
+    'complete stamps completedBy/completedAt (changed:true)');
+  assert_(countLogRows_(id, 'complete') === 1, 'complete appends exactly one complete log row');
 
-  var reopened = updateTask_({ id: id, status: 'open' }, actor);
-  assert_(reopened.completedBy === '' && reopened.completedAt === '', 'reopen clears completion');
+  var again = completeTask_({ id: id }, 'someone-else');
+  assert_(again.changed === false && again.task.completedBy === actor &&
+    again.task.completedAt === done.task.completedAt,
+    're-complete is a no-change: original completer/time preserved (FR-003)');
+  assert_(countLogRows_(id, 'complete') === 1, 're-complete adds no new log row (SC-006)');
+
+  var reopened = reopenTask_({ id: id }, 'jaz'); // either user may reopen (FR-004)
+  assert_(reopened.changed === true && reopened.task.status === 'open' &&
+    reopened.task.completedBy === '' && reopened.task.completedAt === '',
+    'reopen clears completion (changed:true)');
+  assert_(countLogRows_(id, 'reopen') === 1, 'reopen appends a reopen log row');
+  assert_(reopenTask_({ id: id }, 'jaz').changed === false, 're-open of an open task is a no-change');
+
+  assertFails_('BAD_REQUEST', function () {
+    updateTask_({ id: id, status: 'done' }, actor);
+  }, 'status via tasks.update rejected (use complete/reopen)');
 
   deleteRecordById_(TABS.TASKS, id, actor);
   assert_(countTaskRows_(id) === 0, 'delete removes the row');
@@ -152,6 +172,88 @@ function liveCrudRoundTrip_() {
 
 function countTaskRows_(id) {
   return listRecords_(TABS.TASKS).filter(function (t) { return t.id === id; }).length;
+}
+
+/** Count ActivityLog rows for a target id, optionally filtered to one action. */
+function countLogRows_(targetId, action) {
+  return readTable_(TABS.ACTIVITY_LOG).records.filter(function (r) {
+    return r.targetId === targetId && (!action || r.action === action);
+  }).length;
+}
+
+// ---------------------------------------------------------------------------
+// Live: task slices — mine/theirs/ours/all/default (feature 003 US2, FR-008/009, SC-002)
+// ---------------------------------------------------------------------------
+
+function liveTaskSlices_() {
+  var pfx = SELFTEST_PREFIX + 'slice-';
+  var mx = createTask_({ title: pfx + 'max', owner: 'max' }, 'selftest').id;
+  var jz = createTask_({ title: pfx + 'jaz', owner: 'jaz' }, 'selftest').id;
+  var bo = createTask_({ title: pfx + 'both', owner: 'both' }, 'selftest').id;
+  var seeded = [mx, jz, bo];
+  // Restrict each slice to the seeded ids so unrelated rows in the live Sheet don't matter.
+  var ids = function (res) {
+    return res.tasks
+      .filter(function (t) { return seeded.indexOf(t.id) >= 0; })
+      .map(function (t) { return t.id; }).sort();
+  };
+
+  // As Max (personal actor; identity unused for personal callers).
+  var mine = ids(listTasks_({ filter: 'mine' }, 'max', null));
+  var theirs = ids(listTasks_({ filter: 'theirs' }, 'max', null));
+  var ours = ids(listTasks_({ filter: 'ours' }, 'max', null));
+  var all = ids(listTasks_({ filter: 'all' }, 'max', null));
+  var def = ids(listTasks_({ filter: 'default' }, 'max', null));
+  assert_(mine.length === 1 && mine[0] === mx, 'max mine = max-owned only');
+  assert_(theirs.length === 1 && theirs[0] === jz, 'max theirs = jaz-owned only');
+  assert_(ours.length === 1 && ours[0] === bo, 'ours = both-owned only');
+  assert_(all.length === 3, 'all = every seeded task');
+  assert_(mine.concat(theirs, ours).sort().join(',') === all.join(','),
+    'mine ∪ theirs ∪ ours = all, pairwise-disjoint (SC-002)');
+  assert_(def.join(',') === [mx, bo].sort().join(','), 'default = mine ∪ ours');
+
+  // As Jaz — the identity-relative slice flips (follows the verified caller, FR-009).
+  var jazMine = ids(listTasks_({ filter: 'mine' }, 'jaz', null));
+  assert_(jazMine.length === 1 && jazMine[0] === jz, 'jaz mine = jaz-owned (caller-relative)');
+
+  assertFails_('VALIDATION_FAILED', function () {
+    listTasks_({ filter: 'bogus' }, 'max', null);
+  }, 'unknown filter rejected');
+
+  seeded.forEach(function (id) { deleteRecordById_(TABS.TASKS, id, 'selftest'); });
+  Logger.log('live slices: pass');
+}
+
+// ---------------------------------------------------------------------------
+// Live: activity feed — newest-first, bounded, survives deletion (US3, FR-011/012/013)
+// ---------------------------------------------------------------------------
+
+function liveActivityFeed_() {
+  var id = SELFTEST_PREFIX + Utilities.getUuid();
+  createTask_({ id: id, title: 'feed probe', owner: 'jaz' }, 'jaz');
+  completeTask_({ id: id }, 'jaz');
+  deleteRecordById_(TABS.TASKS, id, 'max'); // target gone; feed must still read (FR-013)
+
+  var mine = readActivityFeed_({ limit: 100 }).filter(function (e) { return e.targetId === id; });
+  assert_(mine.length >= 3, 'create + complete + delete all present in the feed');
+
+  // Newest-first (append order reversed): delete precedes complete precedes create.
+  var seq = mine.map(function (e) { return e.action; });
+  assert_(seq.indexOf('delete') < seq.indexOf('complete') &&
+    seq.indexOf('complete') < seq.indexOf('create'), 'feed is newest-first');
+
+  var completeEntry = mine.filter(function (e) { return e.action === 'complete'; })[0];
+  assert_(completeEntry, 'complete is its own action in the feed, not update (FR-015)');
+  assert_(completeEntry.summary.indexOf('Jaz') === 0 &&
+    completeEntry.summary.indexOf('completed') > 0 &&
+    completeEntry.summary.indexOf('feed probe') > 0,
+    'summary names actor + action + title even for a deleted target (SC-005)');
+
+  // Bounding.
+  assert_(readActivityFeed_({ limit: 1 }).length === 1, 'limit bounds the feed');
+  assert_(readActivityFeed_({ since: '2999-01-01T00:00' }).length === 0,
+    'since in the future returns an empty feed');
+  Logger.log('live feed: pass');
 }
 
 // ---------------------------------------------------------------------------
@@ -169,7 +271,7 @@ function liveErrorCases_() {
     createTask_({ title: 'x', owner: 'max', bogus: 'y' }, 'selftest');
   }, 'unknown field rejected');
   assertFails_('NOT_FOUND', function () {
-    updateTask_({ id: 'no-such-id', status: 'done' }, 'selftest');
+    updateTask_({ id: 'no-such-id', title: 'ghost' }, 'selftest'); // status not editable now (003)
   }, 'update unknown id rejected');
   assert_(!HANDLERS['nope.nope'], 'unknown action absent from registry');
   Logger.log('live errors: pass');

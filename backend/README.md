@@ -23,6 +23,26 @@ All operations are a `text/plain;charset=utf-8` POST to the web-app URL with a J
 the `ok` field is the only success discriminator. Full contract:
 [`contracts/api.md`](../specs/001-sheets-schema-and-api/contracts/api.md).
 
+## Task lifecycle & activity feed (feature 003)
+
+Feature 003 tightens 001's raw task CRUD and opens the log for reading. Delta contract:
+[`api-003.md`](../specs/003-tasks-crud-and-activity-log/contracts/api-003.md).
+
+- **Completion is its own action.** `tasks.complete` / `tasks.reopen` are the *only* way to
+  change a task's status. `tasks.update` handles `title`/`owner`/`dueDate` only (due date may
+  be cleared) and now **rejects** `status`/`completedBy`/`completedAt` with `BAD_REQUEST`.
+  This **supersedes** 001's "set `status` via `tasks.update`" line so completions never appear
+  as generic `update`s in the feed.
+- **Idempotent completion.** Completing an already-`done` task is a no-change: original
+  completer/time preserved, no new log row (`{ task, changed:false }`). The read-then-write is
+  inside the write lock, so the simultaneous-completion race yields exactly one completion.
+- **Slices.** `tasks.list` takes an optional `filter` ∈ `mine|theirs|ours|all|default`
+  (default `all`), resolved server-side from the verified caller — never a client parameter.
+  `both` tasks live in `ours`/`default` only.
+- **Feed.** `activity.list { limit?, since? }` returns the ActivityLog newest-first (default
+  200, max 500 entries), each with the raw columns plus a composed `summary`. Read-only — the
+  log stays append-only.
+
 ## Deployed endpoint
 
 Web-app URL (deployment `@1`, stable across redeploys — refresh with

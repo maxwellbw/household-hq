@@ -76,6 +76,28 @@ var OWNERS = ['max', 'jaz', 'both'];
 var STATUSES = ['open', 'done', 'snoozed'];
 var CADENCES = ['weekly', 'biweekly', 'monthly', 'quarterly', 'annually'];
 
+// ---------------------------------------------------------------------------
+// Feature 003 — task slices + activity feed (contracts/api-003.md; research D4/D5)
+// ---------------------------------------------------------------------------
+
+/** Named task slices for `tasks.list`; resolved server-side from the verified caller. */
+var TASK_FILTERS = ['mine', 'theirs', 'ours', 'all', 'default'];
+
+/** Feed bound (research D5): a generous default covering weeks, a hard cap on payload size. */
+var FEED_DEFAULT_LIMIT = 200;
+var FEED_MAX_LIMIT = 500;
+
+/**
+ * Feed `summary` composition maps (research D5). An actor/action not listed here (e.g. a
+ * hand-edited ActivityLog value) falls back to its raw string — the feed never crashes on
+ * an unknown value (FR-013 Edge Cases).
+ */
+var ACTOR_DISPLAY_NAMES = { max: 'Max', jaz: 'Jaz', system: 'System' };
+var ACTION_VERBS = {
+  create: 'added', update: 'edited', complete: 'completed', reopen: 'reopened',
+  delete: 'deleted', 'adopt-id': 'assigned an id to', provision: 'set up'
+};
+
 /**
  * A write action mutates the Sheet. Shared-account callers must confirm an acting-person
  * on these (feature 002 FR-014/A5); reads and `auth.whoami` do not. Any `*.create`,
