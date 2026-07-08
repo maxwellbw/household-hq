@@ -37,6 +37,19 @@ No feature code without a spec folder. The chain per feature:
 
 Each feature on its own branch, merged by PR. Feature order lives in the brief §10; don't skip ahead unless Max says so.
 
+### Starting a feature — the "start feature NNN" shorthand
+
+When the user says **"start feature NNN"** (optionally with the name), run the Phase 7 build loop autonomously, stopping only at the review gates below. Look up the name from `specs/NNN-*/` if it exists, else from brief §10. Do this without re-asking for the workflow:
+
+1. `git checkout -b NNN-name` (branch off `main`).
+2. **If `specs/NNN-*/` already has spec.md + plan.md** (features are often pre-specced): go straight to `/speckit.tasks`. **Otherwise** run `/speckit.specify` → `/speckit.clarify` → `/speckit.plan` first, pausing after clarify's questions and after the plan.
+3. Run `/speckit.tasks`, then **⏸ PAUSE** — present the task breakdown for review. Wait for the user's go-ahead ("implement" / "go").
+4. Run `/speckit.implement`. Then `cd backend && clasp push && clasp deploy` (or `clasp deploy -i <deploymentId>` to refresh the existing web-app URL rather than mint a new one), and validate live per the feature's `quickstart.md`.
+5. **⏸ PAUSE** — show validation results. On the user's go-ahead, commit + push + open the PR.
+6. **⏸ PAUSE before merging** — merging is always the user's explicit call.
+
+Prompt the user for the steps only they can do (browser OAuth on first deploy or after `appsscript.json` scope changes; the one-time Pages toggle in feature 006). "start feature NNN" with no other words is a complete instruction — infer everything else from here, the brief, and the spec folder.
+
 ## Commands you'll need
 
 ```bash
