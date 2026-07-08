@@ -8,15 +8,32 @@
 
 **Input**: User description: "Feature 002 auth-allowlist — identity verification and two-user allowlist enforcement, from brief §2 and §5 item 1. Every API call must carry a verifiable Google identity; the backend verifies the ID token and checks the email against the two-address allowlist in Settings; anyone else is rejected with a structured error. Actor attribution switches from declared to verified identity. The sign-in UI ships with the frontend (feature 006), but this feature defines the contract: token acquisition, expiry/refresh expectations, and rejection UX requirements. Must also resolve risk R1 from 001's research (web-app deployment mode for browser cross-origin calls), updating CLAUDE.md. Envelope shape from 001's contract must not change."
 
+## Clarifications
+
+### Session 2026-07-08
+
+- Q: The allowlist — "exactly two" emails as written, or the three confirmed caller
+  accounts? → A: **Three** emails are all valid callers: Max's personal account, Jaz's
+  personal account, and the shared household account (`household@example.com`). The
+  household is still two people; the shared account is infrastructure they both use
+  (owns the Sheet/Script, runs `clasp`). The spec's "exactly two" language is corrected
+  throughout.
+- Q: What actor is recorded when a caller authenticates *as the shared account* and
+  makes a write? → A: The shared account is **never itself an actor**. A shared-account
+  write must be disambiguated to a specific person — the client confirms "Max or Jaz?"
+  and the write is re-associated to that individual's canonical identity (`max`/`jaz`).
+  A shared-account write that arrives without a confirmed acting-person is rejected (no
+  guessing, nothing written). Reads and who-am-I need no disambiguation.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Only Max and Jaz can touch household data (Priority: P1)
 
 Every request to the household service proves who is making it. If the proven identity
-is one of the two allowlisted people, the request proceeds and is attributed to that
-person; anyone else — no identity, a forged identity, or a valid Google identity that
-isn't Max or Jaz — is rejected with a clear, structured refusal and no data access of
-any kind.
+is one of the household's allowlisted accounts, the request proceeds and is attributed
+to a person (Max or Jaz); anyone else — no identity, a forged identity, or a valid
+Google identity that isn't on the allowlist — is rejected with a clear, structured
+refusal and no data access of any kind.
 
 **Why this priority**: The service moves from "private by obscurity" (001's interim
 posture) to actually enforced. Nothing else in the product is trustworthy until
@@ -109,13 +126,16 @@ feature 006 ships.
 
 ### Edge Cases
 
-- The Settings allowlist is hand-edited to malformed content (one email, three emails,
-  a typo'd address): the service fails **closed** — ambiguous allowlist means reject
-  non-matching callers and surface a configuration error to allowlisted callers (or in
-  logs), never fail open.
-- Both allowlist entries are blank (fresh provisioning, never filled in): every
-  authenticated request is rejected with a configuration error; the health ping still
-  works. The fix is documented: fill in Settings by hand.
+- The Settings allowlist is hand-edited to malformed content (a blank entry, a typo'd
+  address, a stray duplicate): the service fails **closed** for any caller whose verified
+  email is not an exact, well-formed match, and surfaces a configuration error to
+  allowlisted callers (or in logs), never fails open.
+- The allowlist is blank (fresh provisioning, never filled in): every authenticated
+  request is rejected with a configuration error; the health ping still works. The fix
+  is documented: fill in Settings by hand.
+- A write arrives authenticated as the shared account with no confirmed acting-person:
+  rejected with a distinguishable "which person?" error so the client can prompt and
+  retry; nothing is written and no actor is guessed.
 - A credential is valid but for the right person's *other* Google account (work vs.
   personal): rejected like any non-allowlisted identity — the allowlist is exact
   emails, not people.
@@ -143,31 +163,46 @@ feature 006 ships.
   integrity, intended audience, and validity window — a credential that fails any
   check is rejected identically to a missing one, save for a distinguishable error
   code.
-- **FR-003**: The verified email MUST be checked (case-insensitively) against exactly
-  the two allowlisted addresses stored in Settings; any other email is rejected with a
-  structured "not authorized" error carrying no household information.
+- **FR-003**: The verified email MUST be checked (case-insensitively) against the
+  allowlisted addresses stored in Settings — the two personal accounts (Max, Jaz) plus
+  the shared household account; any other email is rejected with a structured "not
+  authorized" error carrying no household information.
 - **FR-004**: Rejections MUST be structured errors in 001's response envelope, with
   distinguishable codes for at minimum: missing credential, invalid/expired credential,
-  not on allowlist, and allowlist misconfigured.
-- **FR-005**: An unreadable or ambiguous allowlist (not exactly two well-formed
-  entries) MUST fail closed: unknown callers are rejected; the error surfaced is a
-  configuration problem, not an authorization success.
+  not on allowlist, allowlist misconfigured, and shared-account write missing a
+  confirmed acting-person (FR-014).
+- **FR-005**: An unreadable or empty allowlist (no well-formed entries) MUST fail
+  closed: unknown callers are rejected; the error surfaced is a configuration problem,
+  not an authorization success. A well-formed entry is an exact, valid email; extra or
+  hand-added entries do not open access — only exact matches to the maintained list
+  authorize.
 - **FR-006**: The request envelope from 001 MUST NOT change shape: the existing
   credential slot is simply enforced now. Existing clients change behavior only in
   that empty credentials stop working.
 
 **Attribution**
 
-- **FR-007**: The actor recorded on every state change (activity log, completedBy)
-  MUST derive from the verified identity — mapped to the canonical short identity
-  (`max`/`jaz`) — never from any client-declared value; client-declared actor fields
-  are ignored.
+- **FR-007**: The actor recorded on every state change (activity log, completedBy) MUST
+  derive from the verified identity, mapped to the canonical short identity
+  (`max`/`jaz`). A verified **personal** account maps directly and any client-declared
+  actor is ignored. A verified **shared-account** identity does not resolve to a single
+  person: the request MUST carry a confirmed acting-person (`max` or `jaz`), and that
+  value is used for attribution; the shared account is never itself recorded as an
+  actor.
 - **FR-008**: Internal, non-user-initiated writes (provisioning, future scheduled
   generation) MUST be attributed to `system` and MUST NOT be invocable through the
   public interface.
 - **FR-009**: The service MUST offer a "who am I" operation returning the caller's
-  canonical identity (`max`/`jaz`) and display name, so the client can personalize
-  views without re-deriving identity itself.
+  canonical identity and display name. For a personal account this is `max`/`jaz`; for
+  the shared account it reports that the caller is the shared household account with no
+  single canonical person, signaling the client to ask "Max or Jaz?" before any write.
+- **FR-014**: When authenticated as the shared account, a **write** operation MUST be
+  accompanied by a confirmed acting-person (`max`/`jaz`); the service rejects a
+  shared-account write that omits it with a distinguishable error so the client can
+  prompt "Max or Jaz?" and retry — nothing is written and no actor is guessed. Reads and
+  who-am-I require no acting-person. The acting-person is carried in the request without
+  altering 001's fixed envelope (consistent with FR-006); the confirmation UX ships with
+  feature 006, but the field and rejection code are defined here.
 
 **Contract for the future sign-in UI (implemented in feature 006, defined here)**
 
@@ -200,11 +235,17 @@ feature 006 ships.
 - **Identity credential**: Short-lived proof, issued by the user's own Google sign-in,
   that a request comes from a specific email; carried in the existing envelope slot;
   verified server-side on every call.
-- **Allowlist**: Exactly two email addresses in Settings (hand-maintained); the sole
-  authorization rule in the entire system, per constitution Principle I.
-- **Canonical identity**: The short owner value (`max` | `jaz`) each allowlisted email
-  maps to; the value used everywhere data records a person. `system` is reserved for
-  non-user writes and is not a sign-in identity.
+- **Allowlist**: The Settings addresses permitted to call the service — the two personal
+  accounts (Max, Jaz) plus the shared household account (hand-maintained); the sole
+  authorization rule in the entire system, per constitution Principle I (the household is
+  still two people; the shared account is infrastructure they both use).
+- **Canonical identity**: The short person value (`max` | `jaz`) used everywhere data
+  records who acted. Each personal email maps to exactly one; the shared account maps to
+  neither and must be resolved to one per write via a confirmed acting-person. `system`
+  is reserved for non-user writes and is not a sign-in identity.
+- **Acting-person**: For a shared-account write, the confirmed `max`/`jaz` value that
+  says which of the two people is acting; supplied by the client in the request, required
+  on writes, ignored (and unnecessary) for personal-account callers.
 
 ## Success Criteria *(mandatory)*
 
@@ -213,8 +254,10 @@ feature 006 ships.
 - **SC-001**: 100% of data-touching operations refuse callers without a valid,
   allowlisted identity — verified by attempting every operation in all three rejection
   modes (none, invalid, valid-but-unlisted) with zero data access.
-- **SC-002**: 100% of state changes are attributed to the verified identity; a request
-  claiming a false actor never produces a mis-attributed record.
+- **SC-002**: 100% of state changes are attributed to a real person (`max`/`jaz`):
+  personal-account writes use the verified identity and ignore any false client claim;
+  shared-account writes use the confirmed acting-person and are never recorded as the
+  shared account. No write is ever mis-attributed to a false claim.
 - **SC-003**: The two allowlisted users complete normal operations with no new
   per-request friction: after the one-time sign-in, day-to-day use requires zero
   additional credential prompts in a typical week of use (silent refresh absorbs

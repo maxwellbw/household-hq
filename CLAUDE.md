@@ -11,7 +11,7 @@ A two-user (Max + Jaz) household manager: calendar-first UI, tasks assignable to
 - **Database:** one Google Sheet, tabs as tables (Events, Tasks, TaskTemplates, Recurring, ActivityLog, Settings). Must always remain human-readable and hand-editable without breaking the app.
 - **Backend:** Google Apps Script standalone project in `/backend`, deployed as a web app serving JSON via `doGet`/`doPost`. Time-driven triggers handle recurrence materialization, calendar sync, and digests. Synced to this repo with `clasp`.
 - **Frontend:** `/frontend` — Vite + React + TypeScript + Tailwind + shadcn/ui, deployed to GitHub Pages via GitHub Actions, installable as a PWA. Calendar component: FullCalendar or Schedule-X (whichever the 006 plan selects; record the decision there).
-- **Auth:** Google Identity Services on the frontend → ID token sent with every API call → backend verifies and checks against the two-email allowlist in Settings. No other auth concepts exist.
+- **Auth:** Google Identity Services on the frontend → ID token sent with every API call → backend verifies and checks the email against the Settings allowlist: Max's and Jaz's personal accounts plus the shared household account (`maxEmail`/`jazEmail`/`sharedEmails` — three sign-ins, still two people; the shared account is resolved to a person per write). No other auth concepts exist.
 - **External services:** Open-Meteo (weather, keyless), ntfy.sh (instant pings). Nothing paid, no servers.
 
 ## Repo layout
@@ -64,7 +64,7 @@ clasp pull                           # only if someone edited in the online edit
 clasp open-script                    # open in browser for trigger setup / logs
 ```
 
-The Apps Script web app must be deployed as **Execute as: user accessing the app**, access **Anyone with a Google account** (allowlist does the real gating). After changing scopes in `appsscript.json`, both users must re-authorize.
+The Apps Script web app is deployed as **Execute as: Me** (the deploying/shared account), access **Anyone** (even anonymous) — so a cross-origin browser `fetch` receives JSON, not a login redirect; the ID token + allowlist do all gating (feature 002, resolving research R1). After changing scopes in `appsscript.json`, only the deploying account re-authorizes (not both users).
 
 ## Definition of done (per task)
 

@@ -40,16 +40,6 @@ function errorOut_(code, message, field) {
   return jsonOutput_({ ok: false, error: error });
 }
 
-/**
- * Caller identity. In 001 the token is reserved, not verified (FR-016): recorded as the
- * declared actor. Feature 002 replaces this body with Google ID-token verification →
- * email, without changing the envelope.
- */
-function resolveActor_(token) {
-  if (token && String(token).trim() !== '') return String(token).trim();
-  return 'unknown';
-}
-
 // ---------------------------------------------------------------------------
 // Entry points
 // ---------------------------------------------------------------------------
@@ -75,8 +65,19 @@ function doPost(e) {
     if (!handler) return errorOut_('UNKNOWN_ACTION', 'Unknown action: ' + body.action);
 
     var payload = body.payload || {};
-    var actor = resolveActor_(body.token);
-    return okOut_(handler(payload, actor));
+
+    // Auth gate (feature 002): everything except the public `ping` requires a verified,
+    // allowlisted identity. The gate runs before any handler or Sheet write, so rejected
+    // requests read/write nothing (FR-001/FR-013). `actor` now comes from the verified
+    // identity, never the client (FR-007).
+    var actor = null;
+    var identity = null;
+    if (body.action !== 'ping') {
+      identity = authenticate_(body.action, body.token, payload);
+      actor = identity.actor;
+      delete payload.actingPerson; // pop before entity validation — keeps 001's envelope frozen (A5)
+    }
+    return okOut_(handler(payload, actor, identity));
   } catch (err) {
     if (err && err.isAppError) return errorOut_(err.code, err.message, err.field);
     console.error('INTERNAL error in doPost: ' + (err && err.stack ? err.stack : err));
@@ -103,7 +104,10 @@ var HANDLERS = {
 
   'templates.list': function () { return { templates: listRecords_(TABS.TEMPLATES) }; },
   'recurring.list': function () { return { recurring: listRecords_(TABS.RECURRING) }; },
-  'settings.list':  function () { return { settings: readSettingsMap_() }; }
+  'settings.list':  function () { return { settings: readSettingsMap_() }; },
+
+  // Feature 002: "who am I" — identity + whether the client must confirm Max/Jaz (FR-009).
+  'auth.whoami':    function (p, actor, identity) { return whoami_(identity); }
 };
 
 // ---------------------------------------------------------------------------
@@ -160,8 +164,11 @@ function createTask_(payload, actor) {
   validateFields_(TABS.TASKS, payload);
   var rec = fullRecord_(TABS.TASKS, payload);
   if (rec.status === '') rec.status = 'open'; // default (data-model.md)
-  // Creating a task already marked done stamps completion, mirroring the transition.
-  if (rec.status === 'done' && rec.completedAt === '') {
+  // completedBy/completedAt are server-managed (FR-007): never honor a client-supplied
+  // value — derive solely from the status. Creating a task already marked done stamps it.
+  rec.completedBy = '';
+  rec.completedAt = '';
+  if (rec.status === 'done') {
     rec.completedBy = actor;
     rec.completedAt = nowIso_();
   }
@@ -173,6 +180,9 @@ function updateTask_(payload, actor) {
   requireFields_(payload, ['id']);
   validateFields_(TABS.TASKS, payload);
   var patch = mutablePatch_(TABS.TASKS, payload);
+  // completedBy/completedAt are server-managed (FR-007): drop any client-supplied value.
+  delete patch.completedBy;
+  delete patch.completedAt;
   // Status transitions manage the completion stamp (data-model.md lifecycle).
   if (patch.hasOwnProperty('status')) {
     if (patch.status === 'done') {
