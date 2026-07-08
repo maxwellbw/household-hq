@@ -134,10 +134,10 @@ before the key is seeded.
 
 ## D7 — Nightly trigger installation
 
-**Decision**: `installRecurringTrigger_()` (run once from the editor) creates a single daily
-time-driven trigger for `generateRecurringTasks_` at a fixed early-morning hour
-(`ScriptApp.newTrigger('generateRecurringTasks_').timeBased().atHour(3).everyDays(1)`). It
-first deletes any existing project trigger whose handler is `generateRecurringTasks_`, so
+**Decision**: `installRecurringTrigger()` (run once from the editor) creates a single daily
+time-driven trigger for `generateRecurringTasks` at a fixed early-morning hour
+(`ScriptApp.newTrigger('generateRecurringTasks').timeBased().atHour(3).everyDays(1)`). It
+first deletes any existing project trigger whose handler is `generateRecurringTasks`, so
 re-running it never stacks duplicate triggers (idempotent installer, Principle V).
 
 **Rationale**: Matches "nightly" (FR-003) and the manual, editor-run setup pattern already

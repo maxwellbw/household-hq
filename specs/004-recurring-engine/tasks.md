@@ -88,12 +88,12 @@ until these exist. US2 (rule CRUD) does **not** depend on this phase.
 idempotently, attributed to `system`, without ever resurrecting a deleted occurrence.
 
 **Independent Test**: Seed a monthly rule anchored in the recent past (directly via
-`createRecord_`), run `generateRecurringTasks_()`, and verify the expected dated tasks exist
+`createRecord_`), run `generateRecurringTasks()`, and verify the expected dated tasks exist
 (title/owner from the rule, `recurringId` back-link, deterministic ids); a second run makes
 no duplicates; deleting one occurrence and re-running does not re-create it; an out-of-season
 rule generates nothing (spec US1 Independent Test; quickstart §3–4, §6).
 
-- [X] T003 [US1] In `backend/Recurring.js` add `generateRecurringTasks_()` — the trigger
+- [X] T003 [US1] In `backend/Recurring.js` add `generateRecurringTasks()` — the trigger
   entry point (also editor-runnable). Read `recurringLookaheadDays` from `readSettingsMap_()`
   (fallback `RECURRING_LOOKAHEAD_DEFAULT_DAYS` when blank/≤0). Compute `today` as
   `Utilities.formatDate(new Date(), getTimezone_(), 'yyyy-MM-dd')`; `windowStart =
@@ -109,10 +109,10 @@ rule generates nothing (spec US1 Independent Test; quickstart §3–4, §6).
   only on change — D2/D5). Guard each rule in try/catch so one bad rule can't abort the run;
   log/skip on error. No outer lock — each `createRecord_`/`updateRecordById_` locks itself
   and is idempotent (Principle V).
-- [X] T004 [US1] In `backend/Recurring.js` add `installRecurringTrigger_()` (one-time,
+- [X] T004 [US1] In `backend/Recurring.js` add `installRecurringTrigger()` (one-time,
   editor-run): iterate `ScriptApp.getProjectTriggers()`, delete any whose
-  `getHandlerFunction() === 'generateRecurringTasks_'`, then
-  `ScriptApp.newTrigger('generateRecurringTasks_').timeBased().atHour(RECURRING_TRIGGER_HOUR)
+  `getHandlerFunction() === 'generateRecurringTasks'`, then
+  `ScriptApp.newTrigger('generateRecurringTasks').timeBased().atHour(RECURRING_TRIGGER_HOUR)
   .everyDays(1).create()`. Idempotent — re-running never stacks duplicate triggers
   (research D7). Add a short header comment that it must be run once from the editor after
   deploy (like `setupDatabase()`).
@@ -127,13 +127,13 @@ rule generates nothing (spec US1 Independent Test; quickstart §3–4, §6).
 - [X] T006 [US1] In `backend/SelfTest.js` add `liveRecurringGeneration_()` (call from
   `selfTest()`): create a rule via `createRecord_(TABS.RECURRING, { id: SELFTEST_PREFIX+…,
   title, cadence:'monthly', anchorDate:<~today−15d>, defaultOwner:'both' }, 'selftest')`; run
-  `generateRecurringTasks_()`; assert ≥1 Task with `recurringId === rule.id`, `owner:'both'`,
+  `generateRecurringTasks()`; assert ≥1 Task with `recurringId === rule.id`, `owner:'both'`,
   `status:'open'`, id starting `'r'`, and `dueDate` within the window; assert the rule's
-  `lastGenerated` is now non-blank. **Re-run** `generateRecurringTasks_()` and assert the
+  `lastGenerated` is now non-blank. **Re-run** `generateRecurringTasks()` and assert the
   count of tasks with that `recurringId` is unchanged (no duplicates — SC-002). **Delete** one
   occurrence via `deleteRecordById_(TABS.TASKS, …)`, re-run, and assert it is **not**
   re-created (FR-013). Add an **out-of-season** rule (e.g. `seasonStart:'12',seasonEnd:'1'`,
-  anchored/ran mid-year) and assert `generateRecurringTasks_()` creates **no** tasks for it.
+  anchored/ran mid-year) and assert `generateRecurringTasks()` creates **no** tasks for it.
   Clean up every seeded rule + generated task.
 
 **Checkpoint**: US1 is independently testable — generation is correct, idempotent, seasonal,
@@ -194,7 +194,7 @@ with `lastGenerated` advanced (spec US3 Independent Test; quickstart §3).
 
 - [X] T010 [US3] In `backend/SelfTest.js` add `liveRecurringCatchUp_()` (call from
   `selfTest()`): create a **monthly** rule anchored ~2 years in the past (blank
-  `lastGenerated`), run `generateRecurringTasks_()`, and assert the count of tasks with that
+  `lastGenerated`), run `generateRecurringTasks()`, and assert the count of tasks with that
   `recurringId` is **≤ 2** (only occurrences within the 30-day window — bounded, not ~24 —
   SC-003) and that all their `dueDate`s are `≥ today` and `≤ today+30d`. Assert the rule's
   `lastGenerated` is now set (resume point). Clean up. (No production code — US3 behavior is
@@ -208,12 +208,12 @@ with `lastGenerated` advanced (spec US3 Independent Test; quickstart §3).
 
 - [X] T011 [P] Update `backend/README.md`: document the Recurring rule model, the
   `recurring.create/update/delete` actions (and that `lastGenerated` is generator-managed /
-  refused on writes), the nightly generator + `installRecurringTrigger_()`, the
+  refused on writes), the nightly generator + `installRecurringTrigger()`, the
   `recurringLookaheadDays` Setting, and the idempotency/tombstone design (deterministic ids +
   `lastGenerated` high-water). Cross-link `specs/004-recurring-engine/contracts/api-004.md`.
 - [X] T012 Deploy & validate: `cd backend && clasp push && clasp deploy -i <deploymentId>`;
   in the editor run `setupDatabase()` (seeds `recurringLookaheadDays`), `selfTest()` (expect
-  `ALL PASS`), and `installRecurringTrigger_()` (confirm exactly one trigger under Triggers);
+  `ALL PASS`), and `installRecurringTrigger()` (confirm exactly one trigger under Triggers);
   then walk `specs/004-recurring-engine/quickstart.md` §2–7 against the live URL with a real
   token (no new scopes → no re-auth).
 

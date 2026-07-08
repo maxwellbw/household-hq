@@ -15,7 +15,7 @@ lastGenerated, seasonStart, seasonEnd`) was provisioned in feature 001 exactly f
 
 Four backend additions, all reusing the 001/002/003 engine:
 
-1. **The generator** `generateRecurringTasks_()` — a trigger entry point (also runnable
+1. **The generator** `generateRecurringTasks()` — a trigger entry point (also runnable
    from the editor). For each rule it walks occurrences from just past the rule's
    `lastGenerated` high-water mark up to `today + lookahead`, creating a Task per in-season
    occurrence and advancing `lastGenerated`. Idempotency comes from a **deterministic Task
@@ -35,8 +35,8 @@ Four backend additions, all reusing the 001/002/003 engine:
    strings in the household timezone. Month/quarter/annual cadences clamp to month length
    (Jan 31 → Feb 28/29) and leap day (Feb 29 → Feb 28); weekly/biweekly step 7/14 days.
 
-4. **The nightly trigger** — a one-time installer `installRecurringTrigger_()` creates a
-   single daily time-driven trigger for `generateRecurringTasks_` (idempotent: it removes
+4. **The nightly trigger** — a one-time installer `installRecurringTrigger()` creates a
+   single daily time-driven trigger for `generateRecurringTasks` (idempotent: it removes
    any existing trigger for the same function first). Run once from the editor after deploy.
 
 The lookahead horizon (default **30 days**) is read from a new `recurringLookaheadDays`
@@ -132,7 +132,7 @@ specs/004-recurring-engine/
 
 ```text
 backend/
-├── Recurring.js     # NEW — generateRecurringTasks_(), occurrence math, season test,
+├── Recurring.js     # NEW — generateRecurringTasks(), occurrence math, season test,
 │                    #       deterministic id, rule create/update helpers, trigger installer
 ├── Api.js           # EDIT — register recurring.create/update/delete handlers
 ├── Config.js        # EDIT — REQUIRED_ON_CREATE.Recurring; lookahead default + Settings seed

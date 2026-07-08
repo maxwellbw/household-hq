@@ -56,10 +56,10 @@ rationale: [`research.md`](../specs/004-recurring-engine/research.md) (decisions
   annually), anchorDate, defaultOwner, seasonStart?, seasonEnd? (1–12, wrap-around legal)`.
   **`lastGenerated` is generator-managed** — supplying it on create/update is `BAD_REQUEST`;
   clear it by hand in the Sheet if you want to force a rule to re-backfill.
-- **The nightly generator**, `generateRecurringTasks_()`, reads every rule and materializes
+- **The nightly generator**, `generateRecurringTasks()`, reads every rule and materializes
   each occurrence due within a lookahead window (Settings `recurringLookaheadDays`, default
   30) as an ordinary Task linked back via `recurringId`. It is a **trigger**, not an API
-  action — install it once from the editor with `installRecurringTrigger_()` (idempotent:
+  action — install it once from the editor with `installRecurringTrigger()` (idempotent:
   re-running never stacks a second trigger).
 - **Idempotent by construction.** Each generated Task's id is deterministic
   (`'r' + hex(MD5(recurringId + '|' + dueDate))`), so re-runs and overlapping executions
@@ -100,7 +100,7 @@ and yields "Page Not Found".
    (`Config.js`) by hand — see feature 002 quickstart.
 4. **Validate:** follow [`quickstart.md`](../specs/001-sheets-schema-and-api/quickstart.md),
    or run `selfTest()` in the editor (expects `ALL PASS`).
-5. **Install the nightly trigger (feature 004):** in the editor, run `installRecurringTrigger_()`
+5. **Install the nightly trigger (feature 004):** in the editor, run `installRecurringTrigger()`
    once. Re-running it is safe (it replaces rather than stacks the trigger).
 
 ## Deployment mode (interim; ratified by feature 002)

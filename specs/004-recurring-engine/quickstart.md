@@ -38,8 +38,8 @@ clasp deploy -i <deploymentId>     # refresh existing web-app URL (no new scopes
 
 Then, once, from the Apps Script editor:
 - Run **`setupDatabase()`** (seeds `recurringLookaheadDays=30`).
-- Run **`installRecurringTrigger_()`** (creates the single daily trigger; re-running it does
-  not stack duplicates). Confirm under **Triggers** that exactly one `generateRecurringTasks_`
+- Run **`installRecurringTrigger()`** (creates the single daily trigger; re-running it does
+  not stack duplicates). Confirm under **Triggers** that exactly one `generateRecurringTasks`
   time-driven trigger exists.
 
 ## 2. Rule CRUD round-trip (US2 · FR-001/009/010)
@@ -65,7 +65,7 @@ curl -sL "$URL" --data '{"token":"'"$TOKEN"'","action":"recurring.create","paylo
 
 ## 3. Generate + idempotency (US1 · FR-003/004/005/006 · SC-002)
 
-From the editor, run **`generateRecurringTasks_()`** (don't wait for the nightly trigger).
+From the editor, run **`generateRecurringTasks()`** (don't wait for the nightly trigger).
 Then list generated tasks for the rule:
 
 ```bash
@@ -79,7 +79,7 @@ Expected:
 - Each task's `id` starts with `r` (deterministic id, D1).
 - The rule's `recurring.list` now shows a non-blank `lastGenerated` (the watermark, D2).
 
-**Idempotency**: run `generateRecurringTasks_()` **again**. `tasks.list` shows the **same**
+**Idempotency**: run `generateRecurringTasks()` **again**. `tasks.list` shows the **same**
 count for `$RID` — no duplicates (SC-002). The activity feed shows no new `create` rows for
 the unchanged window:
 
@@ -95,7 +95,7 @@ curl -sL "$URL" --data '{"token":"'"$TOKEN"'","action":"activity.list","payload"
 curl -sL "$URL" --data '{"token":"'"$TOKEN"'","action":"tasks.delete","payload":{"id":"<occurrence task id>"}}'
 ```
 
-Run **`generateRecurringTasks_()`** again → the deleted occurrence does **not** reappear
+Run **`generateRecurringTasks()`** again → the deleted occurrence does **not** reappear
 (its `dueDate` is ≤ `lastGenerated`, so the generator never revisits it). Any genuinely new
 occurrence entering the sliding window still appears.
 
@@ -117,7 +117,7 @@ future runs keep generating the next occurrence on schedule.
 curl -sL "$URL" --data '{"token":"'"$TOKEN"'","action":"recurring.create","payload":{"title":"Mow lawn","cadence":"weekly","anchorDate":"2026-07-01","defaultOwner":"max","seasonStart":"4","seasonEnd":"10"}}'
 ```
 
-Run `generateRecurringTasks_()`:
+Run `generateRecurringTasks()`:
 - If today is within Apr–Oct → weekly `Mow lawn` tasks appear in the window.
 - Set the season to an off month (e.g. `12`–`2`) via `recurring.update`, clear the rule's
   `lastGenerated` **by hand** in the Sheet, and re-run → **no** new `Mow lawn` tasks for the
@@ -128,7 +128,7 @@ Run `generateRecurringTasks_()`:
 
 In the Sheet, hand-add a Recurring row (leave `id` blank): `title=Air filter`,
 `cadence=quarterly`, `anchorDate=2026-01-01`, `defaultOwner=both`. Run
-`generateRecurringTasks_()`:
+`generateRecurringTasks()`:
 - The blank-id row is adopted with a UUID (001 FR-022; an `adopt-id` feed row by `system`).
 - Quarterly `Air filter` tasks are materialized identically to an API-created rule.
 
@@ -138,4 +138,4 @@ In the Sheet, hand-add a Recurring row (leave `id` blank): `title=Air filter`,
 - Steps 2–7 behave as described: CRUD + validation refusals, generation with deterministic
   ids, duplicate-free re-runs, no resurrection of deleted occurrences, rule-independence on
   completion, seasonal skipping, and hand-edited rules picked up.
-- Exactly one `generateRecurringTasks_` trigger is installed.
+- Exactly one `generateRecurringTasks` trigger is installed.

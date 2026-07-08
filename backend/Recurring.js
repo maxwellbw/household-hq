@@ -127,7 +127,7 @@ function recurringTaskId_(recurringId, dueDate) {
  * One rule's failure is isolated so it can't abort generation for the rest (defensive;
  * Apps Script triggers get no user to report an error to).
  */
-function generateRecurringTasks_() {
+function generateRecurringTasks() {
   var lookaheadRaw = Number(readSettingsMap_()['recurringLookaheadDays']);
   var lookahead = lookaheadRaw > 0 ? lookaheadRaw : RECURRING_LOOKAHEAD_DEFAULT_DAYS;
   var today = Utilities.formatDate(new Date(), getTimezone_(), 'yyyy-MM-dd');
@@ -138,7 +138,7 @@ function generateRecurringTasks_() {
     try {
       generateForRule_(rule, today, windowEnd);
     } catch (err) {
-      console.error('generateRecurringTasks_: rule ' + rule.id + ' failed: ' +
+      console.error('generateRecurringTasks: rule ' + rule.id + ' failed: ' +
         (err && err.stack ? err.stack : err));
     }
   });
@@ -175,20 +175,24 @@ function generateForRule_(rule, today, windowEnd) {
 // ---------------------------------------------------------------------------
 
 /**
- * Install the single nightly trigger for `generateRecurringTasks_`. Idempotent: removes
+ * Install the single nightly trigger for `generateRecurringTasks`. Idempotent: removes
  * any existing trigger for the same handler first, so re-running never stacks duplicates.
  * Run manually from the Apps Script editor after deploy (mirrors `setupDatabase()`).
+ *
+ * NOTE: public name (no trailing underscore) on purpose — the editor's Run menu and the
+ * trigger system both ignore underscore-suffixed "private" functions, so entry points that
+ * must be invoked from the editor or fired by a trigger cannot use that convention.
  */
-function installRecurringTrigger_() {
+function installRecurringTrigger() {
   ScriptApp.getProjectTriggers().forEach(function (t) {
-    if (t.getHandlerFunction() === 'generateRecurringTasks_') ScriptApp.deleteTrigger(t);
+    if (t.getHandlerFunction() === 'generateRecurringTasks') ScriptApp.deleteTrigger(t);
   });
-  ScriptApp.newTrigger('generateRecurringTasks_')
+  ScriptApp.newTrigger('generateRecurringTasks')
     .timeBased()
     .atHour(RECURRING_TRIGGER_HOUR)
     .everyDays(1)
     .create();
-  Logger.log('installRecurringTrigger_: nightly trigger installed at hour ' + RECURRING_TRIGGER_HOUR);
+  Logger.log('installRecurringTrigger: nightly trigger installed at hour ' + RECURRING_TRIGGER_HOUR);
 }
 
 // ---------------------------------------------------------------------------
