@@ -274,6 +274,41 @@ function updateRecordById_(tabName, id, patch, actor, invariant) {
   });
 }
 
+/**
+ * Feature 003 lifecycle transition (complete/reopen). Reads the task's current status
+ * *inside* the lock, so the decision to write-or-not is atomic against a concurrent
+ * completer (research D2): if the task is already at `targetStatus`, it's a no-change —
+ * the record is returned untouched with `changed:false` and NO ActivityLog row (FR-003).
+ * Otherwise the status flips (done stamps completedBy/completedAt with `actor` + now; open
+ * clears both), the row is written, and exactly one `logAction` row is appended (FR-015).
+ *
+ * @param {string} targetStatus 'done' (complete) or 'open' (reopen)
+ * @param {string} logAction    'complete' or 'reopen' — the distinguishable feed action
+ * @return {{task: Object, changed: boolean}}
+ */
+function setTaskLifecycle_(id, targetStatus, actor, logAction) {
+  return withLock_(function () {
+    var t = readTableForWrite_(TABS.TASKS);
+    var rec = findRecord_(t, id);
+    if (!rec) fail_('NOT_FOUND', 'No ' + TABS.TASKS + ' record with id "' + id + '".');
+    if (rec.status === targetStatus) {
+      return { task: stripInternal_(rec), changed: false }; // idempotent no-change (FR-003)
+    }
+    var merged = stripInternal_(rec);
+    merged.status = targetStatus;
+    if (targetStatus === 'done') {
+      merged.completedBy = actor;
+      merged.completedAt = nowIso_();
+    } else {
+      merged.completedBy = '';
+      merged.completedAt = '';
+    }
+    writeRowAsText_(t.sheet, rec._row, buildRowArray_(t, merged, t.values[rec._row - 1]));
+    appendLog_(actor, logAction, id, merged.title || '');
+    return { task: merged, changed: true };
+  });
+}
+
 /** Hard delete by id; the ActivityLog row (with the record's title) is the record. */
 function deleteRecordById_(tabName, id, actor) {
   return withLock_(function () {
@@ -284,6 +319,53 @@ function deleteRecordById_(tabName, id, actor) {
     appendLog_(actor, 'delete', id, rec.title || '');
     return id;
   });
+}
+
+// ---------------------------------------------------------------------------
+// Activity feed (feature 003 — read-only projection of ActivityLog; research D5)
+// ---------------------------------------------------------------------------
+
+/**
+ * The ActivityLog as a bounded, newest-first feed. Pure read (no lock, never writes —
+ * the log is append-only, FR-014). Order is append order **reversed**, not a timestamp
+ * sort: `nowIso_` is minute-resolution so many rows share a minute, and row order is the
+ * true sequence (research D5). Each entry is the five raw columns plus a composed,
+ * human-readable `summary` that renders even when `targetId` no longer exists (FR-013).
+ *
+ * @param {{limit?: number, since?: string}} [opts] limit (default/max from Config) and an
+ *        optional ISO `since` (keep entries with timestamp >= since).
+ * @return {Object[]} newest-first feed entries (empty array on an empty log).
+ */
+function readActivityFeed_(opts) {
+  opts = opts || {};
+  var limit = Number(opts.limit);
+  if (!(limit > 0)) limit = FEED_DEFAULT_LIMIT;
+  limit = Math.min(limit, FEED_MAX_LIMIT);
+  var since = opts.since != null ? String(opts.since).trim() : '';
+
+  var t = readTable_(TABS.ACTIVITY_LOG);
+  var out = [];
+  for (var i = t.records.length - 1; i >= 0 && out.length < limit; i--) {
+    var rec = t.records[i];
+    if (since !== '' && !(String(rec.timestamp) >= since)) continue;
+    out.push({
+      timestamp: rec.timestamp,
+      actor: rec.actor,
+      action: rec.action,
+      targetId: rec.targetId,
+      detail: rec.detail,
+      summary: composeFeedSummary_(rec.actor, rec.action, rec.detail)
+    });
+  }
+  return out;
+}
+
+/** "Jaz completed 'Buy flea meds'" — unknown actor/action fall back to the raw value. */
+function composeFeedSummary_(actor, action, detail) {
+  var name = ACTOR_DISPLAY_NAMES[actor] || String(actor || '');
+  var verb = ACTION_VERBS[action] || String(action || '');
+  var title = String(detail || '').trim();
+  return (name + ' ' + verb + (title !== '' ? " '" + title + "'" : '')).trim();
 }
 
 // ---------------------------------------------------------------------------
