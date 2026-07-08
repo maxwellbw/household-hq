@@ -51,7 +51,7 @@ Legend: **[You]** = human required (browser/auth) · **[Claude]** = Claude Code 
 - [x] **[You + Claude]** `/speckit.specify` for feature **001 sheets-schema-and-api** using brief §4–5
 - [x] **[You + Claude]** `/speckit.clarify` on 001 — resolve brief §8 open questions as they come up *(Q2 timezone: household TZ; Q3: one completion closes `both` tasks; Q4: seasonal recurrence fully supported in v1)*
 - [x] **[You + Claude]** `/speckit.plan` on 001
-- [ ] Optional: spec features 002–003 ahead before implementing anything
+- [x] Optional: spec features 002–003 ahead before implementing anything
 
 ## Phase 6 — Google architecture (required before implementing 001's backend)
 
