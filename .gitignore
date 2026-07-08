@@ -1,0 +1,5 @@
+node_modules/
+dist/
+.clasprc.json
+.impeccable/
+.claude/settings.local.json
