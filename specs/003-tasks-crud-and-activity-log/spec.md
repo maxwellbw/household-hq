@@ -8,6 +8,12 @@
 
 **Input**: User description: "Feature 003 tasks-crud-and-activity-log — the complete task-management experience and the household activity feed, from brief §5 items 2 and 7. Create, edit, complete, reopen, and delete tasks; assign owner max/jaz/both; set/clear due dates; filter by mine / theirs / ours / all. Completing records who and when; one completion closes a `both` task. Completion awareness: one person's completion surfaces in the other's activity feed — adds reading the ActivityLog through the API with a human-meaningful feed. Builds on 001's API and 002's verified identity; raw CRUD endpoints exist from 001 — this feature specifies full behavioral semantics and the feed. UI ships with feature 006."
 
+## Clarifications
+
+### Session 2026-07-08
+
+- Q: Should `both`-owned tasks appear only in "ours," or also in each person's "mine"? → A: Ours only (as spec'd) — `both` lives in **ours** only; **mine**/**theirs**/**ours** stay pairwise-disjoint and union to **all**. The default working view (mine ∪ ours) still surfaces `both` tasks in daily use (confirms FR-008, US2, SC-002).
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Run my task list end to end (Priority: P1)
