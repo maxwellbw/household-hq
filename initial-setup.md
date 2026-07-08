@@ -47,10 +47,10 @@ Legend: **[You]** = human required (browser/auth) · **[Claude]** = Claude Code 
 
 ## Phase 5 — Spec writing (no Google setup needed yet)
 
-- [ ] **[You + Claude]** `/speckit.constitution` — feed it §7 (Constraints & Principles) of the brief; review the output together
-- [ ] **[You + Claude]** `/speckit.specify` for feature **001 sheets-schema-and-api** using brief §4–5
-- [ ] **[You + Claude]** `/speckit.clarify` on 001 — resolve brief §8 open questions as they come up
-- [ ] **[You + Claude]** `/speckit.plan` on 001
+- [x] **[You + Claude]** `/speckit.constitution` — feed it §7 (Constraints & Principles) of the brief; review the output together *(v1.0.0 ratified 2026-07-07)*
+- [x] **[You + Claude]** `/speckit.specify` for feature **001 sheets-schema-and-api** using brief §4–5
+- [x] **[You + Claude]** `/speckit.clarify` on 001 — resolve brief §8 open questions as they come up *(Q2 timezone: household TZ; Q3: one completion closes `both` tasks; Q4: seasonal recurrence fully supported in v1)*
+- [x] **[You + Claude]** `/speckit.plan` on 001
 - [ ] Optional: spec features 002–003 ahead before implementing anything
 
 ## Phase 6 — Google architecture (required before implementing 001's backend)
