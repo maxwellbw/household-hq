@@ -13,7 +13,7 @@ implemented, merged). Ask Claude to "update BACKLOG.md" after any speckit step o
 |---|---|---|---|---|
 | 001 | Sheets schema and JSON API | ✅ merged | [specs/001-sheets-schema-and-api](specs/001-sheets-schema-and-api/spec.md) | [#1](https://github.com/maxwellbw/household-hq/pull/1) |
 | 002 | Auth allowlist + verified attribution | ✅ merged | [specs/002-auth-allowlist](specs/002-auth-allowlist/spec.md) | [#2](https://github.com/maxwellbw/household-hq/pull/2) |
-| 003 | Tasks CRUD and activity log | 🟢 implemented, pending PR | [specs/003-tasks-crud-and-activity-log](specs/003-tasks-crud-and-activity-log/spec.md) | — |
+| 003 | Tasks CRUD and activity log | 🟢 implemented, PR open | [specs/003-tasks-crud-and-activity-log](specs/003-tasks-crud-and-activity-log/spec.md) | [#3](https://github.com/maxwellbw/household-hq/pull/3) |
 | 004 | Recurring chore engine | ⬜ not started | — | — |
 | 005 | Events and prep templates | ⬜ not started | — | — |
 | 006 | Calendar UI (home screen) | ⬜ not started | — | — |
