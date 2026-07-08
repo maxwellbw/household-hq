@@ -14,6 +14,7 @@ Sheet schema and the JSON API every later feature calls. Dependency-free by cons
 | `Validation.js` | enum/date checks, payload validation, season-window rule |
 | `ActivityLog.js` | append-only log writer (one row per successful mutation) |
 | `Setup.js` | `setupDatabase()` — idempotent provisioning (operator-run, not an API action) |
+| `Recurring.js` | occurrence math, nightly generator, trigger installer, rule CRUD (feature 004) |
 | `SelfTest.js` | `selfTest()` — manually-run end-to-end checks |
 
 ## Transport & envelope (fixed project-wide here)
@@ -43,6 +44,37 @@ Feature 003 tightens 001's raw task CRUD and opens the log for reading. Delta co
   200, max 500 entries), each with the raw columns plus a composed `summary`. Read-only — the
   log stays append-only.
 
+## Recurring chore engine (feature 004)
+
+Chores that materialize themselves. No schema change — the `Recurring` tab's
+`lastGenerated`/`seasonStart`/`seasonEnd` columns were provisioned in 001 for exactly this.
+Delta contract: [`api-004.md`](../specs/004-recurring-engine/contracts/api-004.md); design
+rationale: [`research.md`](../specs/004-recurring-engine/research.md) (decisions D1–D8).
+
+- **Rule management.** `recurring.create` / `recurring.update` / `recurring.delete` join the
+  existing `recurring.list`. A rule is `title, cadence (weekly|biweekly|monthly|quarterly|
+  annually), anchorDate, defaultOwner, seasonStart?, seasonEnd? (1–12, wrap-around legal)`.
+  **`lastGenerated` is generator-managed** — supplying it on create/update is `BAD_REQUEST`;
+  clear it by hand in the Sheet if you want to force a rule to re-backfill.
+- **The nightly generator**, `generateRecurringTasks_()`, reads every rule and materializes
+  each occurrence due within a lookahead window (Settings `recurringLookaheadDays`, default
+  30) as an ordinary Task linked back via `recurringId`. It is a **trigger**, not an API
+  action — install it once from the editor with `installRecurringTrigger_()` (idempotent:
+  re-running never stacks a second trigger).
+- **Idempotent by construction.** Each generated Task's id is deterministic
+  (`'r' + hex(MD5(recurringId + '|' + dueDate))`), so re-runs and overlapping executions
+  replay to the same row via the existing create-idempotency (001) instead of duplicating.
+- **Tombstone, not resurrection.** The rule's `lastGenerated` is a high-water mark; the
+  generator never looks behind it, so deleting a generated occurrence Task is permanent — the
+  next run does not re-create it.
+- **Season windows** are whole-month ranges (`seasonStart`–`seasonEnd`, 1–12); an occurrence
+  outside the window is skipped (not generated) but still advances the watermark. Blank season
+  fields mean year-round.
+- **Completing/editing/deleting a generated Task never touches its rule** — the rule keeps
+  producing future occurrences on schedule regardless of what happens to past ones.
+- **Logging.** Each generated Task logs a `create` by actor `system`; the watermark advance
+  logs one `update` by `system`, and only when it actually changes.
+
 ## Deployed endpoint
 
 Web-app URL (deployment `@1`, stable across redeploys — refresh with
@@ -68,6 +100,8 @@ and yields "Page Not Found".
    (`Config.js`) by hand — see feature 002 quickstart.
 4. **Validate:** follow [`quickstart.md`](../specs/001-sheets-schema-and-api/quickstart.md),
    or run `selfTest()` in the editor (expects `ALL PASS`).
+5. **Install the nightly trigger (feature 004):** in the editor, run `installRecurringTrigger_()`
+   once. Re-running it is safe (it replaces rather than stacks the trigger).
 
 ## Deployment mode (interim; ratified by feature 002)
 

@@ -14,7 +14,7 @@ implemented, merged). Ask Claude to "update BACKLOG.md" after any speckit step o
 | 001 | Sheets schema and JSON API | ✅ merged | [specs/001-sheets-schema-and-api](specs/001-sheets-schema-and-api/spec.md) | [#1](https://github.com/maxwellbw/household-hq/pull/1) |
 | 002 | Auth allowlist + verified attribution | ✅ merged | [specs/002-auth-allowlist](specs/002-auth-allowlist/spec.md) | [#2](https://github.com/maxwellbw/household-hq/pull/2) |
 | 003 | Tasks CRUD and activity log | ✅ merged | [specs/003-tasks-crud-and-activity-log](specs/003-tasks-crud-and-activity-log/spec.md) | [#3](https://github.com/maxwellbw/household-hq/pull/3) |
-| 004 | Recurring chore engine | ⬜ not started | — | — |
+| 004 | Recurring chore engine | 🚀 implemented, pending PR | [specs/004-recurring-engine](specs/004-recurring-engine/spec.md) | — |
 | 005 | Events and prep templates | ⬜ not started | — | — |
 | 006 | Calendar UI (home screen) | ⬜ not started | — | — |
 | 007 | Google Calendar sync | ⬜ not started | — | — |
@@ -42,10 +42,11 @@ implemented, merged). Ask Claude to "update BACKLOG.md" after any speckit step o
 
 ## Currently active
 
-**004 — Recurring chore engine** (next in brief §10). Not started.
-Kick off with "start feature 004" to run the full Phase 7 loop.
+**004 — Recurring chore engine** (next in brief §10). Code implemented (12/12 tasks),
+deployed to `@7`, `selfTest()` `ALL PASS`. PR opened; ⏸ merging is Max/Jaz's call.
+Branch `004-recurring-engine`.
 
-_003 merged in [#3](https://github.com/maxwellbw/household-hq/pull/3); backend deployed at `clasp` @5._
+_003 merged in [#3](https://github.com/maxwellbw/household-hq/pull/3); 004 deployed at `clasp` @7._
 
 ## How to keep this current
 

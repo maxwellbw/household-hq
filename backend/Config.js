@@ -17,7 +17,7 @@
 var SPREADSHEET_ID = '1ypXomTO5s1PHlRMDBJ52kKuvrBzQDz0pXfWQcUBtHqE';
 
 /** Bumped only for shape-level API changes (contracts/api.md §Versioning). */
-var API_VERSION = '1.0.0';
+var API_VERSION = '1.1.0';
 
 /** Returned by the health ping so clients can identify the service. */
 var SERVICE_NAME = 'household-hq';
@@ -123,8 +123,19 @@ var FIELD_TYPES = {
 /** Fields required to create a record (only Events/Tasks are API-writable in 001). */
 var REQUIRED_ON_CREATE = {
   Events: ['title', 'start', 'end', 'owner'],
-  Tasks: ['title', 'owner']
+  Tasks: ['title', 'owner'],
+  Recurring: ['title', 'cadence', 'anchorDate', 'defaultOwner']
 };
+
+// ---------------------------------------------------------------------------
+// Feature 004 — recurring chore engine (research D6/D7)
+// ---------------------------------------------------------------------------
+
+/** Fallback lookahead (days) when Settings' recurringLookaheadDays is blank/≤0 (FR-016). */
+var RECURRING_LOOKAHEAD_DEFAULT_DAYS = 30;
+
+/** Hour (household tz) the nightly generator trigger runs at (research D7). */
+var RECURRING_TRIGGER_HOUR = 3;
 
 // ---------------------------------------------------------------------------
 // Settings seed (data-model.md §Settings). [key, value, notes]; seeded only when the
@@ -147,5 +158,7 @@ var SETTINGS_SEED = [
   ['weatherHeatF', '80', 'feature 011'],
   ['weatherMorningCutoff', '10:00', 'feature 011'],
   ['weatherPrecipPct', '40', 'feature 011'],
-  ['weatherColdFloorF', '25', 'feature 011']
+  ['weatherColdFloorF', '25', 'feature 011'],
+  ['recurringLookaheadDays', '30',
+    'feature 004; days ahead the nightly generator materializes. Blank/≤0 falls back to 30']
 ];
