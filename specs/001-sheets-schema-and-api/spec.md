@@ -170,7 +170,7 @@ action, and target ID.
 - **FR-003**: Tasks MUST carry: id, title, dueDate, owner, status
   (`open`/`done`/`snoozed`), optional event reference, optional recurrence reference,
   completedBy, completedAt, snooze history, and optional list items (reserved for
-  feature 018).
+  later phases: brief §5 items 11 and 18).
 - **FR-004**: TaskTemplates MUST carry: id, eventType, taskTitle, offsetDays (may be
   negative, e.g., −2 = two days before), defaultOwner.
 - **FR-005**: Recurring MUST carry: id, title, cadence

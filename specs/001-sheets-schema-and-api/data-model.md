@@ -45,8 +45,8 @@ Conventions:
 | recurringId | UUID | | tether to Recurring.id (chore instance) |
 | completedBy | text | | actor who completed; single value — one completion closes a `both` task (clarified 2026-07-07) |
 | completedAt | datetime | | set with completedBy |
-| snoozeHistory | list | | `; `-delimited `date→date` entries; behavior in feature 011 |
-| listItems | list | | `; `-delimited; behavior in feature 018 |
+| snoozeHistory | list | | `; `-delimited `date→date` entries; behavior in a Phase 2 feature (brief §5 item 11) |
+| listItems | list | | `; `-delimited; behavior in a Phase 3 feature (brief §5 item 18) |
 
 Lifecycle: `open → done` (sets completedBy/completedAt) · `open → snoozed → open` ·
 any → hard-deleted (row removed; ActivityLog is the record). Reopening a done task
