@@ -55,14 +55,14 @@ Legend: **[You]** = human required (browser/auth) · **[Claude]** = Claude Code 
 
 ## Phase 6 — Google architecture (required before implementing 001's backend)
 
-- [ ] **[You]** Enable the Apps Script API for your Google account (one toggle): https://script.google.com/home/usersettings
+- [x] **[You]** Enable the Apps Script API for your Google account (one toggle): https://script.google.com/home/usersettings
 - [x] **[You]** `clasp login` — Claude runs it; you complete the browser OAuth *(logged in as maxandjazmine@gmail.com 2026-07-07)*
 - [x] **[Claude]** Create the standalone Apps Script project from the repo:
   `mkdir backend && cd backend && clasp create --type standalone --title "Household HQ Backend"`
   (creates the script project and local `.clasp.json`; commit the folder, never commit `~/.clasprc.json`) *(scriptId 1y0dfar1jgMKuXvzHPUpDqmh6szA8ga59lUVFwIaobFujbUo6rlmAyk7D; timeZone set to America/Los_Angeles; `clasp push` verified 2026-07-07)*
-- [ ] **[You]** Create the Google Sheet **"Household HQ DB"** at https://sheets.new — copy the Sheet ID from the URL into `backend` config when feature 001 asks for it. Share with Jaz as **Editor**.
-- [ ] **[You]** Share the Apps Script project with Jaz (open via `clasp open-script` → Share)
-- [ ] **[You]** Create the shared **"Household"** Google Calendar (calendar.google.com → Other calendars → Create); share with Jaz with **"Make changes to events"**
+- [x] **[You]** Create the Google Sheet **"Household HQ DB"** at https://sheets.new — copy the Sheet ID from the URL into `backend` config when feature 001 asks for it. Share with Jaz as **Editor**.
+- [x] **[You]** Share the Apps Script project with Jaz (open via `clasp open-script` → Share)
+- [x] **[You]** Create the shared **"Household"** Google Calendar (calendar.google.com → Other calendars → Create); share with Jaz with **"Make changes to events"**
 - [ ] **[You]** This week, independent of setup: you and Jaz each find out whether your **work calendar** can share free/busy externally (personal Google account or a private ICS URL). This decides feature 011's implementation path.
 
 ## Phase 7 — Build loop (repeat per feature)
