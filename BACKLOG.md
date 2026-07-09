@@ -17,7 +17,7 @@ implemented, merged). Ask Claude to "update BACKLOG.md" after any speckit step o
 | 004 | Recurring chore engine | ✅ merged | [specs/004-recurring-engine](specs/004-recurring-engine/spec.md) | [#4](https://github.com/maxwellbw/household-hq/pull/4) |
 | 005 | Events and prep templates | ✅ merged | [specs/005-events-and-prep-templates](specs/005-events-and-prep-templates/spec.md) | [#5](https://github.com/maxwellbw/household-hq/pull/5) |
 | 006 | Calendar UI (home screen) | ✅ merged | [specs/006-calendar-ui](specs/006-calendar-ui/spec.md) | [#6](https://github.com/maxwellbw/household-hq/pull/6) |
-| 007 | Google Calendar sync | ⬜ not started | — | — |
+| 007 | Google Calendar sync | 🟢 implemented + validated, PR open | [specs/007-gcal-sync](specs/007-gcal-sync/spec.md) | — |
 
 ## Phase 2 — Comfort
 
@@ -42,8 +42,8 @@ implemented, merged). Ask Claude to "update BACKLOG.md" after any speckit step o
 
 ## Currently active
 
-**007 — Google Calendar sync** (next in brief §10). Not started.
-Kick off with "start feature 007" to run the full Phase 7 loop.
+**007 — Google Calendar sync** (next in brief §10). Stage: **planned** (spec + clarify + plan done) on branch `007-gcal-sync`.
+One-way outbound push of app Events + dated Tasks → shared Household Google Calendar (native phone notifications). Work-calendar reading / dog-walk finder / weather / auto-invite are explicitly deferred to 011. Clarify decisions: immediate mirror + nightly reconcile; default reminders (30 min / 09:00); today-forward window; `[Owner]` title prefix + per-owner color. Design: new `CalendarSync.js` reconciler brain (on-write + nightly `syncCalendar()`), pointer stored in `Events.gcalEventId` + new `Tasks.gcalEventId` column, broad `calendar` OAuth scope (front-loaded for 011). T001–T014 implemented + deployed (@11, stable URL). T015 validated live: shared account re-authorized for the `calendar` scope (via `checkCalendarAuth()`), `setupDatabase()` re-run (added `Tasks.gcalEventId` + the two Settings), `householdCalendarId` set, `installCalendarTrigger()` installed, `selfTest()` → **ALL PASS**, quickstart Scenarios A–G confirmed on both phones. Self-test note: the live calendar blocks assert only single-execution-reliable behavior (create/update/pointer bookkeeping) because `CalendarApp` caches within an execution; removal / stale-pointer recreation / self-healing / orphan sweep are validated cross-execution in quickstart E/F. PR open — awaiting merge (Max's call).
 
 _006 merged to `main` and deployed to GitHub Pages at `https://maxwellbw.github.io/household-hq/` (Vite + React + Schedule-X calendar frontend; first frontend feature). Merged via direct push because repo PRs were disabled at the time — worth re-checking that setting before 007. Deploy runs on push to `main` via `.github/workflows/deploy-frontend.yml`, reading repo Variables `VITE_API_BASE_URL` (backend `clasp` @10) + `VITE_GOOGLE_CLIENT_ID`. One user-run validation still open: T057 live quickstart sign-in walkthrough (Scenarios A–G)._
 
