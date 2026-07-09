@@ -16,6 +16,7 @@ Sheet schema and the JSON API every later feature calls. Dependency-free by cons
 | `Setup.js` | `setupDatabase()` — idempotent provisioning (operator-run, not an API action) |
 | `Recurring.js` | occurrence math, nightly generator, trigger installer, rule CRUD (feature 004) |
 | `PrepTasks.js` | prep-id/date math, `syncPrepForEvent_` sync brain, nightly generator, trigger installer (feature 005) |
+| `CalendarSync.js` | calendar builders, `syncCalendarForEvent_`/`syncCalendarForTask_` mirror brain, `syncCalendar()` nightly reconcile + orphan sweep, trigger installer (feature 007) |
 | `SelfTest.js` | `selfTest()` — manually-run end-to-end checks |
 
 ## Transport & envelope (fixed project-wide here)
@@ -114,6 +115,44 @@ D1–D11).
 - **Logging.** Generated/re-dated/purged prep Tasks and the `prepGeneratedFor` write log
   under actor `system`; event and checklist CRUD log under the acting user.
 
+## Google Calendar sync (feature 007)
+
+One-way outbound mirror of Events + dated Tasks to the shared "Household" Google Calendar,
+so both phones get free native notifications. **Strictly outbound** — the app is
+authoritative and never reads calendar edits back into the Sheet. Reading work calendars,
+weather, and the dog-walk finder are **feature 011**, not this feature. Design rationale:
+[`research.md`](../specs/007-gcal-sync/research.md) (decisions D1–D9); delta contract:
+[`api-007.md`](../specs/007-gcal-sync/contracts/api-007.md).
+
+- **One schema change**: the `Tasks` tab gains `gcalEventId` (landed via `setupDatabase()`'s
+  header migration, same as feature 005's `prepGeneratedFor`). `Events.gcalEventId` already
+  existed. Two new Settings: `gcalEventReminderMin` (default 30) and `gcalTaskReminderTime`
+  (default `09:00`).
+- **The pointer is the idempotency key.** A blank `gcalEventId` cell means "create it";
+  a set cell that resolves means "update it in place"; a set cell that no longer resolves
+  (stale) means "recreate it." **Hand-clearing the cell is a legible repair lever** — it
+  forces a fresh mirror on the next sync.
+- **Mirrors on save *and* nightly**, exactly like feature 005's prep generator:
+  `syncCalendarForEvent_`/`syncCalendarForTask_` run synchronously after each Events/Tasks
+  write (best-effort — a Calendar failure is logged and swallowed, never fails the user's
+  write), and the nightly trigger `syncCalendar()` reconciles everything the same way, plus
+  runs an **orphan sweep** that deletes any app-tagged calendar entry whose backing Sheet row
+  was hand-deleted (the write path never saw it). Install the trigger once with
+  `installCalendarTrigger()` (idempotent).
+- **What's mirrored**: every Event ending today-or-later; every Task with a non-empty
+  `dueDate` today-or-later that is `open` or `snoozed`. No far-horizon cap — a two-person
+  household's volume is trivial. Owner shows as both a `[Max]`/`[Jaz]`/`[Both]` title prefix
+  and a per-owner calendar color (never color-only — accessibility). Reminders are applied on
+  every mirror so drift self-corrects.
+- **Untouched by design**: calendar entries the app didn't create (no `hhqId` tag, e.g. a
+  hand-added birthday) are never read, edited, or deleted.
+- **New OAuth scope**: `https://www.googleapis.com/auth/calendar` (broad — read+write on
+  accessible calendars), added deliberately wide so **feature 011**'s work-calendar reading
+  and invite-sending need no second re-authorization. Only the deploying shared account
+  re-authorizes.
+- **Logging.** Every calendar create/update/delete (including orphan-sweep deletes) appends
+  one `gcal-sync` ActivityLog row under actor `system`; no-op syncs write nothing.
+
 ## Deployed endpoint
 
 Web-app URL (deployment `@1`, stable across redeploys — refresh with
@@ -140,12 +179,19 @@ and yields "Page Not Found".
 4. **Validate:** follow [`quickstart.md`](../specs/001-sheets-schema-and-api/quickstart.md),
    or run `selfTest()` in the editor (expects `ALL PASS`).
 5. **Install the nightly triggers:** in the editor, run `installRecurringTrigger()` (feature
-   004) and `installPrepTrigger()` (feature 005) once each. Re-running either is safe (it
-   replaces rather than stacks the trigger).
+   004), `installPrepTrigger()` (feature 005), and `installCalendarTrigger()` (feature 007)
+   once each. Re-running any of them is safe (it replaces rather than stacks the trigger).
+6. **Feature 007 only:** re-authorize once (the manifest now requests the `calendar` scope) —
+   run **`checkCalendarAuth()`** from the editor to trigger the consent prompt for the
+   deploying shared account (plain `selfTest()` won't trigger it on its own: with
+   `householdCalendarId` blank, every calendar code path no-ops before touching the Calendar
+   service at all — FR-014). Then set Settings `householdCalendarId` to the shared Household
+   calendar's ID.
 
-Note: after any header change to `Config.HEADERS` (e.g. feature 005's `prepGeneratedFor`),
-re-run `setupDatabase()` — it appends any missing header to an already-provisioned tab
-without touching existing columns or data (safe to re-run).
+Note: after any header change to `Config.HEADERS` (e.g. feature 005's `prepGeneratedFor`,
+feature 007's `gcalEventId` on Tasks), re-run `setupDatabase()` — it appends any missing
+header to an already-provisioned tab without touching existing columns or data (safe to
+re-run).
 
 ## Deployment mode (interim; ratified by feature 002)
 
