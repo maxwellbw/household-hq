@@ -15,7 +15,7 @@ implemented, merged). Ask Claude to "update BACKLOG.md" after any speckit step o
 | 002 | Auth allowlist + verified attribution | ✅ merged | [specs/002-auth-allowlist](specs/002-auth-allowlist/spec.md) | [#2](https://github.com/maxwellbw/household-hq/pull/2) |
 | 003 | Tasks CRUD and activity log | ✅ merged | [specs/003-tasks-crud-and-activity-log](specs/003-tasks-crud-and-activity-log/spec.md) | [#3](https://github.com/maxwellbw/household-hq/pull/3) |
 | 004 | Recurring chore engine | ✅ merged | [specs/004-recurring-engine](specs/004-recurring-engine/spec.md) | [#4](https://github.com/maxwellbw/household-hq/pull/4) |
-| 005 | Events and prep templates | ⬜ not started | — | — |
+| 005 | Events and prep templates | 🟡 implemented, deployed (@10), PR open | [specs/005-events-and-prep-templates](specs/005-events-and-prep-templates/spec.md) | [#5](https://github.com/maxwellbw/household-hq/pull/5) |
 | 006 | Calendar UI (home screen) | ⬜ not started | — | — |
 | 007 | Google Calendar sync | ⬜ not started | — | — |
 
@@ -42,8 +42,9 @@ implemented, merged). Ask Claude to "update BACKLOG.md" after any speckit step o
 
 ## Currently active
 
-**005 — Events and prep templates** (next in brief §10). Not started.
-Kick off with "start feature 005" to run the full Phase 7 loop.
+**005 — Events and prep templates**. Implemented, deployed (@10), `selfTest()` passes `ALL
+PASS` live, `installPrepTrigger()` installed. PR open: [#5](https://github.com/maxwellbw/household-hq/pull/5).
+Merging is Max's call.
 
 _004 merged in [#4](https://github.com/maxwellbw/household-hq/pull/4); backend deployed at `clasp` @9 (nightly `generateRecurringTasks` trigger installed)._
 
