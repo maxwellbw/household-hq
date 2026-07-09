@@ -17,7 +17,7 @@
 var SPREADSHEET_ID = '1ypXomTO5s1PHlRMDBJ52kKuvrBzQDz0pXfWQcUBtHqE';
 
 /** Bumped only for shape-level API changes (contracts/api.md §Versioning). */
-var API_VERSION = '1.1.0';
+var API_VERSION = '1.2.0';
 
 /** Returned by the health ping so clients can identify the service. */
 var SERVICE_NAME = 'household-hq';
@@ -55,7 +55,8 @@ var TABS = {
  * header raises SCHEMA_MISMATCH. Hand-added extra columns are ignored and preserved.
  */
 var HEADERS = {
-  Events: ['id', 'title', 'start', 'end', 'owner', 'type', 'templateId', 'notes', 'gcalEventId'],
+  Events: ['id', 'title', 'start', 'end', 'owner', 'type', 'templateId', 'notes', 'gcalEventId',
+           'prepGeneratedFor'],
   Tasks: ['id', 'title', 'dueDate', 'owner', 'status', 'eventId', 'recurringId',
           'completedBy', 'completedAt', 'snoozeHistory', 'listItems'],
   TaskTemplates: ['id', 'eventType', 'taskTitle', 'offsetDays', 'defaultOwner'],
@@ -124,7 +125,8 @@ var FIELD_TYPES = {
 var REQUIRED_ON_CREATE = {
   Events: ['title', 'start', 'end', 'owner'],
   Tasks: ['title', 'owner'],
-  Recurring: ['title', 'cadence', 'anchorDate', 'defaultOwner']
+  Recurring: ['title', 'cadence', 'anchorDate', 'defaultOwner'],
+  TaskTemplates: ['eventType', 'taskTitle', 'offsetDays', 'defaultOwner']
 };
 
 // ---------------------------------------------------------------------------
@@ -136,6 +138,14 @@ var RECURRING_LOOKAHEAD_DEFAULT_DAYS = 30;
 
 /** Hour (household tz) the nightly generator trigger runs at (research D7). */
 var RECURRING_TRIGGER_HOUR = 3;
+
+// ---------------------------------------------------------------------------
+// Feature 005 — events and prep templates (research D7)
+// ---------------------------------------------------------------------------
+
+/** Hour (household tz) the nightly prep-reconcile trigger runs at; offset from 004's
+ *  RECURRING_TRIGGER_HOUR so the two nightly jobs don't contend (research D7). */
+var PREP_TRIGGER_HOUR = 4;
 
 // ---------------------------------------------------------------------------
 // Settings seed (data-model.md §Settings). [key, value, notes]; seeded only when the

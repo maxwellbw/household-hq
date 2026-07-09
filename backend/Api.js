@@ -96,7 +96,7 @@ var HANDLERS = {
   'events.list':   function () { return { events: listRecords_(TABS.EVENTS) }; },
   'events.create': function (p, actor) { return { event: createEvent_(p, actor) }; },
   'events.update': function (p, actor) { return { event: updateEvent_(p, actor) }; },
-  'events.delete': function (p, actor) { return { id: deleteEntity_(TABS.EVENTS, p, actor) }; },
+  'events.delete': function (p, actor) { return { id: deleteEvent_(p, actor) }; },
 
   'tasks.list':     function (p, actor, identity) { return listTasks_(p, actor, identity); },
   'tasks.create':   function (p, actor) { return { task: createTask_(p, actor) }; },
@@ -105,7 +105,11 @@ var HANDLERS = {
   'tasks.reopen':   function (p, actor) { return reopenTask_(p, actor); },
   'tasks.delete':   function (p, actor) { return { id: deleteEntity_(TABS.TASKS, p, actor) }; },
 
-  'templates.list': function () { return { templates: listRecords_(TABS.TEMPLATES) }; },
+  'templates.list':   function () { return { templates: listRecords_(TABS.TEMPLATES) }; },
+  'templates.create': function (p, actor) { return { template: createTemplate_(p, actor) }; },
+  'templates.update': function (p, actor) { return { template: updateTemplate_(p, actor) }; },
+  'templates.delete': function (p, actor) { return { id: deleteEntity_(TABS.TEMPLATES, p, actor) }; },
+
   'recurring.list':   function () { return { recurring: listRecords_(TABS.RECURRING) }; },
   'recurring.create': function (p, actor) { return { recurring: createRecurring_(p, actor) }; },
   'recurring.update': function (p, actor) { return { recurring: updateRecurring_(p, actor) }; },
@@ -139,28 +143,85 @@ function deleteEntity_(tabName, payload, actor) {
 }
 
 // ---------------------------------------------------------------------------
-// Events (US2)
+// Events (US2; feature 005 prep side effects — research D9)
 // ---------------------------------------------------------------------------
+
+/** `prepGeneratedFor` is generator-managed (research D9, mirroring 004's `lastGenerated`
+ *  guard) — a client supplying a non-blank value on create/update is a mistake, not data. */
+function guardPrepGeneratedFor_(payload) {
+  if (payload.hasOwnProperty('prepGeneratedFor') && String(payload.prepGeneratedFor).trim() !== '') {
+    fail_('BAD_REQUEST', 'prepGeneratedFor is generator-managed; do not set it.', 'prepGeneratedFor');
+  }
+}
 
 function createEvent_(payload, actor) {
   rejectUnknownFields_(TABS.EVENTS, payload);
+  guardPrepGeneratedFor_(payload);
   requireFields_(payload, REQUIRED_ON_CREATE.Events);
   validateFields_(TABS.EVENTS, payload);
   var rec = fullRecord_(TABS.EVENTS, payload);
   if (rec.end < rec.start) fail_('VALIDATION_FAILED', 'end must be on or after start.', 'end');
-  return createRecord_(TABS.EVENTS, rec, actor);
+  rec.prepGeneratedFor = ''; // always starts blank; syncPrepForEvent_ advances it below
+  var created = createRecord_(TABS.EVENTS, rec, actor);
+  syncPrepForEvent_(created, actor); // US3 FR-008: generate prep immediately if templateId is set
+  return rereadEvent_(created.id) || created;
 }
 
 function updateEvent_(payload, actor) {
   rejectUnknownFields_(TABS.EVENTS, payload);
+  guardPrepGeneratedFor_(payload);
   requireFields_(payload, ['id']);
   validateFields_(TABS.EVENTS, payload);
   var patch = mutablePatch_(TABS.EVENTS, payload);
-  return updateRecordById_(TABS.EVENTS, String(payload.id).trim(), patch, actor, function (merged) {
-    if (merged.start && merged.end && merged.end < merged.start) {
+  var merged = updateRecordById_(TABS.EVENTS, String(payload.id).trim(), patch, actor, function (m) {
+    if (m.start && m.end && m.end < m.start) {
       fail_('VALIDATION_FAILED', 'end must be on or after start.', 'end');
     }
   });
+  syncPrepForEvent_(merged, actor); // US4 FR-015/016: re-date on move, swap set on retag
+  return rereadEvent_(merged.id) || merged;
+}
+
+/** Re-read an event after `syncPrepForEvent_` may have advanced `prepGeneratedFor`, so the
+ *  response reflects the marker the caller just wrote (`listRecords_` already strips
+ *  internal bookkeeping keys). */
+function rereadEvent_(id) {
+  var found = listRecords_(TABS.EVENTS).filter(function (e) { return e.id === id; });
+  return found.length ? found[0] : null;
+}
+
+/** Delete an event and purge ALL of its prep tasks — completed and outstanding alike
+ *  (FR-017); a user's manually event-linked (non-prep-id) tasks are left untouched. */
+function deleteEvent_(payload, actor) {
+  requireFields_(payload, ['id']);
+  var id = String(payload.id).trim();
+  var result = deleteRecordById_(TABS.EVENTS, id, actor);
+  listRecords_(TABS.TASKS).forEach(function (t) {
+    if (t.eventId === id && isPrepTaskId_(t.id)) {
+      deleteRecordById_(TABS.TASKS, t.id, actor);
+    }
+  });
+  return result;
+}
+
+// ---------------------------------------------------------------------------
+// TaskTemplates (US2; prep-checklist steps — research D8: no retroactive regeneration)
+// ---------------------------------------------------------------------------
+
+function createTemplate_(payload, actor) {
+  rejectUnknownFields_(TABS.TEMPLATES, payload);
+  requireFields_(payload, REQUIRED_ON_CREATE.TaskTemplates);
+  validateFields_(TABS.TEMPLATES, payload);
+  var rec = fullRecord_(TABS.TEMPLATES, payload);
+  return createRecord_(TABS.TEMPLATES, rec, actor);
+}
+
+function updateTemplate_(payload, actor) {
+  rejectUnknownFields_(TABS.TEMPLATES, payload);
+  requireFields_(payload, ['id']);
+  validateFields_(TABS.TEMPLATES, payload);
+  var patch = mutablePatch_(TABS.TEMPLATES, payload);
+  return updateRecordById_(TABS.TEMPLATES, String(payload.id).trim(), patch, actor);
 }
 
 // ---------------------------------------------------------------------------
