@@ -17,7 +17,7 @@
 var SPREADSHEET_ID = '1ypXomTO5s1PHlRMDBJ52kKuvrBzQDz0pXfWQcUBtHqE';
 
 /** Bumped only for shape-level API changes (contracts/api.md §Versioning). */
-var API_VERSION = '1.3.0';
+var API_VERSION = '1.3.1';
 
 /** Returned by the health ping so clients can identify the service. */
 var SERVICE_NAME = 'household-hq';
@@ -97,7 +97,8 @@ var ACTOR_DISPLAY_NAMES = { max: 'Max', jaz: 'Jaz', system: 'System' };
 var ACTION_VERBS = {
   create: 'added', update: 'edited', complete: 'completed', reopen: 'reopened',
   delete: 'deleted', 'adopt-id': 'assigned an id to', provision: 'set up',
-  'gcal-sync': 'synced to calendar'
+  'gcal-sync': 'synced to calendar', 'digest-weekly': 'emailed the week ahead',
+  'digest-monthly': 'emailed the month ahead'
 };
 
 /**
@@ -169,6 +170,23 @@ var OWNER_EVENT_COLOR = {
 };
 
 // ---------------------------------------------------------------------------
+// Feature 008 — email digests (research D1/D4)
+// ---------------------------------------------------------------------------
+
+/** Fallback hour (household tz) the daily digest gate runs at, if `digestHour` is
+ *  blank/invalid; offset from 004/005/007's 3/4/5 so the nightly jobs don't contend. The
+ *  seeded `digestHour` Settings value (below) is the normal source of truth. */
+var DIGEST_TRIGGER_HOUR = 6;
+
+/** Owner → inline HTML color for digest emails (DESIGN.md owner hues; email clients strip
+ *  external CSS, so these are applied inline at render time — research D4). */
+var OWNER_EMAIL_HUE = {
+  max: '#3E6E68',
+  jaz: '#7E4A5E',
+  both: '#C6613F'
+};
+
+// ---------------------------------------------------------------------------
 // Settings seed (data-model.md §Settings). [key, value, notes]; seeded only when the
 // key is absent, so hand-filled values (e.g. maxEmail) are never overwritten.
 // ---------------------------------------------------------------------------
@@ -181,7 +199,11 @@ var SETTINGS_SEED = [
   ['householdCalendarId', '', 'feature 007'],
   ['gcalEventReminderMin', '30', 'feature 007; popup minutes before a timed event'],
   ['gcalTaskReminderTime', '09:00', 'feature 007; morning-of popup time for all-day task entries'],
-  ['digestSchedule', '', 'feature 008'],
+  ['digestWeeklyEnabled', 'TRUE', 'feature 008; FALSE turns off the weekly "week ahead" email'],
+  ['digestWeeklyDay', 'Sunday', 'feature 008; weekday the weekly digest sends (name or 0-6, Sun=0)'],
+  ['digestMonthlyEnabled', 'TRUE', 'feature 008; FALSE turns off the monthly "next month" email'],
+  ['digestMonthlyDay', 'last', 'feature 008; day-of-month the monthly digest sends ("last" or 1-28)'],
+  ['digestHour', '7', 'feature 008; hour (household tz) the daily digest gate fires; re-run installDigestTrigger() after changing'],
   ['ntfyTopicMax', '', 'feature 009'],
   ['ntfyTopicJaz', '', 'feature 009'],
   ['workIcsUrlMax', '', 'feature 011'],

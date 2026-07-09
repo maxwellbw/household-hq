@@ -30,6 +30,7 @@ function selfTest() {
   liveCalendarEventSync_();
   liveCalendarTaskSync_();
   liveCalendarReconcile_();
+  unitDigests_();
   Logger.log('ALL PASS');
 }
 
@@ -904,4 +905,113 @@ function liveCalendarReconcile_() {
     }
   }
   Logger.log('live calendar reconcile: pass');
+}
+
+// ---------------------------------------------------------------------------
+// Unit: email digests — pure builders, gates, and dedupe (feature 008 research D1/D2/D7).
+// Deliberately never calls sendDigests()/MailApp — only the pure gate predicates
+// (isWeeklySendDay_/isMonthlySendDay_) and builders are exercised, so this suite never
+// risks sending a real email even if run on an actual configured send day.
+// ---------------------------------------------------------------------------
+
+function unitDigests_() {
+  var today = todayYmd_();
+
+  // --- weekly window boundaries (FR-001, FR-013) ---------------------------------------
+  var wwin = weeklyWindow_(today);
+  assert_(wwin.start === today && wwin.end === addDays_(today, 6), 'weeklyWindow_ spans today..today+6');
+  var weeklyEvents = [
+    { owner: 'max', start: wwin.start + 'T09:00', title: 'in-window start' },
+    { owner: 'max', start: wwin.end + 'T09:00', title: 'in-window end' },
+    { owner: 'max', start: addDays_(wwin.start, -1) + 'T09:00', title: 'before window' },
+    { owner: 'max', start: addDays_(wwin.end, 1) + 'T09:00', title: 'after window' }
+  ];
+  var weeklyItems = relevantItemsFor_('max', wwin.start, wwin.end, weeklyEvents, []);
+  assert_(weeklyItems.length === 2, 'weekly window includes today and today+6, excludes today-1 and today+7');
+
+  // --- monthly window boundaries (FR-002, FR-013) ---------------------------------------
+  var mwin = monthlyWindow_(today);
+  var monthlyEvents = [
+    { owner: 'jaz', start: mwin.start + 'T00:00', title: 'first of next month' },
+    { owner: 'jaz', start: mwin.end + 'T23:00', title: 'last of next month' },
+    { owner: 'jaz', start: addDays_(mwin.start, -1) + 'T00:00', title: 'this month' },
+    { owner: 'jaz', start: addDays_(mwin.end, 1) + 'T00:00', title: 'month after next' }
+  ];
+  var monthlyItems = relevantItemsFor_('jaz', mwin.start, mwin.end, monthlyEvents, []);
+  assert_(monthlyItems.length === 2, 'monthly window includes first/last of next month, excludes this month and two-months-out');
+
+  // resolveMonthlyDay_ "last" resolution — short (Feb, non-leap) and 30-day months.
+  assert_(resolveMonthlyDay_({}, 2027, 2) === 28, 'resolveMonthlyDay_ "last" -> 28 for Feb 2027 (non-leap)');
+  assert_(resolveMonthlyDay_({}, 2028, 2) === 29, 'resolveMonthlyDay_ "last" -> 29 for Feb 2028 (leap)');
+  assert_(resolveMonthlyDay_({ digestMonthlyDay: '15' }, 2027, 4) === 15, 'resolveMonthlyDay_ honors an explicit in-range day');
+  assert_(resolveMonthlyDay_({ digestMonthlyDay: '29' }, 2027, 4) === 30, 'resolveMonthlyDay_ rejects out-of-range (29) and falls back to that month\'s last day');
+
+  // --- owner filtering (FR-003, FR-004) --------------------------------------------------
+  var ownerEvents = [
+    { owner: 'max', start: today + 'T09:00', title: 'max item' },
+    { owner: 'both', start: today + 'T09:00', title: 'both item' },
+    { owner: 'jaz', start: today + 'T09:00', title: 'jaz item' }
+  ];
+  var maxItems = relevantItemsFor_('max', today, today, ownerEvents, []);
+  assert_(maxItems.length === 2, 'max digest includes own + both items only');
+  assert_(!maxItems.some(function (i) { return i.title === 'jaz item'; }), 'max digest never includes jaz\'s solo item');
+  var jazItems = relevantItemsFor_('jaz', today, today, ownerEvents, []);
+  assert_(jazItems.length === 2 && !jazItems.some(function (i) { return i.title === 'max item'; }),
+    'jaz digest includes own + both items only, never max\'s solo item');
+
+  // --- task status / due-date exclusion (FR-014) -----------------------------------------
+  var statusTasks = [
+    { owner: 'max', dueDate: today, status: 'open', title: 'open task' },
+    { owner: 'max', dueDate: today, status: 'snoozed', title: 'snoozed task' },
+    { owner: 'max', dueDate: today, status: 'done', title: 'done task' },
+    { owner: 'max', dueDate: '', status: 'open', title: 'undated task' }
+  ];
+  var taskItems = relevantItemsFor_('max', today, today, [], statusTasks);
+  assert_(taskItems.length === 2, 'only open/snoozed dated tasks are included');
+  assert_(!taskItems.some(function (i) { return i.title === 'done task' || i.title === 'undated task'; }),
+    'completed and undated tasks never appear in a digest');
+
+  // --- empty-state rendering (FR-009) -----------------------------------------------------
+  var emptyDigest = buildDigest_('max', 'weekly', wwin, [], []);
+  assert_(emptyDigest.count === 0, 'buildDigest_ with no items has count 0');
+  assert_(emptyDigest.html.indexOf('Nothing on the calendar') !== -1, 'empty weekly digest HTML states nothing is scheduled');
+  assert_(emptyDigest.text.indexOf('Nothing on the calendar') !== -1, 'empty weekly digest text states nothing is scheduled');
+
+  // --- dedupe ledger (FR-011) --------------------------------------------------------------
+  var dedupeKey = SELFTEST_PREFIX + 'digest-dedupe-' + Utilities.getUuid();
+  assert_(alreadySent_('digest-weekly', dedupeKey) === false, 'alreadySent_ is false before any matching log row exists');
+  appendLog_('system', 'digest-weekly', dedupeKey, 'selftest dedupe marker');
+  assert_(alreadySent_('digest-weekly', dedupeKey) === true, 'alreadySent_ is true once a matching ActivityLog row exists');
+
+  // --- missing-email skip (FR-010) ----------------------------------------------------------
+  var fakePerson = 'selftestperson';
+  var skipDigest = buildDigest_('max', 'weekly', wwin, [], []);
+  var sent = sendOne_(fakePerson, skipDigest, {});
+  assert_(sent === false, 'sendOne_ skips a recipient with no email in Settings, returning false');
+  assert_(alreadySent_('digest-weekly', periodKey_('weekly', skipDigest.window, fakePerson)) === false,
+    'no ActivityLog row is written for a skipped (missing-email) recipient');
+
+  // --- pure send-gate predicates (FR-008, FR-015) — never invokes the real trigger handler --
+  var todayDow = parseHouseholdDate_(today).getDay();
+  var nextSunday = addDays_(today, (7 - todayDow) % 7);
+  var nextMonday = addDays_(nextSunday, 1);
+  assert_(isWeeklySendDay_({ digestWeeklyDay: 'Sunday' }, nextSunday) === true, 'isWeeklySendDay_ true on the configured weekday');
+  assert_(isWeeklySendDay_({ digestWeeklyDay: 'Sunday' }, nextMonday) === false, 'isWeeklySendDay_ false on a non-matching weekday');
+  assert_(isWeeklySendDay_({ digestWeeklyEnabled: 'FALSE', digestWeeklyDay: 'Sunday' }, nextSunday) === false,
+    'isWeeklySendDay_ false when digestWeeklyEnabled is FALSE, even on the configured weekday');
+
+  var lastFeb2027 = ymd_(2027, 2, 28);
+  var midFeb2027 = ymd_(2027, 2, 15);
+  assert_(isMonthlySendDay_({ digestMonthlyDay: 'last' }, lastFeb2027) === true, 'isMonthlySendDay_ true on the resolved last day');
+  assert_(isMonthlySendDay_({ digestMonthlyDay: 'last' }, midFeb2027) === false, 'isMonthlySendDay_ false mid-month');
+  assert_(isMonthlySendDay_({ digestMonthlyEnabled: 'FALSE', digestMonthlyDay: 'last' }, lastFeb2027) === false,
+    'isMonthlySendDay_ false when digestMonthlyEnabled is FALSE, even on the resolved last day');
+
+  // --- entry points exist and are public (CLAUDE.md trigger/editor entry-point rule) -------
+  assert_(typeof sendDigests === 'function', 'sendDigests is a public entry point');
+  assert_(typeof installDigestTrigger === 'function', 'installDigestTrigger is a public entry point');
+  assert_(typeof sendWeeklyDigestNow === 'function', 'sendWeeklyDigestNow is a public entry point');
+  assert_(typeof sendMonthlyDigestNow === 'function', 'sendMonthlyDigestNow is a public entry point');
+
+  Logger.log('unit digests: pass');
 }
