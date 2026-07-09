@@ -1,0 +1,107 @@
+@import '@fontsource/fraunces/latin-500.css';
+@import '@fontsource/fraunces/latin-600.css';
+@import '@fontsource/inter/latin-400.css';
+@import '@fontsource/inter/latin-500.css';
+@import '@fontsource/inter/latin-600.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Surfaces */
+  --bg: #faf6f0;
+  --surface: #ffffff;
+  --surface-alt: #f2ebe0;
+  --border: #e5dccc;
+
+  /* Ink */
+  --ink: #2a261f;
+  --ink-muted: #655e4f;
+  --ink-faint: #756c59;
+
+  /* Brand accent */
+  --accent: #c6613f;
+  --accent-hover: #ad5133;
+  --accent-soft: #f3ded3;
+
+  /* Owner identity (used consistently EVERYWHERE) */
+  --owner-max: #3e6e68;
+  --owner-max-soft: #dce9e7;
+  --owner-jaz: #7e4a5e;
+  --owner-jaz-soft: #eddde3;
+  --owner-both: var(--accent);
+  --owner-both-soft: var(--accent-soft);
+
+  /* Semantic */
+  --success: #4e7a4e;
+  --warning: #b07c2e;
+  --danger: #a43e2e;
+
+  /* Shape & depth */
+  --radius-card: 14px;
+  --radius-control: 10px;
+  --shadow-card: 0 1px 2px rgba(42, 38, 31, 0.06), 0 4px 12px rgba(42, 38, 31, 0.05);
+
+  color-scheme: light;
+}
+
+/*
+ * shadcn/ui primitives (Button, etc.) use standard semantic classes
+ * (bg-primary, text-muted-foreground, ...). tailwind.config.ts maps that
+ * whole vocabulary directly onto the DESIGN.md tokens above — no separate
+ * "shadcn theme" CSS vars needed. Dark mode is deferred (DESIGN.md).
+ */
+@layer base {
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+@media (min-width: 768px) {
+  body {
+    font-size: 14px;
+  }
+}
+
+h1,
+h2,
+h3 {
+  font-family: 'Fraunces', 'Source Serif 4', serif;
+  font-weight: 500;
+  color: var(--ink);
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
