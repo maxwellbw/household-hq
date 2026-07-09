@@ -1,0 +1,47 @@
+/*
+ * Repoint Schedule-X's own CSS variables at the DESIGN.md warm palette so
+ * the calendar chrome (grid lines, header, today highlight) inherits the
+ * app's tokens instead of the library's default purple Material theme.
+ * Event bodies themselves are fully custom-rendered (EventContent.tsx) and
+ * don't use these vendor colors at all.
+ */
+.sx-react-calendar-wrapper {
+  --sx-color-primary: var(--accent);
+  --sx-color-on-primary: var(--surface);
+  --sx-color-primary-container: var(--accent-soft);
+  --sx-color-on-primary-container: var(--accent-hover);
+
+  --sx-color-surface: var(--surface);
+  --sx-color-surface-dim: var(--surface-alt);
+  --sx-color-surface-bright: var(--surface);
+  --sx-color-on-surface: var(--ink);
+  --sx-color-surface-container: var(--surface-alt);
+  --sx-color-surface-container-low: var(--surface);
+  --sx-color-surface-container-high: var(--surface-alt);
+
+  --sx-color-background: var(--bg);
+  --sx-color-on-background: var(--ink);
+
+  --sx-color-outline: var(--border);
+  --sx-color-outline-variant: var(--border);
+  --sx-color-shadow: rgba(42, 38, 31, 0.08);
+
+  font-family: 'Inter', system-ui, sans-serif;
+}
+
+.sx-react-calendar-wrapper .sx__calendar-header {
+  border-bottom: 1px solid var(--border);
+}
+
+.sx-react-calendar-wrapper .sx__month-grid-day--in-month .sx__month-grid-day {
+  background: var(--surface);
+}
+
+.sx-react-calendar-wrapper .sx__month-grid-day:not(.sx__month-grid-day--in-month) {
+  background: var(--surface-alt);
+}
+
+.sx-react-calendar-wrapper .sx__month-grid-day--today .sx__month-grid-day-name {
+  color: var(--accent);
+  font-weight: 600;
+}
