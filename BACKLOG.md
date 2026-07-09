@@ -17,7 +17,7 @@ implemented, merged). Ask Claude to "update BACKLOG.md" after any speckit step o
 | 004 | Recurring chore engine | ✅ merged | [specs/004-recurring-engine](specs/004-recurring-engine/spec.md) | [#4](https://github.com/maxwellbw/household-hq/pull/4) |
 | 005 | Events and prep templates | ✅ merged | [specs/005-events-and-prep-templates](specs/005-events-and-prep-templates/spec.md) | [#5](https://github.com/maxwellbw/household-hq/pull/5) |
 | 006 | Calendar UI (home screen) | ✅ merged | [specs/006-calendar-ui](specs/006-calendar-ui/spec.md) | [#6](https://github.com/maxwellbw/household-hq/pull/6) |
-| 007 | Google Calendar sync | 🟢 implemented + validated, PR open | [specs/007-gcal-sync](specs/007-gcal-sync/spec.md) | — |
+| 007 | Google Calendar sync | 🟢 implemented + validated, PR open | [specs/007-gcal-sync](specs/007-gcal-sync/spec.md) | [#7](https://github.com/maxwellbw/household-hq/pull/7) |
 
 ## Phase 2 — Comfort
 
