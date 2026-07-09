@@ -21,6 +21,11 @@ function selfTest() {
   liveRecurringGeneration_();
   liveRecurringCrud_();
   liveRecurringCatchUp_();
+  liveEventCrud_();
+  liveTemplateCrud_();
+  unitPrepMath_();
+  livePrepGeneration_();
+  livePrepLifecycle_();
   Logger.log('ALL PASS');
 }
 
@@ -496,4 +501,187 @@ function liveRecurringCatchUp_() {
   tasks.forEach(function (t) { deleteRecordById_(TABS.TASKS, t.id, 'selftest'); });
   deleteRecordById_(TABS.RECURRING, ruleId, 'selftest');
   Logger.log('live recurring catch-up: pass');
+}
+
+// ---------------------------------------------------------------------------
+// Live: event CRUD + the prepGeneratedFor guard (feature 005 US1, FR-001/002/003; D9)
+// ---------------------------------------------------------------------------
+
+function liveEventCrud_() {
+  var created = createEvent_({
+    title: SELFTEST_PREFIX + 'trip', start: '2026-07-25T17:00', end: '2026-07-27T12:00', owner: 'both'
+  }, 'selftest');
+  assert_(created.prepGeneratedFor === '', 'create leaves prepGeneratedFor blank when untagged');
+
+  var updated = updateEvent_({ id: created.id, title: SELFTEST_PREFIX + 'trip (updated)', owner: 'max' }, 'selftest');
+  assert_(updated.title === SELFTEST_PREFIX + 'trip (updated)' && updated.owner === 'max',
+    'update persists title and owner');
+
+  assertFails_('BAD_REQUEST', function () {
+    createEvent_({ title: 'x', start: '2026-07-25T17:00', end: '2026-07-27T12:00', owner: 'both',
+      prepGeneratedFor: 'x' }, 'selftest');
+  }, 'prepGeneratedFor on create rejected');
+  assertFails_('BAD_REQUEST', function () {
+    updateEvent_({ id: created.id, prepGeneratedFor: 'x' }, 'selftest');
+  }, 'prepGeneratedFor on update rejected');
+  assertFails_('VALIDATION_FAILED', function () {
+    createEvent_({ title: 'x', start: '2026-07-27T12:00', end: '2026-07-25T17:00', owner: 'both' }, 'selftest');
+  }, 'end before start rejected');
+
+  deleteEvent_({ id: created.id }, 'selftest');
+  assert_(listRecords_(TABS.EVENTS).filter(function (e) { return e.id === created.id; }).length === 0,
+    'delete removes the event');
+  Logger.log('live event CRUD: pass');
+}
+
+// ---------------------------------------------------------------------------
+// Live: prep-checklist step (TaskTemplates) CRUD (US2, FR-005/006/007)
+// ---------------------------------------------------------------------------
+
+function liveTemplateCrud_() {
+  var created = createTemplate_({
+    eventType: SELFTEST_PREFIX + 'visit', taskTitle: 'Clean', offsetDays: '-2', defaultOwner: 'both'
+  }, 'selftest');
+  assert_(created.offsetDays === '-2', 'create persists a signed offset');
+
+  var updated = updateTemplate_({ id: created.id, defaultOwner: 'max' }, 'selftest');
+  assert_(updated.defaultOwner === 'max', 'update persists owner');
+
+  assertFails_('BAD_REQUEST', function () {
+    createTemplate_({ eventType: 'x', taskTitle: 'y', offsetDays: '-1', defaultOwner: 'both', bogus: '1' }, 'selftest');
+  }, 'unknown field rejected');
+  assertFails_('VALIDATION_FAILED', function () {
+    createTemplate_({ eventType: 'x', taskTitle: 'y', offsetDays: 'soon', defaultOwner: 'both' }, 'selftest');
+  }, 'non-integer offsetDays rejected');
+  assertFails_('VALIDATION_FAILED', function () {
+    createTemplate_({ eventType: 'x', taskTitle: 'y', offsetDays: '-1', defaultOwner: 'dog' }, 'selftest');
+  }, 'bad defaultOwner rejected');
+  assertFails_('NOT_FOUND', function () {
+    updateTemplate_({ id: 'no-such-id', taskTitle: 'ghost' }, 'selftest');
+  }, 'update unknown id rejected');
+
+  deleteRecordById_(TABS.TEMPLATES, created.id, 'selftest');
+  assert_(listRecords_(TABS.TEMPLATES).filter(function (t) { return t.id === created.id; }).length === 0,
+    'delete removes the step');
+  Logger.log('live template CRUD: pass');
+}
+
+// ---------------------------------------------------------------------------
+// Unit: prep id + offset date math (feature 005 research D1/D5; no Sheet needed)
+// ---------------------------------------------------------------------------
+
+function unitPrepMath_() {
+  var id1 = prepTaskId_('e1', 's1');
+  var id2 = prepTaskId_('e1', 's1');
+  var id3 = prepTaskId_('e1', 's2');
+  assert_(id1 === id2, 'prepTaskId_ deterministic for same event+step');
+  assert_(id1 !== id3, 'prepTaskId_ differs across steps');
+  assert_(id1.indexOf('p') === 0, 'prepTaskId_ starts with "p"');
+  assert_(isPrepTaskId_(id1), 'isPrepTaskId_ accepts a generated prep id');
+  assert_(!isPrepTaskId_(Utilities.getUuid()), 'isPrepTaskId_ rejects a plain UUID');
+
+  assert_(prepDueDate_('2026-07-25T17:00', '-2') === '2026-07-23', 'prepDueDate_ two days before');
+  assert_(prepDueDate_('2026-07-25T17:00', '-1') === '2026-07-24', 'prepDueDate_ one day before');
+  Logger.log('unit prep math: pass');
+}
+
+// ---------------------------------------------------------------------------
+// Live: prep generation — idempotency, non-resurrection (US3, FR-008/009/010/011/014)
+// ---------------------------------------------------------------------------
+
+function livePrepGeneration_() {
+  var eventType = SELFTEST_PREFIX + 'visit-gen';
+  var step1 = createRecord_(TABS.TEMPLATES, {
+    eventType: eventType, taskTitle: SELFTEST_PREFIX + 'Clean the house', offsetDays: '-2', defaultOwner: 'both'
+  }, 'selftest');
+  var step2 = createRecord_(TABS.TEMPLATES, {
+    eventType: eventType, taskTitle: SELFTEST_PREFIX + 'Groceries', offsetDays: '-1', defaultOwner: 'jaz'
+  }, 'selftest');
+
+  var event = createEvent_({
+    title: SELFTEST_PREFIX + 'guests', start: '2026-07-25T17:00', end: '2026-07-27T12:00',
+    owner: 'both', templateId: eventType
+  }, 'selftest');
+
+  var prepFor = function () {
+    return listRecords_(TABS.TASKS).filter(function (t) { return t.eventId === event.id; });
+  };
+  var first = prepFor();
+  assert_(first.length === 2, 'tagging an event generates one prep task per checklist step');
+  assert_(event.prepGeneratedFor === eventType, 'createEvent_ response reflects the advanced marker');
+  var clean = first.filter(function (t) { return t.dueDate === '2026-07-23'; })[0];
+  var groceries = first.filter(function (t) { return t.dueDate === '2026-07-24'; })[0];
+  assert_(clean && clean.owner === 'both' && isPrepTaskId_(clean.id), 'clean-house prep dated/owned/linked correctly');
+  assert_(groceries && groceries.owner === 'jaz' && isPrepTaskId_(groceries.id), 'groceries prep dated/owned/linked correctly');
+
+  // Re-run via the nightly path: idempotent, no duplicates (SC-003).
+  generatePrepTasks();
+  assert_(prepFor().length === 2, 're-running the generator creates no duplicate prep tasks');
+
+  // Hand-delete one prep task; a later run must not resurrect it (steady state — FR-014).
+  deleteRecordById_(TABS.TASKS, clean.id, 'selftest');
+  generatePrepTasks();
+  assert_(prepFor().length === 1, 'a hand-deleted prep task is not resurrected by the nightly run');
+
+  // Cleanup.
+  prepFor().forEach(function (t) { deleteRecordById_(TABS.TASKS, t.id, 'selftest'); });
+  deleteRecordById_(TABS.EVENTS, event.id, 'selftest');
+  deleteRecordById_(TABS.TEMPLATES, step1.id, 'selftest');
+  deleteRecordById_(TABS.TEMPLATES, step2.id, 'selftest');
+  Logger.log('live prep generation: pass');
+}
+
+// ---------------------------------------------------------------------------
+// Live: prep lifecycle — move re-dates, retag swaps, delete purges (US4, FR-015/016/017)
+// ---------------------------------------------------------------------------
+
+function livePrepLifecycle_() {
+  var visitType = SELFTEST_PREFIX + 'visit-life';
+  var dinnerType = SELFTEST_PREFIX + 'dinner-life';
+  var visitStep = createRecord_(TABS.TEMPLATES, {
+    eventType: visitType, taskTitle: SELFTEST_PREFIX + 'Clean', offsetDays: '-2', defaultOwner: 'both'
+  }, 'selftest');
+  var dinnerStep = createRecord_(TABS.TEMPLATES, {
+    eventType: dinnerType, taskTitle: SELFTEST_PREFIX + 'Plan menu', offsetDays: '-3', defaultOwner: 'both'
+  }, 'selftest');
+
+  var event = createEvent_({
+    title: SELFTEST_PREFIX + 'lifecycle', start: '2026-07-25T17:00', end: '2026-07-27T12:00',
+    owner: 'both', templateId: visitType
+  }, 'selftest');
+  var prepFor = function () {
+    return listRecords_(TABS.TASKS).filter(function (t) { return t.eventId === event.id; });
+  };
+
+  // (a) Move: complete the one prep task, then push the event's start back two days.
+  var before = prepFor()[0];
+  completeTask_({ id: before.id }, 'selftest');
+  var moved = updateEvent_({ id: event.id, start: '2026-07-27T17:00', end: '2026-07-29T12:00' }, 'selftest');
+  var afterMove = prepFor()[0];
+  assert_(afterMove.dueDate === before.dueDate, 'a completed prep task is not re-dated on move (FR-015)');
+
+  // (b) Retag: switch to a different checklist — old (completed) prep remains, new prep appears.
+  var retagged = updateEvent_({ id: moved.id, templateId: dinnerType }, 'selftest');
+  assert_(retagged.prepGeneratedFor === dinnerType, 'retag advances the marker to the new template');
+  var afterRetag = prepFor();
+  assert_(afterRetag.filter(function (t) { return t.id === before.id; }).length === 1,
+    'completed prep from the old checklist remains after retag (FR-016)');
+  assert_(afterRetag.filter(function (t) { return t.title === SELFTEST_PREFIX + 'Plan menu'; }).length === 1,
+    'prep for the new checklist is generated after retag');
+
+  // (c) Delete: purges ALL prep for the event, completed and outstanding alike (FR-017).
+  // Seed one manual (non-prep-id) task linked to the event to prove it survives.
+  var manual = createTask_({ title: SELFTEST_PREFIX + 'manual', owner: 'both', eventId: event.id }, 'selftest');
+  deleteEvent_({ id: event.id }, 'selftest');
+  var remaining = listRecords_(TABS.TASKS).filter(function (t) { return t.eventId === event.id; });
+  assert_(remaining.filter(function (t) { return isPrepTaskId_(t.id); }).length === 0,
+    'deleting the event purges all of its prep tasks (done + outstanding)');
+  assert_(remaining.filter(function (t) { return t.id === manual.id; }).length === 1,
+    'a manually event-linked task is not deleted');
+
+  // Cleanup.
+  deleteRecordById_(TABS.TASKS, manual.id, 'selftest');
+  deleteRecordById_(TABS.TEMPLATES, visitStep.id, 'selftest');
+  deleteRecordById_(TABS.TEMPLATES, dinnerStep.id, 'selftest');
+  Logger.log('live prep lifecycle: pass');
 }

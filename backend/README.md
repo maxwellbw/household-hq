@@ -15,6 +15,7 @@ Sheet schema and the JSON API every later feature calls. Dependency-free by cons
 | `ActivityLog.js` | append-only log writer (one row per successful mutation) |
 | `Setup.js` | `setupDatabase()` — idempotent provisioning (operator-run, not an API action) |
 | `Recurring.js` | occurrence math, nightly generator, trigger installer, rule CRUD (feature 004) |
+| `PrepTasks.js` | prep-id/date math, `syncPrepForEvent_` sync brain, nightly generator, trigger installer (feature 005) |
 | `SelfTest.js` | `selfTest()` — manually-run end-to-end checks |
 
 ## Transport & envelope (fixed project-wide here)
@@ -75,6 +76,44 @@ rationale: [`research.md`](../specs/004-recurring-engine/research.md) (decisions
 - **Logging.** Each generated Task logs a `create` by actor `system`; the watermark advance
   logs one `update` by `system`, and only when it actually changes.
 
+## Events and prep templates (feature 005)
+
+Tagging an event with a prep checklist turns "guests visiting" into dated, owned prep
+tasks automatically. **One schema change**: the `Events` tab gains `prepGeneratedFor`
+(landed via `setupDatabase()`'s general header migration — see below). Delta contract:
+[`api-005.md`](../specs/005-events-and-prep-templates/contracts/api-005.md); design
+rationale: [`research.md`](../specs/005-events-and-prep-templates/research.md) (decisions
+D1–D11).
+
+- **Checklist management.** `templates.create` / `templates.update` / `templates.delete`
+  join the existing `templates.list`. A step is `eventType, taskTitle, offsetDays (signed
+  int, e.g. -2 = two days before), defaultOwner`. A "checklist" is simply the set of steps
+  sharing an `eventType`. Editing/deleting a step never rewrites prep already generated for
+  existing events.
+- **Tagging an event.** An event selects a checklist via `templateId`, matched against
+  steps' `eventType`. `type` remains a free descriptive/display label and never drives prep.
+  `prepGeneratedFor` is **generator-managed** — supplying it on `events.create`/
+  `events.update` is `BAD_REQUEST`; clear it by hand in the Sheet to force reconciliation.
+- **Generation runs on save *and* nightly.** `createEvent_`/`updateEvent_` call
+  `syncPrepForEvent_` synchronously (prep appears immediately), and the nightly trigger
+  `generatePrepTasks()` reconciles every event the same way — catching hand-edited/retagged
+  Sheet rows and any run that never completed. Install the trigger once with
+  `installPrepTrigger()` (idempotent; reuses feature 004's `script.scriptapp` scope).
+- **Idempotent by construction.** Each prep Task's id is deterministic
+  (`'p' + hex(MD5(eventId + '|' + templateStepId))`) — date-independent, so moving the
+  event updates the same row instead of duplicating it.
+- **The `prepGeneratedFor` marker is the tombstone.** Creation happens only on a
+  *transition* (`templateId !== prepGeneratedFor` — a tag, retag, or hand-edited row);
+  in steady state the generator only re-dates survivors and never creates, so a
+  hand-deleted prep task is never resurrected.
+- **Moving an event** re-dates its outstanding prep to the new start; completed prep is
+  left alone. **Retagging** swaps the prep set (old outstanding prep removed, new prep
+  generated) while completed prep from the old checklist remains. **Deleting an event**
+  purges *all* of its prep — completed and outstanding alike; a user's manually
+  event-linked (non-prep-id) tasks are untouched.
+- **Logging.** Generated/re-dated/purged prep Tasks and the `prepGeneratedFor` write log
+  under actor `system`; event and checklist CRUD log under the acting user.
+
 ## Deployed endpoint
 
 Web-app URL (deployment `@1`, stable across redeploys — refresh with
@@ -100,8 +139,13 @@ and yields "Page Not Found".
    (`Config.js`) by hand — see feature 002 quickstart.
 4. **Validate:** follow [`quickstart.md`](../specs/001-sheets-schema-and-api/quickstart.md),
    or run `selfTest()` in the editor (expects `ALL PASS`).
-5. **Install the nightly trigger (feature 004):** in the editor, run `installRecurringTrigger()`
-   once. Re-running it is safe (it replaces rather than stacks the trigger).
+5. **Install the nightly triggers:** in the editor, run `installRecurringTrigger()` (feature
+   004) and `installPrepTrigger()` (feature 005) once each. Re-running either is safe (it
+   replaces rather than stacks the trigger).
+
+Note: after any header change to `Config.HEADERS` (e.g. feature 005's `prepGeneratedFor`),
+re-run `setupDatabase()` — it appends any missing header to an already-provisioned tab
+without touching existing columns or data (safe to re-run).
 
 ## Deployment mode (interim; ratified by feature 002)
 
