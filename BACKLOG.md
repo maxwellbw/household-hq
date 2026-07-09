@@ -16,7 +16,7 @@ implemented, merged). Ask Claude to "update BACKLOG.md" after any speckit step o
 | 003 | Tasks CRUD and activity log | ✅ merged | [specs/003-tasks-crud-and-activity-log](specs/003-tasks-crud-and-activity-log/spec.md) | [#3](https://github.com/maxwellbw/household-hq/pull/3) |
 | 004 | Recurring chore engine | ✅ merged | [specs/004-recurring-engine](specs/004-recurring-engine/spec.md) | [#4](https://github.com/maxwellbw/household-hq/pull/4) |
 | 005 | Events and prep templates | ✅ merged | [specs/005-events-and-prep-templates](specs/005-events-and-prep-templates/spec.md) | [#5](https://github.com/maxwellbw/household-hq/pull/5) |
-| 006 | Calendar UI (home screen) | ⬜ not started | — | — |
+| 006 | Calendar UI (home screen) | 🔍 in review | [specs/006-calendar-ui](specs/006-calendar-ui/spec.md) | [#6](https://github.com/maxwellbw/household-hq/pull/6) |
 | 007 | Google Calendar sync | ⬜ not started | — | — |
 
 ## Phase 2 — Comfort
@@ -42,8 +42,12 @@ implemented, merged). Ask Claude to "update BACKLOG.md" after any speckit step o
 
 ## Currently active
 
-**006 — Calendar UI (home screen)** (next in brief §10). Not started.
-Kick off with "start feature 006" to run the full Phase 7 loop.
+**006 — Calendar UI (home screen)** (next in brief §10). Implemented; PR open, in review.
+Tasks T001–T056 done (Vite + React + Schedule-X calendar, owner-tethered tasks, quick-add,
+check-off, owner filter; build clean, 44/44 tests, `/impeccable audit` 17/20 with AA contrast +
+modal focus-trap fixes applied). Remaining before merge: T057 live quickstart walkthrough (Google
+sign-in — user-run) and the one-time GitHub Pages enablement + repo Variables
+(`VITE_API_BASE_URL`, `VITE_GOOGLE_CLIENT_ID`) for the Actions deploy.
 
 _005 merged in [#5](https://github.com/maxwellbw/household-hq/pull/5); backend deployed at `clasp` @10 (event-driven prep-template generation, nightly `generatePrepTasks` trigger installed alongside 004's `generateRecurringTasks`)._
 
