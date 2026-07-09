@@ -17,7 +17,7 @@
 var SPREADSHEET_ID = '1ypXomTO5s1PHlRMDBJ52kKuvrBzQDz0pXfWQcUBtHqE';
 
 /** Bumped only for shape-level API changes (contracts/api.md §Versioning). */
-var API_VERSION = '1.2.0';
+var API_VERSION = '1.3.0';
 
 /** Returned by the health ping so clients can identify the service. */
 var SERVICE_NAME = 'household-hq';
@@ -58,7 +58,7 @@ var HEADERS = {
   Events: ['id', 'title', 'start', 'end', 'owner', 'type', 'templateId', 'notes', 'gcalEventId',
            'prepGeneratedFor'],
   Tasks: ['id', 'title', 'dueDate', 'owner', 'status', 'eventId', 'recurringId',
-          'completedBy', 'completedAt', 'snoozeHistory', 'listItems'],
+          'completedBy', 'completedAt', 'snoozeHistory', 'listItems', 'gcalEventId'],
   TaskTemplates: ['id', 'eventType', 'taskTitle', 'offsetDays', 'defaultOwner'],
   Recurring: ['id', 'title', 'cadence', 'anchorDate', 'defaultOwner', 'lastGenerated',
               'seasonStart', 'seasonEnd'],
@@ -96,7 +96,8 @@ var FEED_MAX_LIMIT = 500;
 var ACTOR_DISPLAY_NAMES = { max: 'Max', jaz: 'Jaz', system: 'System' };
 var ACTION_VERBS = {
   create: 'added', update: 'edited', complete: 'completed', reopen: 'reopened',
-  delete: 'deleted', 'adopt-id': 'assigned an id to', provision: 'set up'
+  delete: 'deleted', 'adopt-id': 'assigned an id to', provision: 'set up',
+  'gcal-sync': 'synced to calendar'
 };
 
 /**
@@ -148,6 +149,26 @@ var RECURRING_TRIGGER_HOUR = 3;
 var PREP_TRIGGER_HOUR = 4;
 
 // ---------------------------------------------------------------------------
+// Feature 007 — Google Calendar sync (research D4/D8)
+// ---------------------------------------------------------------------------
+
+/** Hour (household tz) the nightly calendar-reconcile trigger runs at; offset from 004's
+ *  and 005's hours so the three nightly jobs don't contend (research D8). */
+var GCAL_TRIGGER_HOUR = 5;
+
+/**
+ * Owner → Google Calendar event color (research D4): the closest fixed `EventColor` to each
+ * DESIGN.md owner hue. Google's per-event palette is a fixed set, so exact hex values aren't
+ * reproducible — these are the nearest matches (Max: pine teal → Peacock/CYAN, Jaz: berry/plum
+ * → Grape/MAUVE, Both: terracotta → Tangerine/ORANGE).
+ */
+var OWNER_EVENT_COLOR = {
+  max: CalendarApp.EventColor.CYAN,
+  jaz: CalendarApp.EventColor.MAUVE,
+  both: CalendarApp.EventColor.ORANGE
+};
+
+// ---------------------------------------------------------------------------
 // Settings seed (data-model.md §Settings). [key, value, notes]; seeded only when the
 // key is absent, so hand-filled values (e.g. maxEmail) are never overwritten.
 // ---------------------------------------------------------------------------
@@ -158,6 +179,8 @@ var SETTINGS_SEED = [
   ['sharedEmails', '', 'feature 002; "; "-delimited shared account(s); auth ok, writes need actingPerson'],
   ['timezone', 'America/Los_Angeles', 'household timezone for all date handling'],
   ['householdCalendarId', '', 'feature 007'],
+  ['gcalEventReminderMin', '30', 'feature 007; popup minutes before a timed event'],
+  ['gcalTaskReminderTime', '09:00', 'feature 007; morning-of popup time for all-day task entries'],
   ['digestSchedule', '', 'feature 008'],
   ['ntfyTopicMax', '', 'feature 009'],
   ['ntfyTopicJaz', '', 'feature 009'],

@@ -103,7 +103,7 @@ var HANDLERS = {
   'tasks.update':   function (p, actor) { return { task: updateTask_(p, actor) }; },
   'tasks.complete': function (p, actor) { return completeTask_(p, actor); },
   'tasks.reopen':   function (p, actor) { return reopenTask_(p, actor); },
-  'tasks.delete':   function (p, actor) { return { id: deleteEntity_(TABS.TASKS, p, actor) }; },
+  'tasks.delete':   function (p, actor) { return { id: deleteTask_(p, actor) }; }, // feature 007: mirror cleanup
 
   'templates.list':   function () { return { templates: listRecords_(TABS.TEMPLATES) }; },
   'templates.create': function (p, actor) { return { template: createTemplate_(p, actor) }; },
@@ -143,6 +143,50 @@ function deleteEntity_(tabName, payload, actor) {
 }
 
 // ---------------------------------------------------------------------------
+// Calendar mirror wiring (feature 007) — best-effort: never fails the caller's write.
+// A Calendar failure is logged and swallowed; the nightly `syncCalendar()` reconcile
+// catches it up (contracts/api-007.md).
+// ---------------------------------------------------------------------------
+
+function mirrorEventToCalendar_(event, actor) {
+  try {
+    syncCalendarForEvent_(event, actor);
+  } catch (err) {
+    console.error('mirrorEventToCalendar_: event ' + (event && event.id) + ' failed: ' +
+      (err && err.stack ? err.stack : err));
+  }
+}
+
+function mirrorEventDeleteToCalendar_(deletedEvent, actor) {
+  try {
+    removeCalendarMirrorForDeleted_(TABS.EVENTS, deletedEvent.id, deletedEvent.gcalEventId,
+      deletedEvent.title);
+  } catch (err) {
+    console.error('mirrorEventDeleteToCalendar_: event ' + deletedEvent.id + ' failed: ' +
+      (err && err.stack ? err.stack : err));
+  }
+}
+
+function mirrorTaskToCalendar_(task, actor) {
+  try {
+    syncCalendarForTask_(task, actor);
+  } catch (err) {
+    console.error('mirrorTaskToCalendar_: task ' + (task && task.id) + ' failed: ' +
+      (err && err.stack ? err.stack : err));
+  }
+}
+
+function mirrorTaskDeleteToCalendar_(deletedTask, actor) {
+  try {
+    removeCalendarMirrorForDeleted_(TABS.TASKS, deletedTask.id, deletedTask.gcalEventId,
+      deletedTask.title);
+  } catch (err) {
+    console.error('mirrorTaskDeleteToCalendar_: task ' + deletedTask.id + ' failed: ' +
+      (err && err.stack ? err.stack : err));
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Events (US2; feature 005 prep side effects — research D9)
 // ---------------------------------------------------------------------------
 
@@ -164,7 +208,9 @@ function createEvent_(payload, actor) {
   rec.prepGeneratedFor = ''; // always starts blank; syncPrepForEvent_ advances it below
   var created = createRecord_(TABS.EVENTS, rec, actor);
   syncPrepForEvent_(created, actor); // US3 FR-008: generate prep immediately if templateId is set
-  return rereadEvent_(created.id) || created;
+  var afterPrep = rereadEvent_(created.id) || created;
+  mirrorEventToCalendar_(afterPrep, actor); // feature 007: best-effort calendar mirror
+  return rereadEvent_(created.id) || afterPrep;
 }
 
 function updateEvent_(payload, actor) {
@@ -179,7 +225,9 @@ function updateEvent_(payload, actor) {
     }
   });
   syncPrepForEvent_(merged, actor); // US4 FR-015/016: re-date on move, swap set on retag
-  return rereadEvent_(merged.id) || merged;
+  var afterPrep = rereadEvent_(merged.id) || merged;
+  mirrorEventToCalendar_(afterPrep, actor); // feature 007: best-effort calendar mirror
+  return rereadEvent_(merged.id) || afterPrep;
 }
 
 /** Re-read an event after `syncPrepForEvent_` may have advanced `prepGeneratedFor`, so the
@@ -195,12 +243,16 @@ function rereadEvent_(id) {
 function deleteEvent_(payload, actor) {
   requireFields_(payload, ['id']);
   var id = String(payload.id).trim();
+  // Captured before delete — the row (and its gcalEventId) is gone once deleteRecordById_
+  // returns, so this is the calendar mirror's last chance to see the pointer (feature 007).
+  var existing = listRecords_(TABS.EVENTS).filter(function (e) { return e.id === id; })[0];
   var result = deleteRecordById_(TABS.EVENTS, id, actor);
   listRecords_(TABS.TASKS).forEach(function (t) {
     if (t.eventId === id && isPrepTaskId_(t.id)) {
       deleteRecordById_(TABS.TASKS, t.id, actor);
     }
   });
+  if (existing) mirrorEventDeleteToCalendar_(existing, actor);
   return result;
 }
 
@@ -285,7 +337,9 @@ function createTask_(payload, actor) {
   // completedBy/completedAt are server-managed (FR-002): a client-supplied value is ignored.
   rec.completedBy = '';
   rec.completedAt = '';
-  return createRecord_(TABS.TASKS, rec, actor);
+  var created = createRecord_(TABS.TASKS, rec, actor);
+  mirrorTaskToCalendar_(created, actor); // feature 007: best-effort calendar mirror
+  return rereadTask_(created.id) || created;
 }
 
 function updateTask_(payload, actor) {
@@ -303,7 +357,27 @@ function updateTask_(payload, actor) {
   validateFields_(TABS.TASKS, payload);
   // Only title/owner/dueDate reach the patch; dueDate may be cleared (empty string) (FR-005).
   var patch = mutablePatch_(TABS.TASKS, payload);
-  return updateRecordById_(TABS.TASKS, String(payload.id).trim(), patch, actor);
+  var merged = updateRecordById_(TABS.TASKS, String(payload.id).trim(), patch, actor);
+  // feature 007: covers dueDate change/clear and owner change (moves/removes/recolors the mirror).
+  mirrorTaskToCalendar_(merged, actor);
+  return rereadTask_(merged.id) || merged;
+}
+
+/** Re-read a task after a calendar mirror may have written its `gcalEventId` (feature 007),
+ *  so the response reflects the pointer the caller just stored (mirrors `rereadEvent_`). */
+function rereadTask_(id) {
+  var found = listRecords_(TABS.TASKS).filter(function (t) { return t.id === id; });
+  return found.length ? found[0] : null;
+}
+
+/** Delete a Task and remove its calendar mirror if any (feature 007). */
+function deleteTask_(payload, actor) {
+  requireFields_(payload, ['id']);
+  var id = String(payload.id).trim();
+  var existing = listRecords_(TABS.TASKS).filter(function (t) { return t.id === id; })[0];
+  var result = deleteRecordById_(TABS.TASKS, id, actor);
+  if (existing) mirrorTaskDeleteToCalendar_(existing, actor);
+  return result;
 }
 
 /** Provided header fields to change, excluding the id selector. */
@@ -323,7 +397,12 @@ function mutablePatch_(tabName, payload) {
  */
 function completeTask_(payload, actor) {
   requireFields_(payload, ['id']);
-  return setTaskLifecycle_(String(payload.id).trim(), 'done', actor, 'complete');
+  var result = setTaskLifecycle_(String(payload.id).trim(), 'done', actor, 'complete');
+  if (result.changed) {
+    mirrorTaskToCalendar_(result.task, actor); // feature 007: removes the calendar entry
+    result.task = rereadTask_(result.task.id) || result.task;
+  }
+  return result;
 }
 
 /**
@@ -332,7 +411,12 @@ function completeTask_(payload, actor) {
  */
 function reopenTask_(payload, actor) {
   requireFields_(payload, ['id']);
-  return setTaskLifecycle_(String(payload.id).trim(), 'open', actor, 'reopen');
+  var result = setTaskLifecycle_(String(payload.id).trim(), 'open', actor, 'reopen');
+  if (result.changed) {
+    mirrorTaskToCalendar_(result.task, actor); // feature 007: re-creates the calendar entry
+    result.task = rereadTask_(result.task.id) || result.task;
+  }
+  return result;
 }
 
 // ---------------------------------------------------------------------------
