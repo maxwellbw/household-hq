@@ -23,7 +23,7 @@ implemented, merged). Ask Claude to "update BACKLOG.md" after any speckit step o
 
 | # | Feature | Stage | Spec folder | PR |
 |---|---|---|---|---|
-| 008 | Email digests | ⬜ not started | — | — |
+| 008 | Email digests | 🟡 implemented, pending PR | [specs/008-email-digests](specs/008-email-digests/spec.md) | — |
 | 009 | ntfy.sh completion pings | ⬜ not started | — | — |
 
 ## Phase 3 — Stretch
@@ -42,8 +42,21 @@ implemented, merged). Ask Claude to "update BACKLOG.md" after any speckit step o
 
 ## Currently active
 
-**008 — Email digests** (next in brief §10, Phase 2). Not started.
-Kick off with "start feature 008" to run the full loop.
+**008 — Email digests** — implemented, pending PR. Personalized weekly "week ahead" (Sunday
+default) + monthly "next month" HTML digests (owner colors + plain-text fallback), sent via
+`MailApp` on a daily-gate trigger (`sendDigests()`, hour from `digestHour`, default 6–7am
+household tz). Own+`both` owner-filtering only (never the other person's solo items,
+clarified). Schedule fully hand-editable in Settings (`digestWeeklyEnabled/Day`,
+`digestMonthlyEnabled/Day`, `digestHour`) — weekday/month-day/on-off take effect next run, no
+reinstall; only `digestHour` needs `installDigestTrigger()` re-run. Dedupe via a deterministic
+period-key lookup in ActivityLog (no mutable "sent" flag) under `LockService`, so re-fires
+never double-send. New `backend/Digests.js`; edits to `Config.js` (Settings seed, constants,
+`ACTION_VERBS`, API_VERSION → 1.3.1), `SelfTest.js` (`unitDigests_`), `appsscript.json`
+(`script.send_mail` scope — shared account re-authorized). Deployed (`clasp` @12, same stable
+URL); validated end-to-end — `selfTest()` ALL PASS, `setupDatabase()` seeded the 5 new
+Settings keys, `installDigestTrigger()` installed, and a real `sendWeeklyDigestNow()` run
+delivered correctly owner-filtered, color-coded emails to both inboxes (quickstart Scenario
+A confirmed manually). Ready to commit + PR.
 
 _007 merged to `main` (PR #7) and deployed to the Apps Script web app (`clasp` @11, same stable URL). One-way outbound sync of Events + dated Tasks → shared Household Google Calendar; nightly `syncCalendar()` trigger installed on the shared account, which is now authorized for the broad `calendar` scope (front-loaded so 011 needs no re-auth). `Tasks.gcalEventId` column + `gcalEventReminderMin`/`gcalTaskReminderTime` Settings live. Validated end-to-end (selfTest ALL PASS + quickstart A–G on both phones). Feature 011 work-calendar decisions (sharing target, ignore-list, auto-invite) captured in brief §5 item 16._
 
