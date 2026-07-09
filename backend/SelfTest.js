@@ -26,6 +26,10 @@ function selfTest() {
   unitPrepMath_();
   livePrepGeneration_();
   livePrepLifecycle_();
+  unitCalendarSync_();
+  liveCalendarEventSync_();
+  liveCalendarTaskSync_();
+  liveCalendarReconcile_();
   Logger.log('ALL PASS');
 }
 
@@ -46,6 +50,22 @@ function checkExternalRequestAuth() {
     Logger.log('external_request OK — tokeninfo HTTP ' + resp.getResponseCode());
   } catch (e) {
     Logger.log('external_request FAILED (authorize the scope): ' + e);
+  }
+}
+
+/**
+ * One-time authorization helper (feature 007). Run this from the editor after adding the
+ * `calendar` scope: it calls CalendarApp directly, so Apps Script prompts for the new scope
+ * right away — independent of whether Settings `householdCalendarId` is set yet (the sync
+ * code itself no-ops on a blank id per FR-014, so it never triggers the prompt on its own).
+ * Expect the log to read `calendar OK — N owned calendar(s) visible to this account.`
+ */
+function checkCalendarAuth() {
+  try {
+    var cals = CalendarApp.getAllOwnedCalendars();
+    Logger.log('calendar OK — ' + cals.length + ' owned calendar(s) visible to this account.');
+  } catch (e) {
+    Logger.log('calendar FAILED (authorize the scope): ' + e);
   }
 }
 
@@ -684,4 +704,204 @@ function livePrepLifecycle_() {
   deleteRecordById_(TABS.TEMPLATES, visitStep.id, 'selftest');
   deleteRecordById_(TABS.TEMPLATES, dinnerStep.id, 'selftest');
   Logger.log('live prep lifecycle: pass');
+}
+
+// ---------------------------------------------------------------------------
+// Unit: calendar-sync pure builders (feature 007 research D4/D5/D6; no Sheet/Calendar needed)
+// ---------------------------------------------------------------------------
+
+function unitCalendarSync_() {
+  assert_(buildEntryTitle_('jaz', 'Vet') === '[Jaz] Vet', 'buildEntryTitle_ prefixes owner label (jaz)');
+  assert_(buildEntryTitle_('max', 'Trash') === '[Max] Trash', 'buildEntryTitle_ prefixes owner label (max)');
+  assert_(buildEntryTitle_('both', 'Renew license') === '[Both] Renew license',
+    'buildEntryTitle_ prefixes owner label (both)');
+
+  assert_(ownerColor_('max') === CalendarApp.EventColor.CYAN, 'ownerColor_ max -> Peacock/CYAN');
+  assert_(ownerColor_('jaz') === CalendarApp.EventColor.MAUVE, 'ownerColor_ jaz -> Grape/MAUVE');
+  assert_(ownerColor_('both') === CalendarApp.EventColor.ORANGE, 'ownerColor_ both -> Tangerine/ORANGE');
+  assert_(ownerColor_('max') !== ownerColor_('jaz') && ownerColor_('jaz') !== ownerColor_('both'),
+    'the three owner colors are distinct');
+
+  var today = todayYmd_();
+  var future = addDays_(today, 5);
+  var past = addDays_(today, -5);
+
+  assert_(isEventDesired_({ end: future + 'T10:00' }) === true, 'future-ending event is desired');
+  assert_(isEventDesired_({ end: today + 'T23:59' }) === true, 'today-ending event is desired (boundary)');
+  assert_(isEventDesired_({ end: past + 'T10:00' }) === false, 'past-ending event is not desired');
+
+  assert_(isTaskDesired_({ dueDate: future, status: 'open' }) === true, 'future open task is desired');
+  assert_(isTaskDesired_({ dueDate: future, status: 'snoozed' }) === true, 'future snoozed task is desired');
+  assert_(isTaskDesired_({ dueDate: future, status: 'done' }) === false, 'done task is not desired');
+  assert_(isTaskDesired_({ dueDate: '', status: 'open' }) === false, 'undated task is not desired');
+  assert_(isTaskDesired_({ dueDate: past, status: 'open' }) === false, 'past-due task is not desired');
+
+  assert_(taskReminderMinutesFromMidnight_('09:00') === 540, '09:00 -> 540 minutes from midnight');
+  assert_(taskReminderMinutesFromMidnight_('00:00') === 0, '00:00 -> 0 minutes from midnight');
+  assert_(taskReminderMinutesFromMidnight_('bogus') === 540, 'invalid time falls back to the 09:00 default');
+  Logger.log('unit calendar sync: pass');
+}
+
+/** Guard for the live calendar blocks below — skipped (not failed) when the household
+ *  calendar isn't configured, mirroring the feature's own FR-014 no-op behavior. */
+function calendarConfigured_() {
+  return String(readSettingsMap_()['householdCalendarId'] || '').trim() !== '';
+}
+
+// ---------------------------------------------------------------------------
+// Live: Event calendar mirror — create/update/re-sync/stale-pointer/delete (US1; FR-001/
+// 003/004/009/015). Guarded + self-cleaning.
+// ---------------------------------------------------------------------------
+
+/**
+ * CalendarApp caveat (applies to all three live blocks below): `CalendarApp` caches events
+ * within a single execution, so an entry deleted earlier in THIS run can still resolve by id
+ * (a stale handle) and operations on it throw "already been deleted." These blocks therefore
+ * assert only what is reliable in one execution — creation, in-place update, and Sheet-side
+ * pointer bookkeeping (which reads the Sheet, not the calendar cache). Entry *removal*,
+ * stale-pointer recreation (FR-015), reconcile self-healing, and the orphan sweep can only be
+ * observed across executions (a fresh cache), so they are validated in quickstart.md
+ * (Scenarios E & F). Production is unaffected: the immediate-mirror and nightly paths never
+ * delete-then-refetch the same event within one execution.
+ */
+function liveCalendarEventSync_() {
+  if (!calendarConfigured_()) {
+    Logger.log('live calendar event sync: SKIPPED (householdCalendarId not set)');
+    return;
+  }
+  var calendar = getHouseholdCalendar_();
+  var eventId = null;
+  try {
+    var day = addDays_(todayYmd_(), 2);
+    var event = createEvent_({
+      id: SELFTEST_PREFIX + Utilities.getUuid(), title: SELFTEST_PREFIX + 'cal event',
+      start: day + 'T16:00', end: day + 'T16:30', owner: 'jaz'
+    }, 'selftest');
+    eventId = event.id;
+    assert_(event.gcalEventId !== '', 'creating a future event mirrors a calendar entry (pointer stored)');
+    var entry = calendar.getEventById(event.gcalEventId);
+    assert_(entry && entry.getTitle() === '[Jaz] ' + SELFTEST_PREFIX + 'cal event',
+      'mirrored entry title carries the owner prefix');
+    assert_(entry.getColor() === ownerColor_('jaz'), 'mirrored entry uses the jaz color');
+
+    var updated = updateEvent_({ id: event.id, start: day + 'T17:00', end: day + 'T17:30' }, 'selftest');
+    assert_(updated.gcalEventId === event.gcalEventId, 'update reuses the same calendar pointer (no duplicate)');
+    assert_(calendar.getEventById(updated.gcalEventId).getStartTime().getHours() === 17,
+      'update moves the same entry to the new time (in place, no duplicate)');
+
+    // Re-sync with no app-side change is a no-op: same pointer, still exactly one entry.
+    syncCalendarForEvent_(rereadEvent_(event.id), 'selftest');
+    assert_(rereadEvent_(event.id).gcalEventId === updated.gcalEventId,
+      're-sync leaves the pointer unchanged (idempotent)');
+  } finally {
+    if (eventId) {
+      try { deleteEvent_({ id: eventId }, 'selftest'); } catch (e) { /* best-effort cleanup */ }
+    }
+  }
+  Logger.log('live calendar event sync: pass');
+}
+
+// ---------------------------------------------------------------------------
+// Live: Task calendar mirror — dated/undated, move, complete, reopen, delete (US2;
+// FR-005/006/009). Guarded + self-cleaning.
+// ---------------------------------------------------------------------------
+
+function liveCalendarTaskSync_() {
+  if (!calendarConfigured_()) {
+    Logger.log('live calendar task sync: SKIPPED (householdCalendarId not set)');
+    return;
+  }
+  var calendar = getHouseholdCalendar_();
+  var datedId = null, undatedId = null;
+  try {
+    var due = addDays_(todayYmd_(), 3);
+    var dated = createTask_({
+      id: SELFTEST_PREFIX + Utilities.getUuid(), title: SELFTEST_PREFIX + 'cal task',
+      owner: 'both', dueDate: due
+    }, 'selftest');
+    datedId = dated.id;
+    assert_(dated.gcalEventId !== '', 'a dated future task mirrors an all-day calendar entry');
+    var entry = calendar.getEventById(dated.gcalEventId);
+    assert_(entry && entry.isAllDayEvent(), 'the mirrored task entry is all-day');
+    assert_(entry.getTitle() === '[Both] ' + SELFTEST_PREFIX + 'cal task',
+      'mirrored task entry title carries the owner prefix');
+    assert_(entry.getColor() === ownerColor_('both'), 'mirrored task entry uses the both color');
+
+    var undated = createTask_({
+      id: SELFTEST_PREFIX + Utilities.getUuid(), title: SELFTEST_PREFIX + 'cal task undated', owner: 'max'
+    }, 'selftest');
+    undatedId = undated.id;
+    assert_(undated.gcalEventId === '', 'an undated task produces no calendar entry');
+
+    var newDue = addDays_(todayYmd_(), 6);
+    var moved = updateTask_({ id: dated.id, dueDate: newDue }, 'selftest');
+    assert_(moved.gcalEventId === dated.gcalEventId, 'due-date change reuses the same calendar pointer');
+    var movedEntry = calendar.getEventById(moved.gcalEventId);
+    var movedDate = Utilities.formatDate(movedEntry.getAllDayStartDate(), getTimezone_(), 'yyyy-MM-dd');
+    assert_(movedDate === newDue, 'the same entry moves to the new due date (no duplicate)');
+
+    // Pointer bookkeeping is Sheet-side, so it's reliable in one execution; the entry's
+    // actual disappearance/reappearance is validated cross-execution in quickstart.
+    var completed = completeTask_({ id: dated.id }, 'selftest');
+    assert_(completed.task.gcalEventId === '', 'completing the task clears the calendar pointer');
+
+    var reopened = reopenTask_({ id: dated.id }, 'selftest');
+    assert_(reopened.task.gcalEventId !== '', 'reopening the task re-stores a calendar pointer');
+  } finally {
+    if (undatedId) {
+      try { deleteRecordById_(TABS.TASKS, undatedId, 'selftest'); } catch (e) { /* best-effort */ }
+    }
+    if (datedId) {
+      try { deleteTask_({ id: datedId }, 'selftest'); } catch (e) { /* best-effort cleanup */ }
+    }
+  }
+  Logger.log('live calendar task sync: pass');
+}
+
+// ---------------------------------------------------------------------------
+// Live: nightly reconcile smoke test (US3; FR-010). Guarded + self-cleaning.
+//
+// Confirms the `syncCalendar()` trigger entry point runs end-to-end over the live data and
+// leaves seeded records mirrored. The self-healing (re-create a hand-deleted entry, correct a
+// hand-renamed one) and the orphan sweep cannot be exercised in a single execution —
+// CalendarApp's per-execution cache masks same-run deletes/edits — so they are validated
+// cross-execution in quickstart.md Scenarios E & F (hand-edit in Google Calendar, then run
+// syncCalendar() as a separate execution with a fresh cache).
+// ---------------------------------------------------------------------------
+
+function liveCalendarReconcile_() {
+  if (!calendarConfigured_()) {
+    Logger.log('live calendar reconcile: SKIPPED (householdCalendarId not set)');
+    return;
+  }
+  var eventId = null, taskId = null;
+  try {
+    var day = addDays_(todayYmd_(), 4);
+    var event = createEvent_({
+      id: SELFTEST_PREFIX + Utilities.getUuid(), title: SELFTEST_PREFIX + 'reconcile event',
+      start: day + 'T09:00', end: day + 'T09:30', owner: 'max'
+    }, 'selftest');
+    eventId = event.id;
+
+    var task = createTask_({
+      id: SELFTEST_PREFIX + Utilities.getUuid(), title: SELFTEST_PREFIX + 'reconcile task',
+      owner: 'jaz', dueDate: day
+    }, 'selftest');
+    taskId = task.id;
+
+    // The nightly entry point must complete without throwing and keep the seeded records
+    // mirrored (idempotent — they already have pointers, so this is a no-op for them).
+    syncCalendar();
+
+    assert_(rereadEvent_(eventId).gcalEventId !== '', 'reconcile keeps the seeded event mirrored');
+    assert_(rereadTask_(taskId).gcalEventId !== '', 'reconcile keeps the seeded task mirrored');
+  } finally {
+    if (eventId) {
+      try { deleteEvent_({ id: eventId }, 'selftest'); } catch (e) { /* best-effort cleanup */ }
+    }
+    if (taskId) {
+      try { deleteTask_({ id: taskId }, 'selftest'); } catch (e) { /* best-effort cleanup */ }
+    }
+  }
+  Logger.log('live calendar reconcile: pass');
 }
