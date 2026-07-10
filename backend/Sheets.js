@@ -309,6 +309,57 @@ function setTaskLifecycle_(id, targetStatus, actor, logAction) {
   });
 }
 
+/**
+ * Snooze a task (US3, feature 012). Inside the lock: if already snoozed to the same
+ * dueDate, return unchanged (changed:false). Otherwise set status='snoozed', update
+ * dueDate, append one snoozeHistory entry (<oldDue|∅>→<newDue> @ <nowIso>), write the
+ * row, and log 'snooze'. History is append-only and never cleared.
+ *
+ * @return {{task: Object, changed: boolean}}
+ */
+function setTaskSnooze_(id, newDueDate, actor) {
+  return withLock_(function () {
+    var t = readTableForWrite_(TABS.TASKS);
+    var rec = findRecord_(t, id);
+    if (!rec) fail_('NOT_FOUND', 'No ' + TABS.TASKS + ' record with id "' + id + '".');
+    if (rec.status === 'snoozed' && rec.dueDate === newDueDate) {
+      return { task: stripInternal_(rec), changed: false };
+    }
+    var merged = stripInternal_(rec);
+    var oldDue = String(rec.dueDate || '').trim() || '∅'; // ∅ when undated
+    var entry = oldDue + '→' + newDueDate + ' @ ' + nowIso_(); // →
+    var prev = String(rec.snoozeHistory || '').trim();
+    merged.snoozeHistory = prev ? prev + ' | ' + entry : entry;
+    merged.status = 'snoozed';
+    merged.dueDate = newDueDate;
+    writeRowAsText_(t.sheet, rec._row, buildRowArray_(t, merged, t.values[rec._row - 1]));
+    appendLog_(actor, 'snooze', id, merged.title || '');
+    return { task: merged, changed: true };
+  });
+}
+
+/**
+ * Unsnooze a task: return it to 'open' (snoozeHistory preserved). If already open,
+ * no-change (changed:false). Logs 'unsnooze' on a real transition.
+ *
+ * @return {{task: Object, changed: boolean}}
+ */
+function setTaskUnsnooze_(id, actor) {
+  return withLock_(function () {
+    var t = readTableForWrite_(TABS.TASKS);
+    var rec = findRecord_(t, id);
+    if (!rec) fail_('NOT_FOUND', 'No ' + TABS.TASKS + ' record with id "' + id + '".');
+    if (rec.status === 'open') {
+      return { task: stripInternal_(rec), changed: false };
+    }
+    var merged = stripInternal_(rec);
+    merged.status = 'open';
+    writeRowAsText_(t.sheet, rec._row, buildRowArray_(t, merged, t.values[rec._row - 1]));
+    appendLog_(actor, 'unsnooze', id, merged.title || '');
+    return { task: merged, changed: true };
+  });
+}
+
 /** Hard delete by id; the ActivityLog row (with the record's title) is the record. */
 function deleteRecordById_(tabName, id, actor) {
   return withLock_(function () {
