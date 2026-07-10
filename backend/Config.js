@@ -17,7 +17,7 @@
 var SPREADSHEET_ID = '1ypXomTO5s1PHlRMDBJ52kKuvrBzQDz0pXfWQcUBtHqE';
 
 /** Bumped only for shape-level API changes (contracts/api.md §Versioning). */
-var API_VERSION = '1.3.1';
+var API_VERSION = '1.3.2';
 
 /** Returned by the health ping so clients can identify the service. */
 var SERVICE_NAME = 'household-hq';
@@ -98,8 +98,11 @@ var ACTION_VERBS = {
   create: 'added', update: 'edited', complete: 'completed', reopen: 'reopened',
   delete: 'deleted', 'adopt-id': 'assigned an id to', provision: 'set up',
   'gcal-sync': 'synced to calendar', 'digest-weekly': 'emailed the week ahead',
-  'digest-monthly': 'emailed the month ahead'
+  'digest-monthly': 'emailed the month ahead', 'ntfy-ping': 'sent a completion ping'
 };
+
+/** feature 009 — free, keyless push-notification host; a platform choice, not household data. */
+var NTFY_BASE_URL = 'https://ntfy.sh';
 
 /**
  * A write action mutates the Sheet. Shared-account callers must confirm an acting-person
@@ -206,6 +209,7 @@ var SETTINGS_SEED = [
   ['digestHour', '7', 'feature 008; hour (household tz) the daily digest gate fires; re-run installDigestTrigger() after changing'],
   ['ntfyTopicMax', '', 'feature 009'],
   ['ntfyTopicJaz', '', 'feature 009'],
+  ['ntfyEnabled', 'TRUE', 'feature 009; FALSE turns off completion pings'],
   ['workIcsUrlMax', '', 'feature 011'],
   ['workIcsUrlJaz', '', 'feature 011'],
   ['householdLat', '', 'feature 011'],

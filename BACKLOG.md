@@ -24,7 +24,7 @@ implemented, merged). Ask Claude to "update BACKLOG.md" after any speckit step o
 | # | Feature | Stage | Spec folder | PR |
 |---|---|---|---|---|
 | 008 | Email digests | ✅ merged | [specs/008-email-digests](specs/008-email-digests/spec.md) | [#8](https://github.com/maxwellbw/household-hq/pull/8) |
-| 009 | ntfy.sh completion pings | ⬜ not started | — | — |
+| 009 | ntfy.sh completion pings | 🟡 deployed (live validation deferred) | [specs/009-ntfy-pings](specs/009-ntfy-pings/spec.md) | — |
 
 ## Phase 3 — Stretch
 
@@ -42,8 +42,14 @@ implemented, merged). Ask Claude to "update BACKLOG.md" after any speckit step o
 
 ## Currently active
 
-**009 — ntfy.sh completion pings** (next in brief §10, Phase 2). Not started.
-Kick off with "start feature 009" to run the full loop.
+**009 — ntfy.sh completion pings** (brief §10 item 10, Phase 2). Implemented and deployed
+(`clasp` @13, same stable URL) on branch `009-ntfy-pings`, PR open. A real open→done completion
+POSTs `"<Completer> completed: <title>"` to **the other person's** private ntfy topic (clarified:
+never yourself; `both`-owned included). Best-effort side effect on `completeTask_`'s
+`changed`-flag branch — no trigger, no new OAuth scope, no frontend. New `backend/Ntfy.js`;
+one-line `Api.js` edit; new Settings key `ntfyEnabled` (topics already seeded).
+**Deferred validation (user decision 2026-07-09):** run `setupDatabase()` + `selfTest()` in the
+editor, pick topics, subscribe phones, and run quickstart Scenarios A–F (tasks T012/T014).
 
 _008 merged to `main` (PR #8) and deployed to the Apps Script web app (`clasp` @12, same stable
 URL). Personalized weekly "week ahead" (Sunday default) + monthly "next month" HTML digests
