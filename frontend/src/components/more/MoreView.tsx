@@ -1,20 +1,21 @@
 import { useState } from 'react'
 import { ChevronRight, RefreshCw, ClipboardList, LogOut } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
+import { RecurringManager } from '@/components/more/RecurringManager'
+import { TemplatesManager } from '@/components/more/TemplatesManager'
 import { ownerStyle } from '@/lib/owners'
 import { cn } from '@/lib/utils'
 
 type Subscreen = null | 'recurring' | 'templates'
 
-/** More hub — account info + sign out + links to management screens (managers wired in US6 / T032). */
+/** More hub — account info + sign out + Recurring/Templates managers (US6, T032). */
 export function MoreView() {
   const { session, signOut } = useAuth()
   const [subscreen, setSubscreen] = useState<Subscreen>(null)
   const who = session?.who
   const owner = who?.identity === 'shared' ? session?.actingPerson : who?.identity
 
-  if (subscreen !== null) {
-    const label = subscreen === 'recurring' ? 'Recurring Rules' : 'Prep Templates'
+  if (subscreen === 'recurring') {
     return (
       <div className="flex flex-col">
         <div className="flex items-center gap-2 border-b border-border bg-surface px-4 py-3">
@@ -26,14 +27,28 @@ export function MoreView() {
           >
             ←
           </button>
-          <h2 className="font-display text-lg text-ink">{label}</h2>
+          <h2 className="font-display text-lg text-ink">Recurring Rules</h2>
         </div>
-        <div className="flex flex-col items-center justify-center gap-2 px-6 py-12 text-center">
-          <p className="font-display text-lg text-ink">Coming in a future update</p>
-          <p className="text-sm text-ink-muted">
-            Management screens for {label.toLowerCase()} are on the way.
-          </p>
+        <RecurringManager />
+      </div>
+    )
+  }
+
+  if (subscreen === 'templates') {
+    return (
+      <div className="flex flex-col">
+        <div className="flex items-center gap-2 border-b border-border bg-surface px-4 py-3">
+          <button
+            type="button"
+            onClick={() => setSubscreen(null)}
+            className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-control text-ink-muted hover:bg-surface-alt focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+            aria-label="Back to More"
+          >
+            ←
+          </button>
+          <h2 className="font-display text-lg text-ink">Prep Templates</h2>
         </div>
+        <TemplatesManager />
       </div>
     )
   }
