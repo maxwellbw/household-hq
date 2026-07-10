@@ -44,6 +44,7 @@ export function EventDetailSheet({ event, timezone, onClose }: EventDetailSheetP
                   event.owner === 'jaz' && 'bg-owner-jaz',
                   event.owner === 'both' && 'bg-owner-both',
                 )}
+                aria-hidden="true"
               >
                 {style.initial}
               </span>

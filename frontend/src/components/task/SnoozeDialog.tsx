@@ -95,6 +95,7 @@ export function SnoozeDialog({ task, onClose }: SnoozeDialogProps) {
               key={label}
               type="button"
               onClick={() => pick(date)}
+              aria-pressed={selected === date}
               className={`flex-1 rounded-control border px-3 py-2 text-sm font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ${
                 selected === date
                   ? 'border-accent bg-accent/10 text-accent'
