@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { groupTasks } from './tasks'
+import { groupTasks, parseSnoozeHistory, formatSnoozeHistory } from './tasks'
 import type { Task } from '@/types/domain'
 
 function task(overrides: Partial<Task> & { id: string }): Task {
@@ -88,6 +88,7 @@ describe('groupTasks', () => {
   })
 
   it('partitions open and done correctly in a mixed list', () => {
+
     const tasks = [
       task({ id: 'open1', status: 'open', dueDate: '2026-07-15' }),
       task({ id: 'done1', status: 'done', completedAt: '2026-07-09T10:00' }),
@@ -96,5 +97,65 @@ describe('groupTasks', () => {
     const { open, done } = groupTasks(tasks)
     expect(open.map((t) => t.id)).toEqual(['open1', 'snoozed1'])
     expect(done.map((t) => t.id)).toEqual(['done1'])
+  })
+})
+
+describe('parseSnoozeHistory', () => {
+  it('returns empty array for empty/null/undefined input', () => {
+    expect(parseSnoozeHistory('')).toEqual([])
+    expect(parseSnoozeHistory(null)).toEqual([])
+    expect(parseSnoozeHistory(undefined)).toEqual([])
+    expect(parseSnoozeHistory('   ')).toEqual([])
+  })
+
+  it('parses a single entry correctly', () => {
+    const rows = parseSnoozeHistory('2026-07-09→2026-07-14 @ 2026-07-09T08:12')
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toEqual({ fromDue: '2026-07-09', newDue: '2026-07-14', at: '2026-07-09T08:12' })
+  })
+
+  it('parses ∅ fromDue as null (task had no dueDate before snooze)', () => {
+    const rows = parseSnoozeHistory('∅→2026-07-14 @ 2026-07-09T08:12')
+    expect(rows).toHaveLength(1)
+    expect(rows[0].fromDue).toBeNull()
+  })
+
+  it('parses multiple entries separated by " | "', () => {
+    const raw =
+      '2026-07-09→2026-07-14 @ 2026-07-09T08:12 | 2026-07-14→2026-07-20 @ 2026-07-14T07:03'
+    const rows = parseSnoozeHistory(raw)
+    expect(rows).toHaveLength(2)
+    expect(rows[0].newDue).toBe('2026-07-14')
+    expect(rows[1].newDue).toBe('2026-07-20')
+    expect(rows[1].fromDue).toBe('2026-07-14')
+  })
+
+  it('skips malformed entries without throwing', () => {
+    const raw = 'garbage | 2026-07-09→2026-07-14 @ 2026-07-09T08:12 | also:bad'
+    const rows = parseSnoozeHistory(raw)
+    expect(rows).toHaveLength(1)
+    expect(rows[0].newDue).toBe('2026-07-14')
+  })
+
+  it('all-malformed input returns empty array', () => {
+    expect(parseSnoozeHistory('no-arrow-here @ time')).toEqual([])
+    expect(parseSnoozeHistory('→ @ ')).toEqual([]) // newDue and at are blank
+  })
+})
+
+describe('formatSnoozeHistory', () => {
+  it('round-trips a parsed history back to the original string', () => {
+    const raw =
+      '2026-07-09→2026-07-14 @ 2026-07-09T08:12 | 2026-07-14→2026-07-20 @ 2026-07-14T07:03'
+    expect(formatSnoozeHistory(parseSnoozeHistory(raw))).toBe(raw)
+  })
+
+  it('encodes null fromDue as ∅', () => {
+    const result = formatSnoozeHistory([{ fromDue: null, newDue: '2026-07-14', at: '2026-07-09T08:12' }])
+    expect(result).toBe('∅→2026-07-14 @ 2026-07-09T08:12')
+  })
+
+  it('returns empty string for empty array', () => {
+    expect(formatSnoozeHistory([])).toBe('')
   })
 })

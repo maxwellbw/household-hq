@@ -5,7 +5,10 @@ import { useSettings } from '@/hooks/useSettings'
 import { useOwnerFilter } from '@/hooks/useOwnerFilter'
 import { groupTasks } from '@/lib/tasks'
 import { TaskRow } from '@/components/task/TaskRow'
+import { SnoozeDialog } from '@/components/task/SnoozeDialog'
+import { TaskDetailSheet } from '@/components/task/TaskDetailSheet'
 import { OwnerFilterChips } from '@/components/calendar/OwnerFilterChips'
+import type { Task } from '@/types/domain'
 
 /** All household tasks — grouped Open → collapsed Done, filtered by owner chips. */
 export function TasksView() {
@@ -13,6 +16,8 @@ export function TasksView() {
   const { timezone } = useSettings()
   const { visibleOwners, toggle } = useOwnerFilter()
   const [doneExpanded, setDoneExpanded] = useState(false)
+  const [snoozeTask, setSnoozeTask] = useState<Task | null>(null)
+  const [detailTask, setDetailTask] = useState<Task | null>(null)
 
   if (isPending) {
     return (
@@ -64,7 +69,13 @@ export function TasksView() {
         ) : (
           <div className="rounded-card bg-surface shadow-card">
             {open.map((task) => (
-              <TaskRow key={task.id} task={task} timezone={timezone} />
+              <TaskRow
+                key={task.id}
+                task={task}
+                timezone={timezone}
+                onSnooze={() => setSnoozeTask(task)}
+                onDetail={() => setDetailTask(task)}
+              />
             ))}
           </div>
         )}
@@ -88,13 +99,25 @@ export function TasksView() {
             {doneExpanded && (
               <div className="rounded-card bg-surface shadow-card">
                 {done.map((task) => (
-                  <TaskRow key={task.id} task={task} timezone={timezone} />
+                  <TaskRow
+                    key={task.id}
+                    task={task}
+                    timezone={timezone}
+                    onDetail={() => setDetailTask(task)}
+                  />
                 ))}
               </div>
             )}
           </div>
         )}
       </div>
+
+      {snoozeTask && (
+        <SnoozeDialog task={snoozeTask} onClose={() => setSnoozeTask(null)} />
+      )}
+      {detailTask && (
+        <TaskDetailSheet task={detailTask} onClose={() => setDetailTask(null)} />
+      )}
     </div>
   )
 }

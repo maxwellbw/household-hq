@@ -16,10 +16,12 @@ interface TaskRowProps {
   onSnooze?: () => void
   /** Called when the user picks Edit due from the overflow menu (wired in US4). */
   onEditDue?: () => void
+  /** Called when the user taps the task title to open the detail sheet (wired in US3). */
+  onDetail?: () => void
 }
 
 /** DESIGN.md "Task row": checkbox · title · owner chip · due label · overflow menu. */
-export function TaskRow({ task, timezone, eventStartKey, onSnooze, onEditDue }: TaskRowProps) {
+export function TaskRow({ task, timezone, eventStartKey, onSnooze, onEditDue, onDetail }: TaskRowProps) {
   const style = ownerStyle(task.owner)
   const due = relativeDue(task.dueDate, timezone, eventStartKey)
   const isDone = task.status === 'done'
@@ -87,17 +89,21 @@ export function TaskRow({ task, timezone, eventStartKey, onSnooze, onEditDue }: 
         </span>
       </button>
 
-      <span
+      <button
+        type="button"
+        onClick={onDetail}
+        disabled={!onDetail}
         className={cn(
-          'flex-1 text-sm transition-all duration-200',
+          'flex-1 text-left text-sm transition-all duration-200',
           isDone ? 'text-ink-faint line-through' : 'text-ink',
+          onDetail && 'hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
         )}
       >
         {task.title}
         {isSnoozed && task.dueDate && (
           <span className="ml-2 text-xs text-ink-muted">snoozed until {task.dueDate}</span>
         )}
-      </span>
+      </button>
 
       <span
         className={cn(

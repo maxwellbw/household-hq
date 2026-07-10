@@ -102,3 +102,67 @@ export function useCompleteTask() {
 export function useReopenTask() {
   return useSetTaskStatus('tasks.reopen', 'open')
 }
+
+/** Snooze a task to a new dueDate — optimistic flip to 'snoozed', invalidate on settle. */
+export function useSnoozeTask() {
+  const { session, handleAuthError } = useAuth()
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, dueDate }: { id: string; dueDate: string }) => {
+      try {
+        return await apiCall(
+          'tasks.snooze',
+          { id, dueDate },
+          { token: session!.token, actingPerson: session!.actingPerson },
+        )
+      } catch (err) {
+        handleAuthError(err)
+        throw err
+      }
+    },
+    onMutate: async ({ id }) => {
+      await queryClient.cancelQueries({ queryKey: ['tasks'] })
+      const previous = queryClient.getQueryData<Task[]>(['tasks'])
+      queryClient.setQueryData<Task[] | undefined>(['tasks'], (old) =>
+        old?.map((t) => (t.id === id ? { ...t, status: 'snoozed' as const } : t)),
+      )
+      return { previous }
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previous) queryClient.setQueryData(['tasks'], context.previous)
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['tasks'] }),
+  })
+}
+
+/** Unsnooze a task — optimistic flip back to 'open', invalidate on settle. */
+export function useUnsnoozeTask() {
+  const { session, handleAuthError } = useAuth()
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (taskId: string) => {
+      try {
+        return await apiCall(
+          'tasks.unsnooze',
+          { id: taskId },
+          { token: session!.token, actingPerson: session!.actingPerson },
+        )
+      } catch (err) {
+        handleAuthError(err)
+        throw err
+      }
+    },
+    onMutate: async (taskId: string) => {
+      await queryClient.cancelQueries({ queryKey: ['tasks'] })
+      const previous = queryClient.getQueryData<Task[]>(['tasks'])
+      queryClient.setQueryData<Task[] | undefined>(['tasks'], (old) =>
+        old?.map((t) => (t.id === taskId ? { ...t, status: 'open' as const } : t)),
+      )
+      return { previous }
+    },
+    onError: (_err, _taskId, context) => {
+      if (context?.previous) queryClient.setQueryData(['tasks'], context.previous)
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['tasks'] }),
+  })
+}
