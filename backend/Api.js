@@ -400,6 +400,7 @@ function completeTask_(payload, actor) {
   var result = setTaskLifecycle_(String(payload.id).trim(), 'done', actor, 'complete');
   if (result.changed) {
     mirrorTaskToCalendar_(result.task, actor); // feature 007: removes the calendar entry
+    pingCompletion_(result.task, actor); // feature 009: best-effort, never throws
     result.task = rereadTask_(result.task.id) || result.task;
   }
   return result;
