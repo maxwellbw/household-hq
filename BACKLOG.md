@@ -24,7 +24,7 @@ implemented, merged). Ask Claude to "update BACKLOG.md" after any speckit step o
 | # | Feature | Stage | Spec folder | PR |
 |---|---|---|---|---|
 | 008 | Email digests | ✅ merged | [specs/008-email-digests](specs/008-email-digests/spec.md) | [#8](https://github.com/maxwellbw/household-hq/pull/8) |
-| 009 | ntfy.sh completion pings | 🟡 deployed (live validation deferred) | [specs/009-ntfy-pings](specs/009-ntfy-pings/spec.md) | [#9](https://github.com/maxwellbw/household-hq/pull/9) |
+| 009 | ntfy.sh completion pings | ✅ merged (live validation deferred) | [specs/009-ntfy-pings](specs/009-ntfy-pings/spec.md) | [#9](https://github.com/maxwellbw/household-hq/pull/9) |
 
 ## Phase 2.5 — UX completion (planned 2026-07-09, Jaz's feedback session)
 
@@ -92,8 +92,8 @@ recurring-chore streaks/history (#17), shopping/errand list items on tasks (#18 
 **Next up: 012 — App shell & task UX** (first of the Phase 2.5 UX-completion features planned
 in Jaz's 2026-07-09 feedback session). Kick off with "start feature 012".
 
-**009 — ntfy.sh completion pings** (brief §10 item 10, Phase 2). Implemented and deployed
-(`clasp` @13, same stable URL) on branch `009-ntfy-pings`, PR open. A real open→done completion
+**009 — ntfy.sh completion pings** (brief §10 item 10, Phase 2). ✅ Merged to `main` (PR #9)
+and deployed (`clasp` @13, same stable URL). A real open→done completion
 POSTs `"<Completer> completed: <title>"` to **the other person's** private ntfy topic (clarified:
 never yourself; `both`-owned included). Best-effort side effect on `completeTask_`'s
 `changed`-flag branch — no trigger, no new OAuth scope, no frontend. New `backend/Ntfy.js`;
