@@ -4,6 +4,7 @@ import { useSettings } from '@/hooks/useSettings'
 import { useCreateEvent, useCreateOneTimeTask, useCreateRecurring } from '@/hooks/useMutations'
 import { useDialogA11y } from '@/hooks/useDialogA11y'
 import { ownerStyle, ALL_OWNERS } from '@/lib/owners'
+import { endBeforeStart } from '@/lib/datetime'
 import { ApiError } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import type { Cadence, Owner } from '@/types/domain'
@@ -32,6 +33,8 @@ export function QuickAddSheet({ onClose }: QuickAddSheetProps) {
   const [title, setTitle] = useState('')
   const [date, setDate] = useState('')
   const [time, setTime] = useState('')
+  const [endDate, setEndDate] = useState('')
+  const [endTime, setEndTime] = useState('')
   const [cadence, setCadence] = useState<Cadence>('weekly')
   const [owner, setOwner] = useState<Owner>(defaultOwner)
   const [fieldError, setFieldError] = useState<{ field?: string; message: string } | null>(null)
@@ -59,7 +62,12 @@ export function QuickAddSheet({ onClose }: QuickAddSheetProps) {
           setFieldError({ field: 'start', message: 'Pick a date.' })
           return
         }
-        await createEvent.mutateAsync({ title, start, owner })
+        const end = endDate ? (endTime ? `${endDate}T${endTime}` : endDate) : undefined
+        if (end && endBeforeStart(start, end)) {
+          setFieldError({ field: 'end', message: 'End must be on or after start.' })
+          return
+        }
+        await createEvent.mutateAsync({ title, start, end, owner })
       } else if (type === 'recurring') {
         if (!date) {
           setFieldError({ field: 'anchorDate', message: 'Pick a starting date.' })
@@ -156,6 +164,27 @@ export function QuickAddSheet({ onClose }: QuickAddSheetProps) {
         </div>
         {(fieldError?.field === 'start' || fieldError?.field === 'anchorDate') && (
           <p className="-mt-2 mb-3 text-xs text-danger">{fieldError.message}</p>
+        )}
+
+        {type === 'event' && (
+          <div className="mb-3">
+            <span className="mb-1 block text-xs font-medium text-ink-muted">End (optional)</span>
+            <div className="flex gap-2">
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="min-h-[44px] flex-1 rounded-control border border-border bg-surface px-3 text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+              />
+              <input
+                type="time"
+                value={endTime}
+                onChange={(e) => setEndTime(e.target.value)}
+                className="min-h-[44px] w-28 rounded-control border border-border bg-surface px-2 text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+              />
+            </div>
+            {fieldError?.field === 'end' && <p className="mt-1 text-xs text-danger">{fieldError.message}</p>}
+          </div>
         )}
 
         {type === 'recurring' && (

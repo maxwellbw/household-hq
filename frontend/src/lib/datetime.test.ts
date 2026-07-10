@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { dayKey, formatTime, isAllDay, relativeDue, toZonedDateTime } from './datetime'
+import { dayKey, endBeforeStart, formatTime, isAllDay, relativeDue, toZonedDateTime } from './datetime'
 
 const TZ = 'America/Los_Angeles'
 
@@ -64,6 +64,40 @@ describe('household-timezone interpretation is independent of device timezone', 
     const eastern = formatTime('2026-07-20T14:30', 'America/New_York')
     expect(pacific).toBe('2:30 PM')
     expect(eastern).toBe('2:30 PM')
+  })
+})
+
+describe('endBeforeStart', () => {
+  it('returns true when end date is before start date', () => {
+    expect(endBeforeStart('2026-07-10T09:00', '2026-07-09T09:00')).toBe(true)
+  })
+
+  it('returns true when end time is before start time on same day', () => {
+    expect(endBeforeStart('2026-07-10T09:00', '2026-07-10T08:00')).toBe(true)
+  })
+
+  it('returns false when end == start (allowed)', () => {
+    expect(endBeforeStart('2026-07-10T09:00', '2026-07-10T09:00')).toBe(false)
+  })
+
+  it('returns false when end is after start', () => {
+    expect(endBeforeStart('2026-07-10T09:00', '2026-07-11T09:00')).toBe(false)
+  })
+
+  it('returns false for date-only end on same day as timed start (multi-day allowed)', () => {
+    expect(endBeforeStart('2026-07-10T09:00', '2026-07-10')).toBe(false)
+  })
+
+  it('returns true when date-only end is before date-only start', () => {
+    expect(endBeforeStart('2026-07-10', '2026-07-09')).toBe(true)
+  })
+
+  it('returns false when date-only end equals date-only start', () => {
+    expect(endBeforeStart('2026-07-10', '2026-07-10')).toBe(false)
+  })
+
+  it('returns false for multi-day range (date-only end after timed start)', () => {
+    expect(endBeforeStart('2026-07-10T09:00', '2026-07-12')).toBe(false)
   })
 })
 

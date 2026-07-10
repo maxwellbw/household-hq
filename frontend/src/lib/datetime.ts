@@ -91,6 +91,25 @@ function daysBetween(fromKey: string, toKey: string): number {
 }
 
 /**
+ * True when `end` is strictly before `start` — the only invalid combination.
+ * Multi-day (date-only end) and end == start are both allowed.
+ * Accepts naive household-local strings (no offset needed — same zone implied).
+ */
+export function endBeforeStart(start: string, end: string): boolean {
+  const startDate = start.slice(0, 10)
+  const endDate = end.slice(0, 10)
+  if (endDate < startDate) return true
+  if (endDate > startDate) return false
+  // Same calendar day — only invalid when both carry explicit times and end < start
+  const startHasTime = start.length > 10
+  const endHasTime = end.length > 10
+  if (startHasTime && endHasTime) {
+    return end.slice(11, 16) < start.slice(11, 16)
+  }
+  return false
+}
+
+/**
  * Relative due label for a task's dueDate, or a T−N label relative to an
  * event's start when eventStartKey is supplied (checklist context).
  */
