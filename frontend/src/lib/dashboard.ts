@@ -1,5 +1,6 @@
-import type { Event, RecurringRule, Session, Task } from '@/types/domain'
-import { dayKey, inRange, todayKey, weekendRange, type DayRange } from '@/lib/datetime'
+import { Temporal } from 'temporal-polyfill'
+import type { Cadence, Event, Owner, RecurringRule, Session, Task } from '@/types/domain'
+import { dayKey, formatDate, inRange, todayKey, weekendRange, type DayRange } from '@/lib/datetime'
 
 // ── Smart Views (US1) ────────────────────────────────────────────────────────
 
@@ -76,22 +77,63 @@ export function resolveViewer(session: Session | null): 'max' | 'jaz' | null {
   return id === 'max' || id === 'jaz' ? id : null
 }
 
-// ── Highlights (US3) — stub ───────────────────────────────────────────────────
+// ── Highlights (US3) ─────────────────────────────────────────────────────────
 
 export interface Highlight {
   type: 'event' | 'rare-chore'
   label: string
+  owner: Owner
 }
 
+const RARE_CADENCES = new Set<Cadence>(['quarterly', 'annually'])
+
+/**
+ * Returns ≤ 3 callouts: upcoming multi-day/weekend events (within ~7 days)
+ * and open tasks linked to quarterly/annually rules due within ~14 days.
+ * Returns [] when nothing qualifies — no filler.
+ */
 export function highlights(
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  _events: Event[],
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  _recurring: RecurringRule[],
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  _tasks: Task[],
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  _timezone: string,
+  events: Event[],
+  recurring: RecurringRule[],
+  tasks: Task[],
+  timezone: string,
 ): Highlight[] {
-  return []
+  const todayK = todayKey(timezone)
+  const limit7K = Temporal.PlainDate.from(todayK).add({ days: 7 }).toString()
+  const limit14K = Temporal.PlainDate.from(todayK).add({ days: 14 }).toString()
+  const results: Highlight[] = []
+
+  for (const e of events) {
+    if (results.length >= 3) break
+    const startK = dayKey(e.start, timezone)
+    const endK = dayKey(e.end, timezone)
+    if (startK < todayK || startK > limit7K) continue
+    const isMultiDay = endK > startK
+    const isWeekendStart = Temporal.PlainDate.from(startK).dayOfWeek >= 5
+    if (!isMultiDay && !isWeekendStart) continue
+    const startDay = formatDate(e.start, timezone, { weekday: 'short' })
+    const label = isMultiDay
+      ? `${e.title} ${startDay}–${formatDate(e.end, timezone, { weekday: 'short' })}`
+      : `${e.title} on ${startDay}`
+    results.push({ type: 'event', label, owner: e.owner })
+  }
+
+  if (results.length < 3) {
+    const ruleById = new Map(recurring.map((r) => [r.id, r]))
+    for (const t of tasks) {
+      if (results.length >= 3) break
+      if (t.status !== 'open' || !t.dueDate || !t.recurringId) continue
+      const dueK = dayKey(t.dueDate, timezone)
+      if (dueK < todayK || dueK > limit14K) continue
+      const rule = ruleById.get(t.recurringId)
+      if (!rule || !RARE_CADENCES.has(rule.cadence)) continue
+      results.push({
+        type: 'rare-chore',
+        label: `Rare chore coming up: ${t.title}`,
+        owner: t.owner,
+      })
+    }
+  }
+
+  return results
 }

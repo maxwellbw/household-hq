@@ -4,10 +4,11 @@ import { useEvents } from '@/hooks/useEvents'
 import { useRecurring } from '@/hooks/useRecurring'
 import { useSettings } from '@/hooks/useSettings'
 import { useAuth } from '@/hooks/useAuth'
-import { loadBalance, resolveViewer, smartViews } from '@/lib/dashboard'
+import { highlights, loadBalance, resolveViewer, smartViews } from '@/lib/dashboard'
 import { monthRange, weekRange } from '@/lib/datetime'
 import { SmartViews } from '@/components/dashboard/SmartViews'
 import { LoadBalance } from '@/components/dashboard/LoadBalance'
+import { Highlights } from '@/components/dashboard/Highlights'
 
 export function DashboardHome() {
   const tasksQuery = useTasks()
@@ -36,6 +37,11 @@ export function DashboardHome() {
 
   const viewer = resolveViewer(session)
 
+  const highlightItems = useMemo(
+    () => highlights(eventsQuery.data ?? [], recurringQuery.data ?? [], tasksQuery.data ?? [], timezone),
+    [eventsQuery.data, recurringQuery.data, tasksQuery.data, timezone],
+  )
+
   if (isPending) {
     return (
       <div className="flex flex-col gap-4 px-4 py-6" aria-busy="true" aria-label="Loading dashboard">
@@ -58,13 +64,11 @@ export function DashboardHome() {
     )
   }
 
-  void recurringQuery.data
-
   return (
     <div className="flex flex-col py-2">
       <SmartViews views={views} timezone={timezone} />
       <LoadBalance weekBalance={weekBal} monthBalance={monthBal} viewer={viewer} />
-      {/* Phase 5: Highlights (US3) renders here */}
+      <Highlights items={highlightItems} />
     </div>
   )
 }
