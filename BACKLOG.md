@@ -36,7 +36,7 @@ screens. These four features close that gap, **in this order**, before 010/011:
 | # | Feature | Stage | Spec folder | PR |
 |---|---|---|---|---|
 | 012 | App shell & task UX | ✅ merged | [specs/012-app-shell-task-ux](specs/012-app-shell-task-ux/spec.md) | [#10](https://github.com/maxwellbw/household-hq/pull/10) |
-| 013 | Someday list (drag/tap-to-schedule) | ⬜ not started | — | — |
+| 013 | Someday list (tap-to-schedule; drag deferred) | 🔨 implement, pending PR | [specs/013-someday-list](specs/013-someday-list/spec.md) | [#11](https://github.com/maxwellbw/household-hq/pull/11) |
 | 014 | Home dashboard | ⬜ not started | — | — |
 | 015 | Recurring seed pack & alternating weeks | ⬜ not started | — | — |
 
@@ -50,8 +50,11 @@ TaskTemplates (list/edit/delete — answers "where do I set up templates?").
 
 **013 — Someday list.** Undated tasks (already supported by the API, currently invisible)
 shown in a list below the calendar. Scheduling one **always opens a mini-dialog asking date +
-owner** (clarified 2026-07-09 — no implicit ownership from who dragged); desktop drag-and-drop
-can pre-fill the date but still asks. Seed examples: air-duct cleaning, carpet cleaning.
+owner** (clarified 2026-07-09 — no implicit ownership from who dragged). US1 (see + complete)
++ US2 (tap-to-schedule) are implemented. **US3 (desktop drag-onto-day) deferred 2026-07-10:**
+Schedule-X month-grid cells expose no `data-date`; the `is-leading-or-trailing` class used to
+reconstruct the month is keyed to `selectedDate`, not the viewed month, producing wrong dates on
+navigation — too fragile to ship (constitution IV). Revisit when Schedule-X adds stable `data-date`.
 
 **014 — Home dashboard.** Week + month summaries, individual and together: "Friends are here
 Fri–Sun — you have 4 tasks, Jaz has 5", "rare chore coming up: change the air filter". Absorbs
@@ -89,7 +92,7 @@ recurring-chore streaks/history (#17), shopping/errand list items on tasks (#18 
 
 ## Currently active
 
-**Next up: 013 — Someday list** (drag/tap-to-schedule undated tasks). Kick off with "start feature 013".
+**Pending PR: 013 — Someday list** (US1 + US2 shipped; US3 drag-to-schedule **deferred** — Schedule-X month-grid cells expose no `data-date`, making drop-date reconstruction wrong on month navigation; revisit when Schedule-X adds stable `data-date`). Polish (T016–T018) complete; build + tests green.
 
 **009 — ntfy.sh completion pings** (brief §10 item 10, Phase 2). ✅ Merged to `main` (PR #9)
 and deployed (`clasp` @13, same stable URL). A real open→done completion

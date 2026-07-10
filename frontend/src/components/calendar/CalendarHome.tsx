@@ -147,7 +147,7 @@ export function CalendarHome({ visibleOwners }: CalendarHomeProps) {
   }
 
   return (
-    <div className="sx-react-calendar-wrapper flex h-full flex-col">
+    <div className="sx-react-calendar-wrapper flex shrink-0 flex-col">
       <ScheduleXCalendar calendarApp={calendarApp} customComponents={{ monthGridEvent: EventContent }} />
       {itemsInVisibleRange.length === 0 && <EmptyState />}
       {dataUpdatedAt > 0 && (

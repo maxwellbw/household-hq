@@ -4,6 +4,8 @@ import { useAuth } from '@/hooks/useAuth'
 import type { Owner, Task } from '@/types/domain'
 import type { NewEventInput, NewOneTimeTaskInput, NewRecurringInput } from '@/lib/quickAdd'
 import { buildEventPayload, buildOneTimeTaskPayload, buildRecurringPayload } from '@/lib/quickAdd'
+import type { ScheduleDraft } from '@/lib/schedule'
+import { buildSchedulePayload } from '@/lib/schedule'
 
 /** Quick-add creates (US5) — invalidate the relevant list on success so the new item appears immediately. */
 export function useCreateEvent() {
@@ -149,6 +151,27 @@ export function useSnoozeTask() {
       if (context?.previous) queryClient.setQueryData(['tasks'], context.previous)
     },
     onSettled: () => queryClient.invalidateQueries({ queryKey: ['tasks'] }),
+  })
+}
+
+/** Schedule a someday task by setting its dueDate + owner via tasks.update (FR-009). */
+export function useScheduleTask() {
+  const { session, handleAuthError } = useAuth()
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (draft: ScheduleDraft) => {
+      try {
+        return await apiCall(
+          'tasks.update',
+          buildSchedulePayload(draft),
+          { token: session!.token, actingPerson: session!.actingPerson },
+        )
+      } catch (err) {
+        handleAuthError(err)
+        throw err
+      }
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tasks'] }),
   })
 }
 
