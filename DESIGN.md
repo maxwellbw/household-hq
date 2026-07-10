@@ -1,6 +1,6 @@
 # DESIGN.md — Household HQ
 
-Register: **product** (app UI — design serves the product). Surface: a calendar-first household manager used daily on phones, weekly on desktop. Audience: exactly two people who chose this over a spreadsheet because it should feel calm, warm, and personal — not like enterprise project management.
+Register: **product** (app UI — design serves the product). Surface: a dashboard-first household manager used daily on phones, weekly on desktop. Audience: exactly two people who chose this over a spreadsheet because it should feel calm, warm, and personal — not like enterprise project management.
 
 ## Voice & feel
 
@@ -63,7 +63,7 @@ Rules: owner colors are identity, never decoration — a task chip, calendar eve
 
 ## Layout & hierarchy
 
-- **Calendar is home.** Opening the app lands on the calendar (month on desktop, agenda/week on mobile). Everything else — task lists, load-balance view, settings — is secondary navigation.
+- **Dashboard is home.** Opening the app lands on the Home dashboard. The calendar is primary secondary navigation — still month on desktop and agenda/week on mobile when opened; tasks, load-balance view, and settings are further secondary navigation.
 - **Tasks visually attach to their events.** Prep tasks render as small owner-colored chips beneath/tethered to their parent event in calendar views; tapping an event reveals its prep checklist with T−N labels. This attachment is the signature interaction — protect it.
 - Mobile-first: bottom tab bar (Calendar · Tasks · Feed · More), thumb-reachable primary actions, one floating "+" for quick add.
 - Desktop: max-width ~1100px content column; calendar left, contextual panel right.

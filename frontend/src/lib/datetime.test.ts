@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { dayKey, endBeforeStart, formatTime, isAllDay, relativeDue, toZonedDateTime } from './datetime'
+import { dayKey, endBeforeStart, formatTime, inRange, isAllDay, monthRange, relativeDue, toZonedDateTime, weekendRange, weekRange } from './datetime'
 
 const TZ = 'America/Los_Angeles'
 
@@ -98,6 +98,77 @@ describe('endBeforeStart', () => {
 
   it('returns false for multi-day range (date-only end after timed start)', () => {
     expect(endBeforeStart('2026-07-10T09:00', '2026-07-12')).toBe(false)
+  })
+})
+
+// Fixed clock: 2026-07-10 (Friday) in America/Los_Angeles
+describe('weekendRange', () => {
+  it('starts on today when today is Friday', () => {
+    // 2026-07-10 is Friday; current weekend = Fri 10 – Sun 12
+    expect(weekendRange('America/Los_Angeles')).toEqual({ startKey: '2026-07-10', endKey: '2026-07-12' })
+  })
+
+  it('includes the preceding Friday when today is Saturday', () => {
+    vi.setSystemTime(new Date('2026-07-11T18:00:00Z')) // Saturday LA
+    expect(weekendRange('America/Los_Angeles')).toEqual({ startKey: '2026-07-10', endKey: '2026-07-12' })
+  })
+
+  it('includes the preceding Friday when today is Sunday', () => {
+    vi.setSystemTime(new Date('2026-07-12T18:00:00Z')) // Sunday LA
+    expect(weekendRange('America/Los_Angeles')).toEqual({ startKey: '2026-07-10', endKey: '2026-07-12' })
+  })
+
+  it('points to the next Friday–Sunday when today is Monday', () => {
+    vi.setSystemTime(new Date('2026-07-13T18:00:00Z')) // Monday LA
+    expect(weekendRange('America/Los_Angeles')).toEqual({ startKey: '2026-07-17', endKey: '2026-07-19' })
+  })
+})
+
+describe('weekRange', () => {
+  it('starts on the most recent Sunday and ends on Saturday (today is Friday)', () => {
+    // Today = Fri 2026-07-10; week started Sun 2026-07-05, ends Sat 2026-07-11
+    expect(weekRange('America/Los_Angeles')).toEqual({ startKey: '2026-07-05', endKey: '2026-07-11' })
+  })
+
+  it('starts today when today is Sunday', () => {
+    vi.setSystemTime(new Date('2026-07-12T18:00:00Z')) // Sunday LA
+    expect(weekRange('America/Los_Angeles')).toEqual({ startKey: '2026-07-12', endKey: '2026-07-18' })
+  })
+})
+
+describe('monthRange', () => {
+  it('returns first and last day of the current month', () => {
+    // Today = 2026-07-10; month = Jul 1–31
+    expect(monthRange('America/Los_Angeles')).toEqual({ startKey: '2026-07-01', endKey: '2026-07-31' })
+  })
+
+  it('returns correct last day for a month with 30 days', () => {
+    vi.setSystemTime(new Date('2026-06-15T18:00:00Z')) // June
+    expect(monthRange('America/Los_Angeles')).toEqual({ startKey: '2026-06-01', endKey: '2026-06-30' })
+  })
+})
+
+describe('inRange', () => {
+  const range = { startKey: '2026-07-10', endKey: '2026-07-12' }
+
+  it('returns true for startKey (inclusive)', () => {
+    expect(inRange('2026-07-10', range)).toBe(true)
+  })
+
+  it('returns true for endKey (inclusive)', () => {
+    expect(inRange('2026-07-12', range)).toBe(true)
+  })
+
+  it('returns true for a key within the range', () => {
+    expect(inRange('2026-07-11', range)).toBe(true)
+  })
+
+  it('returns false for a key before startKey', () => {
+    expect(inRange('2026-07-09', range)).toBe(false)
+  })
+
+  it('returns false for a key after endKey', () => {
+    expect(inRange('2026-07-13', range)).toBe(false)
   })
 })
 
