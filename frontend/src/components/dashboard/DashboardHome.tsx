@@ -4,8 +4,10 @@ import { useEvents } from '@/hooks/useEvents'
 import { useRecurring } from '@/hooks/useRecurring'
 import { useSettings } from '@/hooks/useSettings'
 import { useAuth } from '@/hooks/useAuth'
-import { smartViews } from '@/lib/dashboard'
+import { loadBalance, resolveViewer, smartViews } from '@/lib/dashboard'
+import { monthRange, weekRange } from '@/lib/datetime'
 import { SmartViews } from '@/components/dashboard/SmartViews'
+import { LoadBalance } from '@/components/dashboard/LoadBalance'
 
 export function DashboardHome() {
   const tasksQuery = useTasks()
@@ -21,6 +23,18 @@ export function DashboardHome() {
     () => smartViews(tasksQuery.data ?? [], eventsQuery.data ?? [], timezone),
     [tasksQuery.data, eventsQuery.data, timezone],
   )
+
+  const weekBal = useMemo(
+    () => loadBalance(tasksQuery.data ?? [], weekRange(timezone)),
+    [tasksQuery.data, timezone],
+  )
+
+  const monthBal = useMemo(
+    () => loadBalance(tasksQuery.data ?? [], monthRange(timezone)),
+    [tasksQuery.data, timezone],
+  )
+
+  const viewer = resolveViewer(session)
 
   if (isPending) {
     return (
@@ -44,13 +58,12 @@ export function DashboardHome() {
     )
   }
 
-  void session
   void recurringQuery.data
 
   return (
     <div className="flex flex-col py-2">
       <SmartViews views={views} timezone={timezone} />
-      {/* Phase 4: LoadBalance (US2) renders here */}
+      <LoadBalance weekBalance={weekBal} monthBalance={monthBal} viewer={viewer} />
       {/* Phase 5: Highlights (US3) renders here */}
     </div>
   )

@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { smartViews } from './dashboard'
-import type { Event, Task } from '@/types/domain'
+import { loadBalance, resolveViewer, smartViews } from './dashboard'
+import { monthRange, weekRange } from './datetime'
+import type { Event, Session, Task } from '@/types/domain'
 
 const TZ = 'America/Los_Angeles'
 // 2026-07-10T18:00:00Z = 2026-07-10 (Friday) in America/Los_Angeles
@@ -134,5 +135,107 @@ describe('smartViews — exclusions', () => {
     expect(today.tasks).toHaveLength(0)
     expect(overdue.tasks).toHaveLength(0)
     expect(weekend.tasks).toHaveLength(0)
+  })
+})
+
+// 2026-07-10 (Friday) week = Sun 2026-07-05 – Sat 2026-07-11
+// month = 2026-07-01 – 2026-07-31
+
+describe('loadBalance — Scenario D', () => {
+  it('counts viewer=4, other=5 for the week (max and jaz separately)', () => {
+    const tasks = [
+      ...Array.from({ length: 4 }, (_, i) => task({ id: `max${i}`, owner: 'max', dueDate: '2026-07-10' })),
+      ...Array.from({ length: 5 }, (_, i) => task({ id: `jaz${i}`, owner: 'jaz', dueDate: '2026-07-10' })),
+    ]
+    const result = loadBalance(tasks, weekRange(TZ))
+    expect(result.max).toBe(4)
+    expect(result.jaz).toBe(5)
+  })
+
+  it('both is its own standalone figure — never folded into max or jaz', () => {
+    const tasks = [
+      task({ id: 'b1', owner: 'both', dueDate: '2026-07-10' }),
+      task({ id: 'b2', owner: 'both', dueDate: '2026-07-10' }),
+      task({ id: 'm1', owner: 'max', dueDate: '2026-07-10' }),
+    ]
+    const result = loadBalance(tasks, weekRange(TZ))
+    expect(result.both).toBe(2)
+    expect(result.max).toBe(1)
+    expect(result.jaz).toBe(0)
+  })
+
+  it('excludes completed tasks from the count', () => {
+    const tasks = [
+      task({ id: 'done', owner: 'max', dueDate: '2026-07-10', status: 'done' }),
+      task({ id: 'open', owner: 'max', dueDate: '2026-07-10' }),
+    ]
+    const result = loadBalance(tasks, weekRange(TZ))
+    expect(result.max).toBe(1)
+  })
+
+  it('excludes undated tasks', () => {
+    const tasks = [task({ id: 'undated', owner: 'jaz' })]  // no dueDate
+    const result = loadBalance(tasks, weekRange(TZ))
+    expect(result.jaz).toBe(0)
+  })
+
+  it('month counts >= week counts for the same data (month is a superset of week)', () => {
+    const tasks = [
+      task({ id: 'w1', owner: 'max', dueDate: '2026-07-10' }),  // in week and month
+      task({ id: 'm1', owner: 'max', dueDate: '2026-07-20' }),  // only in month
+    ]
+    const weekResult = loadBalance(tasks, weekRange(TZ))
+    const monthResult = loadBalance(tasks, monthRange(TZ))
+    expect(monthResult.max).toBeGreaterThanOrEqual(weekResult.max)
+    expect(monthResult.max).toBe(2)
+    expect(weekResult.max).toBe(1)
+  })
+
+  it('excludes tasks outside the range entirely', () => {
+    const tasks = [
+      task({ id: 'past', owner: 'jaz', dueDate: '2026-06-30' }),   // before month
+      task({ id: 'future', owner: 'jaz', dueDate: '2026-08-01' }), // after month
+    ]
+    const result = loadBalance(tasks, monthRange(TZ))
+    expect(result.jaz).toBe(0)
+  })
+})
+
+describe('resolveViewer — shared account has no "you"', () => {
+  it('returns null for no session (FR-009)', () => {
+    expect(resolveViewer(null)).toBeNull()
+  })
+
+  it('returns "max" when signed in as max', () => {
+    const session: Session = {
+      token: 't',
+      who: { identity: 'max', displayName: 'Max', email: 'm@example.com', needsActingPerson: false },
+    }
+    expect(resolveViewer(session)).toBe('max')
+  })
+
+  it('returns "jaz" when signed in as jaz', () => {
+    const session: Session = {
+      token: 't',
+      who: { identity: 'jaz', displayName: 'Jaz', email: 'j@example.com', needsActingPerson: false },
+    }
+    expect(resolveViewer(session)).toBe('jaz')
+  })
+
+  it('returns null for shared account with no acting person — shared is never an owner (FR-009)', () => {
+    const session: Session = {
+      token: 't',
+      who: { identity: 'shared', displayName: 'Household', email: 's@example.com', needsActingPerson: true },
+    }
+    expect(resolveViewer(session)).toBeNull()
+  })
+
+  it('returns actingPerson when shared account has selected who they are acting as', () => {
+    const session: Session = {
+      token: 't',
+      who: { identity: 'shared', displayName: 'Household', email: 's@example.com', needsActingPerson: false },
+      actingPerson: 'jaz',
+    }
+    expect(resolveViewer(session)).toBe('jaz')
   })
 })
