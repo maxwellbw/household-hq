@@ -35,7 +35,7 @@ screens. These four features close that gap, **in this order**, before 010/011:
 
 | # | Feature | Stage | Spec folder | PR |
 |---|---|---|---|---|
-| 012 | App shell & task UX | ⬜ not started | — | — |
+| 012 | App shell & task UX | 🟡 tasks | [specs/012-app-shell-task-ux](specs/012-app-shell-task-ux/spec.md) | — |
 | 013 | Someday list (drag/tap-to-schedule) | ⬜ not started | — | — |
 | 014 | Home dashboard | ⬜ not started | — | — |
 | 015 | Recurring seed pack & alternating weeks | ⬜ not started | — | — |
