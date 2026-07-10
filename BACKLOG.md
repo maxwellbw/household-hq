@@ -36,7 +36,7 @@ screens. These four features close that gap, **in this order**, before 010/011:
 | # | Feature | Stage | Spec folder | PR |
 |---|---|---|---|---|
 | 012 | App shell & task UX | ✅ merged | [specs/012-app-shell-task-ux](specs/012-app-shell-task-ux/spec.md) | [#10](https://github.com/maxwellbw/household-hq/pull/10) |
-| 013 | Someday list (tap-to-schedule; drag deferred) | 🔨 implement, pending PR | [specs/013-someday-list](specs/013-someday-list/spec.md) | — |
+| 013 | Someday list (tap-to-schedule; drag deferred) | 🔨 implement, pending PR | [specs/013-someday-list](specs/013-someday-list/spec.md) | [#11](https://github.com/maxwellbw/household-hq/pull/11) |
 | 014 | Home dashboard | ⬜ not started | — | — |
 | 015 | Recurring seed pack & alternating weeks | ⬜ not started | — | — |
 
