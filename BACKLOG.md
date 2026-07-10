@@ -24,14 +24,61 @@ implemented, merged). Ask Claude to "update BACKLOG.md" after any speckit step o
 | # | Feature | Stage | Spec folder | PR |
 |---|---|---|---|---|
 | 008 | Email digests | ✅ merged | [specs/008-email-digests](specs/008-email-digests/spec.md) | [#8](https://github.com/maxwellbw/household-hq/pull/8) |
-| 009 | ntfy.sh completion pings | ⬜ not started | — | — |
+| 009 | ntfy.sh completion pings | 🟡 deployed (live validation deferred) | [specs/009-ntfy-pings](specs/009-ntfy-pings/spec.md) | [#9](https://github.com/maxwellbw/household-hq/pull/9) |
 
-## Phase 3 — Stretch
+## Phase 2.5 — UX completion (planned 2026-07-09, Jaz's feedback session)
+
+The backend outran the UI: task completion is only reachable inside an event's detail sheet,
+the Tasks/Feed/More nav buttons are disabled stubs from 006, events can't get an end date from
+the UI, and recurring rules / prep templates have full CRUD APIs (004/005) but no management
+screens. These four features close that gap, **in this order**, before 010/011:
+
+| # | Feature | Stage | Spec folder | PR |
+|---|---|---|---|---|
+| 012 | App shell & task UX | ⬜ not started | — | — |
+| 013 | Someday list (drag/tap-to-schedule) | ⬜ not started | — | — |
+| 014 | Home dashboard | ⬜ not started | — | — |
+| 015 | Recurring seed pack & alternating weeks | ⬜ not started | — | — |
+
+**012 — App shell & task UX** (frontend-only; every backend piece already exists).
+Working Tasks / Feed / More navigation on mobile *and* desktop (006 shipped them as disabled
+stubs); complete/reopen a task from anywhere it appears (today only `TaskRow` inside
+`EventDetailSheet` has a checkbox); snooze/defer with visible history (brief #11 — backend
+`snoozed` status + `snoozeHistory` already exist); event **end date** in create/edit (Sheet has
+the column, the UI never asks); management screens under More for Recurring rules and
+TaskTemplates (list/edit/delete — answers "where do I set up templates?").
+
+**013 — Someday list.** Undated tasks (already supported by the API, currently invisible)
+shown in a list below the calendar. Scheduling one **always opens a mini-dialog asking date +
+owner** (clarified 2026-07-09 — no implicit ownership from who dragged); desktop drag-and-drop
+can pre-fill the date but still asks. Seed examples: air-duct cleaning, carpet cleaning.
+
+**014 — Home dashboard.** Week + month summaries, individual and together: "Friends are here
+Fri–Sun — you have 4 tasks, Jaz has 5", "rare chore coming up: change the air filter". Absorbs
+the brief's load-balance view (#12) and smart views (#13: Today / This weekend / Overdue).
+**Clarified 2026-07-09: the dashboard becomes the home/landing view** — this reverses the
+calendar-first principle in DESIGN.md/PRODUCT.md and the constitution's workflow section, so
+this feature includes a design/constitution amendment PR that **Max must co-approve** per
+governance before implementation.
+
+**015 — Recurring seed pack & alternating weeks.** Alternating bins modeled as **offset
+biweekly rules** (clarified 2026-07-09: "Trash" weekly + "Yard waste" and "Recycling" biweekly,
+anchored a week apart — works with today's engine, no new concepts). Plus a hand-editable
+starter pack of common home-maintenance chores (air filter quarterly, dishwasher clean, gutters,
+smoke-detector batteries, …) seeded by a one-time editor function. Decide seasonal windows
+(mow April–October — brief open question #4) at this feature's clarify.
+
+## Phase 3 — Stretch (follows Phase 2.5 — reorder of brief §10 pending Max's co-sign)
 
 | # | Feature | Stage | Spec folder | PR |
 |---|---|---|---|---|
 | 010 | PWA install + web push | ⬜ not started | — | — |
 | 011 | Weather-aware dog-walk window finder | ⬜ not started | — | — |
+
+**Still unscheduled from the brief** (park here until prioritized): quick-add by email (#14),
+recurring-chore streaks/history (#17), shopping/errand list items on tasks (#18 — the
+`listItems` field already exists in the Tasks schema), and naming the app (open question #6 —
+"Household HQ" is still the placeholder).
 
 ## Phase 4 — Someday (data-model-compatible only; build nothing yet)
 
@@ -42,8 +89,17 @@ implemented, merged). Ask Claude to "update BACKLOG.md" after any speckit step o
 
 ## Currently active
 
-**009 — ntfy.sh completion pings** (next in brief §10, Phase 2). Not started.
-Kick off with "start feature 009" to run the full loop.
+**Next up: 012 — App shell & task UX** (first of the Phase 2.5 UX-completion features planned
+in Jaz's 2026-07-09 feedback session). Kick off with "start feature 012".
+
+**009 — ntfy.sh completion pings** (brief §10 item 10, Phase 2). Implemented and deployed
+(`clasp` @13, same stable URL) on branch `009-ntfy-pings`, PR open. A real open→done completion
+POSTs `"<Completer> completed: <title>"` to **the other person's** private ntfy topic (clarified:
+never yourself; `both`-owned included). Best-effort side effect on `completeTask_`'s
+`changed`-flag branch — no trigger, no new OAuth scope, no frontend. New `backend/Ntfy.js`;
+one-line `Api.js` edit; new Settings key `ntfyEnabled` (topics already seeded).
+**Deferred validation (user decision 2026-07-09):** run `setupDatabase()` + `selfTest()` in the
+editor, pick topics, subscribe phones, and run quickstart Scenarios A–F (tasks T012/T014).
 
 _008 merged to `main` (PR #8) and deployed to the Apps Script web app (`clasp` @12, same stable
 URL). Personalized weekly "week ahead" (Sunday default) + monthly "next month" HTML digests
