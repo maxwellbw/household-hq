@@ -84,6 +84,51 @@ export function todayKey(timezone: string = DEFAULT_TIMEZONE): string {
   }).format(new Date())
 }
 
+export interface DayRange {
+  startKey: string
+  endKey: string
+}
+
+/**
+ * Current/upcoming Fri–Sun in the household timezone.
+ * If today is Fri/Sat/Sun the range starts on the most recent Friday.
+ * ISO dayOfWeek: Mon=1 … Fri=5, Sat=6, Sun=7.
+ */
+export function weekendRange(timezone: string = DEFAULT_TIMEZONE): DayRange {
+  const today = todayKey(timezone)
+  const date = Temporal.PlainDate.from(today)
+  // 5 - dow: 0 on Fri, -1 on Sat, -2 on Sun, positive (future Fri) on Mon–Thu
+  const friday = date.add({ days: 5 - date.dayOfWeek })
+  const sunday = friday.add({ days: 2 })
+  return { startKey: friday.toString(), endKey: sunday.toString() }
+}
+
+/** Current week (Sun–Sat) in the household timezone. */
+export function weekRange(timezone: string = DEFAULT_TIMEZONE, weekStartsOn: 'sunday' = 'sunday'): DayRange {
+  void weekStartsOn
+  const today = todayKey(timezone)
+  const date = Temporal.PlainDate.from(today)
+  // dow=7 is Sunday (start of week); others go back `dow` days
+  const daysToSunday = date.dayOfWeek === 7 ? 0 : date.dayOfWeek
+  const sunday = date.subtract({ days: daysToSunday })
+  const saturday = sunday.add({ days: 6 })
+  return { startKey: sunday.toString(), endKey: saturday.toString() }
+}
+
+/** Current calendar month (first to last day) in the household timezone. */
+export function monthRange(timezone: string = DEFAULT_TIMEZONE): DayRange {
+  const today = todayKey(timezone)
+  const date = Temporal.PlainDate.from(today)
+  const firstDay = date.with({ day: 1 })
+  const lastDay = firstDay.add({ months: 1 }).subtract({ days: 1 })
+  return { startKey: firstDay.toString(), endKey: lastDay.toString() }
+}
+
+/** True when `key` falls within `[range.startKey, range.endKey]` (inclusive). */
+export function inRange(key: string, range: DayRange): boolean {
+  return key >= range.startKey && key <= range.endKey
+}
+
 function daysBetween(fromKey: string, toKey: string): number {
   const from = new Date(fromKey + 'T00:00:00Z').getTime()
   const to = new Date(toKey + 'T00:00:00Z').getTime()

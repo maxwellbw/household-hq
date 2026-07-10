@@ -1,5 +1,17 @@
 <!--
-Sync Impact Report
+Sync Impact Report (1.1.0 — 2026-07-10)
+- Version change: 1.0.0 → 1.1.0 (MINOR — materially expands guidance on the landing view)
+- Modified principles: Development Workflow — "calendar-first" → "dashboard-first landing"
+- Changed wording: PRODUCT.md "calendar-first tool / the calendar is home" and
+  "Calendar first, everything else in service of it" both updated to dashboard-first;
+  DESIGN.md "Surface: a calendar-first…" and "Calendar is home." both updated;
+  CLAUDE.md Design Context updated to match.
+- Co-updates required in same PR: DESIGN.md ✅, PRODUCT.md ✅, CLAUDE.md ✅
+- Removed sections: none
+- Templates requiring updates: none (amendment is wording-only, no structural change)
+- Follow-up TODOs: none
+
+Sync Impact Report (1.0.0 — 2026-07-07)
 - Version change: (template, unversioned) → 1.0.0
 - Modified principles: n/a (initial ratification — all placeholders filled)
 - Added sections:
@@ -134,8 +146,9 @@ to change it):
   locked where concurrent; ActivityLog appended; dates in household timezone;
   `npm run build` passes with no type errors; new UI passes an `/impeccable audit`
   before PR; README or spec updated if behavior or setup changed.
-- UI work follows `DESIGN.md` and `PRODUCT.md` (calm, warm, calendar-first; owner color
-  coding is identity, never decoration; WCAG 2.1 AA).
+- UI work follows `DESIGN.md` and `PRODUCT.md` (calm, warm, dashboard-first landing with
+  the calendar as primary secondary navigation and organizing metaphor; owner color coding
+  is identity, never decoration; WCAG 2.1 AA).
 
 ## Governance
 
@@ -153,4 +166,4 @@ must stay consistent with this file.
   after design. Violations are either removed or justified in the plan's Complexity
   Tracking table; unjustified violations block the PR.
 
-**Version**: 1.0.0 | **Ratified**: 2026-07-07 | **Last Amended**: 2026-07-07
+**Version**: 1.1.0 | **Ratified**: 2026-07-07 | **Last Amended**: 2026-07-10

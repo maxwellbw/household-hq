@@ -10,7 +10,7 @@ Exactly two users: Max and Jaz, a household, each signing in with their personal
 
 ## Product Purpose
 
-Household HQ reduces the mental load of running a two-person household — especially the invisible work of remembering — by making events, chores, and prep work visible, assignable, and shared. It is a calendar-first tool: the calendar is home, and tasks (including auto-generated event-prep checklists and recurring chores) visually attach to the events and dates they belong to. Success looks like: neither person has to hold the whole picture in their head alone, completions are seen by the other person without asking, and the app disappears into the background of daily life rather than feeling like another thing to manage.
+Household HQ reduces the mental load of running a two-person household — especially the invisible work of remembering — by making events, chores, and prep work visible, assignable, and shared. It is a dashboard-first tool: the Home dashboard is the landing view, surfacing what matters right now (today's tasks, overdue items, upcoming weekend, load balance). The calendar remains the organizing metaphor and the primary secondary navigation — tasks (including auto-generated event-prep checklists and recurring chores) visually attach to the events and dates they belong to. Success looks like: neither person has to hold the whole picture in their head alone, completions are seen by the other person without asking, and the app disappears into the background of daily life rather than feeling like another thing to manage.
 
 ## Brand Personality
 
@@ -22,7 +22,7 @@ Jira/Asana density and task-tracker chrome. Notion's gray-on-white sterility. Ge
 
 ## Design Principles
 
-- **Calendar first, everything else in service of it.** Tasks, load-balance views, and settings are secondary navigation; the calendar is the home screen and the organizing metaphor.
+- **Dashboard first, calendar as organizing metaphor.** The Home dashboard is the landing view; the calendar is primary secondary navigation and the organizing metaphor for all scheduled items. Tasks, load-balance views, and settings are further secondary navigation.
 - **Tasks are tethered to their events, visually and structurally.** Prep-checklist items render attached to the event that spawned them — this is the signature interaction and should be protected in every feature decision.
 - **Owner identity is consistent, never decorative.** Max, Jaz, and Both each have one color used identically everywhere — chips, calendar events, avatars, filters — and color is never the only signal (always paired with initials/name).
 - **Quiet over loud.** Celebration, motion, and copy stay understated and human; two people who chose this over a spreadsheet don't need to be gamified into using it.
