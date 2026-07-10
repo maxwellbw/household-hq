@@ -58,9 +58,15 @@ export interface LoadBalanceResult {
   both: number
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-export function loadBalance(_tasks: Task[], _range: DayRange): LoadBalanceResult {
-  return { max: 0, jaz: 0, both: 0 }
+export function loadBalance(tasks: Task[], range: DayRange): LoadBalanceResult {
+  const result: LoadBalanceResult = { max: 0, jaz: 0, both: 0 }
+  for (const t of tasks) {
+    if (t.status !== 'open') continue
+    if (!t.dueDate) continue
+    if (!inRange(dayKey(t.dueDate), range)) continue
+    result[t.owner]++
+  }
+  return result
 }
 
 export function resolveViewer(session: Session | null): 'max' | 'jaz' | null {

@@ -71,10 +71,10 @@ description: "Task list for feature 014 — Home Dashboard"
 
 **Independent Test**: Seeded per-owner tasks produce correct week and month counts; `both` is standalone; completed excluded; shared account shows both by name (quickstart Scenario D).
 
-- [ ] T012 [US2] Implement `loadBalance(tasks, range)` (per-owner open-task counts `{max,jaz,both}`, `both` never folded into individuals, undated/non-open excluded) and `resolveViewer(session)` (acting person → "you", else names; shared → `null`) in `frontend/src/lib/dashboard.ts`.
-- [ ] T013 [P] [US2] Unit tests in `frontend/src/lib/dashboard.test.ts` (Scenario D: viewer=4/other=5; `both` standalone; completed excluded; month ≥ week; shared account has no "you", never an owner — FR-009). Depends on T012.
-- [ ] T014 [US2] Create `frontend/src/components/dashboard/LoadBalance.tsx` showing week + month counts for Max/Jaz/Both with an at-a-glance "who has more" framing (viewer as "you") and owner colors meeting WCAG AA.
-- [ ] T015 [US2] Render `<LoadBalance />` inside `frontend/src/components/dashboard/DashboardHome.tsx`.
+- [x] T012 [US2] Implement `loadBalance(tasks, range)` (per-owner open-task counts `{max,jaz,both}`, `both` never folded into individuals, undated/non-open excluded) and `resolveViewer(session)` (acting person → "you", else names; shared → `null`) in `frontend/src/lib/dashboard.ts`.
+- [x] T013 [P] [US2] Unit tests in `frontend/src/lib/dashboard.test.ts` (Scenario D: viewer=4/other=5; `both` standalone; completed excluded; month ≥ week; shared account has no "you", never an owner — FR-009). Depends on T012.
+- [x] T014 [US2] Create `frontend/src/components/dashboard/LoadBalance.tsx` showing week + month counts for Max/Jaz/Both with an at-a-glance "who has more" framing (viewer as "you") and owner colors meeting WCAG AA.
+- [x] T015 [US2] Render `<LoadBalance />` inside `frontend/src/components/dashboard/DashboardHome.tsx`.
 
 **Checkpoint**: US1 and US2 both work independently.
 
