@@ -25,7 +25,7 @@ export function Highlights({ items }: Props) {
                   'flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-medium text-surface',
                   h.owner === 'max' && 'bg-owner-max',
                   h.owner === 'jaz' && 'bg-owner-jaz',
-                  h.owner === 'both' && 'bg-owner-both',
+                  h.owner === 'both' && 'bg-accent-hover',
                 )}
                 aria-label={LABEL[h.owner]}
               >

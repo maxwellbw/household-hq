@@ -132,7 +132,7 @@ export function TaskRow({ task, timezone, eventStartKey, onSnooze, onEditDue, on
           'flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-medium text-surface',
           task.owner === 'max' && 'bg-owner-max',
           task.owner === 'jaz' && 'bg-owner-jaz',
-          task.owner === 'both' && 'bg-owner-both',
+          task.owner === 'both' && 'bg-accent-hover',
         )}
         aria-label={style.label}
       >

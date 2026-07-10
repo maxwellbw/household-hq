@@ -27,7 +27,7 @@ function OwnerDot({ owner }: { owner: Owner }) {
         'flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-medium text-surface',
         owner === 'max' && 'bg-owner-max',
         owner === 'jaz' && 'bg-owner-jaz',
-        owner === 'both' && 'bg-owner-both',
+        owner === 'both' && 'bg-accent-hover',
       )}
       aria-hidden="true"
     >

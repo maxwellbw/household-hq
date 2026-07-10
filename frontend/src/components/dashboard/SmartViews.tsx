@@ -30,7 +30,7 @@ function EventRow({ event, timezone }: EventRowProps) {
           'flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-medium text-surface',
           event.owner === 'max' && 'bg-owner-max',
           event.owner === 'jaz' && 'bg-owner-jaz',
-          event.owner === 'both' && 'bg-owner-both',
+          event.owner === 'both' && 'bg-accent-hover',
         )}
         aria-label={style.label}
       >
