@@ -36,7 +36,7 @@ screens. These four features close that gap, **in this order**, before 010/011:
 | # | Feature | Stage | Spec folder | PR |
 |---|---|---|---|---|
 | 012 | App shell & task UX | ✅ merged | [specs/012-app-shell-task-ux](specs/012-app-shell-task-ux/spec.md) | [#10](https://github.com/maxwellbw/household-hq/pull/10) |
-| 013 | Someday list (tap-to-schedule; drag deferred) | 🔨 implement, pending PR | [specs/013-someday-list](specs/013-someday-list/spec.md) | [#11](https://github.com/maxwellbw/household-hq/pull/11) |
+| 013 | Someday list (tap-to-schedule; drag deferred) | ✅ merged | [specs/013-someday-list](specs/013-someday-list/spec.md) | [#11](https://github.com/maxwellbw/household-hq/pull/11) |
 | 014 | Home dashboard | ⬜ not started | — | — |
 | 015 | Recurring seed pack & alternating weeks | ⬜ not started | — | — |
 
@@ -92,7 +92,9 @@ recurring-chore streaks/history (#17), shopping/errand list items on tasks (#18 
 
 ## Currently active
 
-**Pending PR: 013 — Someday list** (US1 + US2 shipped; US3 drag-to-schedule **deferred** — Schedule-X month-grid cells expose no `data-date`, making drop-date reconstruction wrong on month navigation; revisit when Schedule-X adds stable `data-date`). Polish (T016–T018) complete; build + tests green.
+**In progress: 014 — Home dashboard** (next up — requires constitution amendment co-approved by Max before implementation; see entry below).
+
+_013 merged to `main` (PR #11). Frontend-only. Undated open standalone tasks appear in a Someday section below the calendar, owner-filtered, completable/reopenable in place. Tapping a task title opens a bottom-sheet dialog asking date + owner (no pre-selection); Confirm gated on both; success invalidates `['tasks']` so the task moves to the calendar without a refresh. US3 (desktop drag-onto-day) deferred: Schedule-X month-grid cells have no `data-date`, making drop-date reconstruction wrong on month navigation — revisit when Schedule-X exposes stable `data-date`. Three WCAG AA contrast failures fixed in the audit pass (selected-owner text, Confirm button, broken aria-labelledby)._
 
 **009 — ntfy.sh completion pings** (brief §10 item 10, Phase 2). ✅ Merged to `main` (PR #9)
 and deployed (`clasp` @13, same stable URL). A real open→done completion
