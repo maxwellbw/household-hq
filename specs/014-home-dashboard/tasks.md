@@ -101,10 +101,10 @@ description: "Task list for feature 014 — Home Dashboard"
 
 **Independent Test**: `PRODUCT.md`, `DESIGN.md`, the constitution, and `CLAUDE.md` no longer assert calendar-as-landing; all describe the dashboard as home with the calendar as primary secondary navigation (quickstart Scenario G).
 
-- [ ] T020 [P] [US4] Amend `DESIGN.md`: change "Calendar is home." (and the "Surface: a calendar-first…" line) to describe the **dashboard** as the landing view, calendar as primary secondary navigation.
-- [ ] T021 [P] [US4] Amend `PRODUCT.md`: update the "calendar-first tool / calendar is home" statement and the "Calendar first, everything else in service of it" principle to dashboard-first landing (calendar remains the organizing metaphor for scheduled items).
-- [ ] T022 [US4] Amend `.specify/memory/constitution.md`: update the Development Workflow "calendar-first" wording, bump **Version 1.0.0 → 1.1.0** (MINOR), update **Last Amended** date, and add a Sync Impact Report entry noting DESIGN.md/PRODUCT.md/CLAUDE.md co-updates.
-- [ ] T023 [US4] Update `CLAUDE.md` Design Context (and any "calendar-first" mention) to state the dashboard is home, keeping it consistent with the amended docs.
+- [x] T020 [P] [US4] Amend `DESIGN.md`: change "Calendar is home." (and the "Surface: a calendar-first…" line) to describe the **dashboard** as the landing view, calendar as primary secondary navigation.
+- [x] T021 [P] [US4] Amend `PRODUCT.md`: update the "calendar-first tool / calendar is home" statement and the "Calendar first, everything else in service of it" principle to dashboard-first landing (calendar remains the organizing metaphor for scheduled items).
+- [x] T022 [US4] Amend `.specify/memory/constitution.md`: update the Development Workflow "calendar-first" wording, bump **Version 1.0.0 → 1.1.0** (MINOR), update **Last Amended** date, and add a Sync Impact Report entry noting DESIGN.md/PRODUCT.md/CLAUDE.md co-updates.
+- [x] T023 [US4] Update `CLAUDE.md` Design Context (and any "calendar-first" mention) to state the dashboard is home, keeping it consistent with the amended docs.
 
 **Checkpoint**: Amendment ready for Max's co-approval; PR must not merge before it.
 
