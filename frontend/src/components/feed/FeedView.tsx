@@ -65,9 +65,9 @@ export function FeedView() {
   if (!entries?.length) {
     return (
       <div className="flex flex-col items-center justify-center gap-2 px-6 py-12 text-center">
-        <p className="font-display text-lg text-ink">Nothing yet</p>
+        <p className="font-display text-lg text-ink">No activity yet</p>
         <p className="text-sm text-ink-muted">
-          Completed tasks and events will show up here.
+          Actions like completing tasks, adding events, and snoozing will appear here.
         </p>
       </div>
     )
@@ -78,7 +78,7 @@ export function FeedView() {
       <h2 className="mb-1 px-0 text-xs font-medium uppercase tracking-wide text-ink-faint">
         Recent activity
       </h2>
-      <ul className="rounded-card bg-surface shadow-card" aria-label="Activity feed">
+      <ul className="rounded-card bg-surface shadow-card" aria-label="Activity feed, newest first">
         {entries.map((entry, i) => (
           <FeedItem key={entry.id ?? i} entry={entry} timezone={timezone} />
         ))}
