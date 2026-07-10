@@ -37,6 +37,16 @@ export interface Settings {
   [key: string]: string
 }
 
+export interface ActivityEntry {
+  id?: string
+  timestamp: string // ISO datetime
+  actor: 'max' | 'jaz'
+  action: string
+  targetId?: string
+  detail?: string
+  summary: string // composed human-readable sentence from backend
+}
+
 export interface WhoAmI {
   identity: 'max' | 'jaz' | 'shared'
   displayName: string
