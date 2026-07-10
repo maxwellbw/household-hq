@@ -132,10 +132,11 @@ function RuleForm({
           value={form.title}
           onChange={(e) => setField('title', e.target.value)}
           placeholder="e.g. Clean bathroom"
+          aria-invalid={fieldError?.field === 'title' ? true : undefined}
           className="min-h-[44px] w-full rounded-control border border-border bg-surface px-3 text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
         />
         {fieldError?.field === 'title' && (
-          <p className="mt-1 text-xs text-danger">{fieldError.message}</p>
+          <p role="alert" className="mt-1 text-xs text-danger">{fieldError.message}</p>
         )}
       </label>
 
@@ -160,10 +161,11 @@ function RuleForm({
           type="date"
           value={form.anchorDate}
           onChange={(e) => setField('anchorDate', e.target.value)}
+          aria-invalid={fieldError?.field === 'anchorDate' ? true : undefined}
           className="min-h-[44px] w-full rounded-control border border-border bg-surface px-3 text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
         />
         {fieldError?.field === 'anchorDate' && (
-          <p className="mt-1 text-xs text-danger">{fieldError.message}</p>
+          <p role="alert" className="mt-1 text-xs text-danger">{fieldError.message}</p>
         )}
       </label>
 
@@ -179,6 +181,7 @@ function RuleForm({
                 key={o}
                 type="button"
                 onClick={() => setField('defaultOwner', o)}
+                aria-pressed={selected}
                 className={cn(
                   'flex min-h-[44px] flex-1 items-center justify-center gap-1.5 rounded-control border px-2 text-sm font-medium',
                   'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
@@ -186,13 +189,13 @@ function RuleForm({
                 )}
               >
                 <span
+                  aria-hidden="true"
                   className={cn(
                     'flex h-5 w-5 items-center justify-center rounded-full text-[10px] text-surface',
                     o === 'max' && 'bg-owner-max',
                     o === 'jaz' && 'bg-owner-jaz',
                     o === 'both' && 'bg-owner-both',
                   )}
-                  aria-hidden="true"
                 >
                   {style.initial}
                 </span>
@@ -232,12 +235,12 @@ function RuleForm({
           </select>
         </div>
         {(fieldError?.field === 'seasonStart' || fieldError?.field === 'seasonEnd') && (
-          <p className="mt-1 text-xs text-danger">{fieldError.message}</p>
+          <p role="alert" className="mt-1 text-xs text-danger">{fieldError.message}</p>
         )}
       </div>
 
       {fieldError && !fieldError.field && (
-        <p className="text-sm text-danger">{fieldError.message}</p>
+        <p role="alert" className="text-sm text-danger">{fieldError.message}</p>
       )}
 
       <button

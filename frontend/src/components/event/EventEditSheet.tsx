@@ -98,9 +98,10 @@ export function EventEditSheet({ event, onClose }: EventEditSheetProps) {
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="Event title"
+            aria-invalid={fieldError?.field === 'title' ? true : undefined}
             className="min-h-[44px] w-full rounded-control border border-border bg-surface px-3 text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
           />
-          {fieldError?.field === 'title' && <p className="mt-1 text-xs text-danger">{fieldError.message}</p>}
+          {fieldError?.field === 'title' && <p role="alert" className="mt-1 text-xs text-danger">{fieldError.message}</p>}
         </label>
 
         <div className="mb-1">
@@ -110,6 +111,7 @@ export function EventEditSheet({ event, onClose }: EventEditSheetProps) {
               type="date"
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
+              aria-invalid={fieldError?.field === 'start' ? true : undefined}
               className="min-h-[44px] flex-1 rounded-control border border-border bg-surface px-3 text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
             />
             <input
@@ -119,7 +121,7 @@ export function EventEditSheet({ event, onClose }: EventEditSheetProps) {
               className="min-h-[44px] w-28 rounded-control border border-border bg-surface px-2 text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
             />
           </div>
-          {fieldError?.field === 'start' && <p className="mt-1 text-xs text-danger">{fieldError.message}</p>}
+          {fieldError?.field === 'start' && <p role="alert" className="mt-1 text-xs text-danger">{fieldError.message}</p>}
         </div>
 
         <div className="mb-3">
@@ -129,6 +131,7 @@ export function EventEditSheet({ event, onClose }: EventEditSheetProps) {
               type="date"
               value={endDate}
               onChange={(e) => setEndDate(e.target.value)}
+              aria-invalid={fieldError?.field === 'end' ? true : undefined}
               className="min-h-[44px] flex-1 rounded-control border border-border bg-surface px-3 text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
             />
             <input
@@ -138,7 +141,7 @@ export function EventEditSheet({ event, onClose }: EventEditSheetProps) {
               className="min-h-[44px] w-28 rounded-control border border-border bg-surface px-2 text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
             />
           </div>
-          {fieldError?.field === 'end' && <p className="mt-1 text-xs text-danger">{fieldError.message}</p>}
+          {fieldError?.field === 'end' && <p role="alert" className="mt-1 text-xs text-danger">{fieldError.message}</p>}
         </div>
 
         <div className="mb-5">
@@ -152,12 +155,14 @@ export function EventEditSheet({ event, onClose }: EventEditSheetProps) {
                   key={o}
                   type="button"
                   onClick={() => setOwner(o)}
+                  aria-pressed={selected}
                   className={cn(
                     'flex min-h-[44px] flex-1 items-center justify-center gap-1.5 rounded-control border px-2 text-sm font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
                     selected ? 'border-accent bg-accent-soft text-ink' : 'border-border text-ink-muted',
                   )}
                 >
                   <span
+                    aria-hidden="true"
                     className={cn(
                       'flex h-5 w-5 items-center justify-center rounded-full text-[10px] text-surface',
                       o === 'max' && 'bg-owner-max',
@@ -174,7 +179,7 @@ export function EventEditSheet({ event, onClose }: EventEditSheetProps) {
           </div>
         </div>
 
-        {fieldError && !fieldError.field && <p className="mb-3 text-sm text-danger">{fieldError.message}</p>}
+        {fieldError && !fieldError.field && <p role="alert" className="mb-3 text-sm text-danger">{fieldError.message}</p>}
 
         <button
           type="submit"

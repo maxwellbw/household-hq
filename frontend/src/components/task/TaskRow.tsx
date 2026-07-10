@@ -32,11 +32,33 @@ export function TaskRow({ task, timezone, eventStartKey, onSnooze, onEditDue, on
 
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
 
   useEffect(() => {
     if (!menuOpen) return
+    // WCAG 2.1.1: auto-focus first item so keyboard users enter the menu immediately.
+    const first = menuRef.current?.querySelector<HTMLElement>('[role="menuitem"]')
+    first?.focus()
+
     function onKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape') setMenuOpen(false)
+      if (e.key === 'Escape') {
+        setMenuOpen(false)
+        triggerRef.current?.focus()
+        return
+      }
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        const items = Array.from(
+          menuRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [],
+        )
+        if (!items.length) return
+        e.preventDefault()
+        const idx = items.indexOf(document.activeElement as HTMLElement)
+        const next =
+          e.key === 'ArrowDown'
+            ? (idx + 1) % items.length
+            : (idx - 1 + items.length) % items.length
+        items[next].focus()
+      }
     }
     function onMouseDown(e: MouseEvent) {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
@@ -124,6 +146,7 @@ export function TaskRow({ task, timezone, eventStartKey, onSnooze, onEditDue, on
       {/* Overflow menu */}
       <div ref={menuRef} className="relative">
         <button
+          ref={triggerRef}
           type="button"
           onClick={() => setMenuOpen((v) => !v)}
           aria-haspopup="menu"

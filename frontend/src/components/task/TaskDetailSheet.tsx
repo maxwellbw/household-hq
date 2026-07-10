@@ -57,7 +57,7 @@ export function TaskDetailSheet({ task, onClose }: TaskDetailSheetProps) {
                   task.owner === 'jaz' && 'bg-owner-jaz',
                   task.owner === 'both' && 'bg-owner-both',
                 )}
-                aria-label={style.label}
+                aria-hidden="true"
               >
                 {style.initial}
               </span>

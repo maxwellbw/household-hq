@@ -117,10 +117,11 @@ function TemplateForm({
           value={form.eventType}
           onChange={(e) => setField('eventType', e.target.value)}
           placeholder="e.g. camping, dinner party"
+          aria-invalid={fieldError?.field === 'eventType' ? true : undefined}
           className="min-h-[44px] w-full rounded-control border border-border bg-surface px-3 text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
         />
         {fieldError?.field === 'eventType' && (
-          <p className="mt-1 text-xs text-danger">{fieldError.message}</p>
+          <p role="alert" className="mt-1 text-xs text-danger">{fieldError.message}</p>
         )}
       </label>
 
@@ -131,10 +132,11 @@ function TemplateForm({
           value={form.taskTitle}
           onChange={(e) => setField('taskTitle', e.target.value)}
           placeholder="e.g. Pack sleeping bags"
+          aria-invalid={fieldError?.field === 'taskTitle' ? true : undefined}
           className="min-h-[44px] w-full rounded-control border border-border bg-surface px-3 text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
         />
         {fieldError?.field === 'taskTitle' && (
-          <p className="mt-1 text-xs text-danger">{fieldError.message}</p>
+          <p role="alert" className="mt-1 text-xs text-danger">{fieldError.message}</p>
         )}
       </label>
 
@@ -148,13 +150,14 @@ function TemplateForm({
           type="number"
           value={form.offsetDays}
           onChange={(e) => setField('offsetDays', e.target.value)}
+          aria-invalid={fieldError?.field === 'offsetDays' ? true : undefined}
           className="min-h-[44px] w-full rounded-control border border-border bg-surface px-3 text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
         />
         {!isNaN(parseInt(form.offsetDays, 10)) && (
           <p className="mt-1 text-xs text-ink-faint">{offsetLabel(parseInt(form.offsetDays, 10))}</p>
         )}
         {fieldError?.field === 'offsetDays' && (
-          <p className="mt-1 text-xs text-danger">{fieldError.message}</p>
+          <p role="alert" className="mt-1 text-xs text-danger">{fieldError.message}</p>
         )}
       </label>
 
@@ -170,6 +173,7 @@ function TemplateForm({
                 key={o}
                 type="button"
                 onClick={() => setField('defaultOwner', o)}
+                aria-pressed={selected}
                 className={cn(
                   'flex min-h-[44px] flex-1 items-center justify-center gap-1.5 rounded-control border px-2 text-sm font-medium',
                   'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
@@ -177,13 +181,13 @@ function TemplateForm({
                 )}
               >
                 <span
+                  aria-hidden="true"
                   className={cn(
                     'flex h-5 w-5 items-center justify-center rounded-full text-[10px] text-surface',
                     o === 'max' && 'bg-owner-max',
                     o === 'jaz' && 'bg-owner-jaz',
                     o === 'both' && 'bg-owner-both',
                   )}
-                  aria-hidden="true"
                 >
                   {style.initial}
                 </span>
@@ -195,7 +199,7 @@ function TemplateForm({
       </div>
 
       {fieldError && !fieldError.field && (
-        <p className="text-sm text-danger">{fieldError.message}</p>
+        <p role="alert" className="text-sm text-danger">{fieldError.message}</p>
       )}
 
       <button
