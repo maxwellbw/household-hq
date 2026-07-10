@@ -11,12 +11,13 @@ import { ScheduleTaskDialog } from '@/components/task/ScheduleTaskDialog'
 import { TasksView } from '@/components/task/TasksView'
 import { FeedView } from '@/components/feed/FeedView'
 import { MoreView } from '@/components/more/MoreView'
+import { DashboardHome } from '@/components/dashboard/DashboardHome'
 import type { NavSection } from '@/components/shell/navItems'
 
 function App() {
   const { status, session } = useAuth()
   const { visibleOwners, toggle } = useOwnerFilter()
-  const [active, setActive] = useState<NavSection>('calendar')
+  const [active, setActive] = useState<NavSection>('home')
   const [schedulingTaskId, setSchedulingTaskId] = useState<string | null>(null)
   const [prefilledDate, setPrefilledDate] = useState<string>('')
 
@@ -40,6 +41,7 @@ function App() {
 
   return (
     <AppShell active={active} onNavigate={setActive}>
+      {active === 'home' && <DashboardHome />}
       {active === 'calendar' && (
         <div className="flex flex-col">
           <OwnerFilterChips visibleOwners={visibleOwners} onToggle={toggle} />
