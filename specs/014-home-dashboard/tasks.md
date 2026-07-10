@@ -86,10 +86,10 @@ description: "Task list for feature 014 — Home Dashboard"
 
 **Independent Test**: Seeded weekend/multi-day event and a quarterly chore surface as highlights; weekly chores don't; nothing noteworthy → no highlights (quickstart Scenario E).
 
-- [ ] T016 [US3] Implement `highlights(events, recurring, tasks, timezone)` in `frontend/src/lib/dashboard.ts`: return ≤3 callouts — noteworthy events within ~7 days that are multi-day or on the weekend (with day-range detail), and rare chores = open tasks whose linked `recurringId` rule `cadence ∈ {quarterly, annually}` due within ~14 days; return `[]` when none qualify.
-- [ ] T017 [P] [US3] Unit tests in `frontend/src/lib/dashboard.test.ts` (Scenario E: quarterly highlighted, weekly not; cap ≤3; no filler → `[]`). Depends on T016.
-- [ ] T018 [US3] Create `frontend/src/components/dashboard/Highlights.tsx` (sparse callouts, owner-colored, plain warm phrasing; renders nothing/calm empty line when the list is empty — never filler, FR-010).
-- [ ] T019 [US3] Render `<Highlights />` inside `frontend/src/components/dashboard/DashboardHome.tsx`.
+- [x] T016 [US3] Implement `highlights(events, recurring, tasks, timezone)` in `frontend/src/lib/dashboard.ts`: return ≤3 callouts — noteworthy events within ~7 days that are multi-day or on the weekend (with day-range detail), and rare chores = open tasks whose linked `recurringId` rule `cadence ∈ {quarterly, annually}` due within ~14 days; return `[]` when none qualify.
+- [x] T017 [P] [US3] Unit tests in `frontend/src/lib/dashboard.test.ts` (Scenario E: quarterly highlighted, weekly not; cap ≤3; no filler → `[]`). Depends on T016.
+- [x] T018 [US3] Create `frontend/src/components/dashboard/Highlights.tsx` (sparse callouts, owner-colored, plain warm phrasing; renders nothing/calm empty line when the list is empty — never filler, FR-010).
+- [x] T019 [US3] Render `<Highlights />` inside `frontend/src/components/dashboard/DashboardHome.tsx`.
 
 **Checkpoint**: All three view stories independently functional.
 
