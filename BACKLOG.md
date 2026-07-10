@@ -35,7 +35,7 @@ screens. These four features close that gap, **in this order**, before 010/011:
 
 | # | Feature | Stage | Spec folder | PR |
 |---|---|---|---|---|
-| 012 | App shell & task UX | 🟠 implemented, pending PR | [specs/012-app-shell-task-ux](specs/012-app-shell-task-ux/spec.md) | [#10](https://github.com/maxwellbw/household-hq/pull/10) |
+| 012 | App shell & task UX | ✅ merged | [specs/012-app-shell-task-ux](specs/012-app-shell-task-ux/spec.md) | [#10](https://github.com/maxwellbw/household-hq/pull/10) |
 | 013 | Someday list (drag/tap-to-schedule) | ⬜ not started | — | — |
 | 014 | Home dashboard | ⬜ not started | — | — |
 | 015 | Recurring seed pack & alternating weeks | ⬜ not started | — | — |
@@ -89,8 +89,7 @@ recurring-chore streaks/history (#17), shopping/errand list items on tasks (#18 
 
 ## Currently active
 
-**Next up: 012 — App shell & task UX** (first of the Phase 2.5 UX-completion features planned
-in Jaz's 2026-07-09 feedback session). Kick off with "start feature 012".
+**Next up: 013 — Someday list** (drag/tap-to-schedule undated tasks). Kick off with "start feature 013".
 
 **009 — ntfy.sh completion pings** (brief §10 item 10, Phase 2). ✅ Merged to `main` (PR #9)
 and deployed (`clasp` @13, same stable URL). A real open→done completion
