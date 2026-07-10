@@ -37,6 +37,35 @@ export interface Settings {
   [key: string]: string
 }
 
+export interface RecurringRule {
+  id: string
+  title: string
+  cadence: Cadence
+  anchorDate: string     // YYYY-MM-DD
+  defaultOwner: Owner
+  lastGenerated?: string // YYYY-MM-DD
+  seasonStart?: string   // '1'–'12'
+  seasonEnd?: string     // '1'–'12'
+}
+
+export interface TaskTemplate {
+  id: string
+  eventType: string
+  taskTitle: string
+  offsetDays: number     // int; negative = before event, 0 = day-of, positive = after
+  defaultOwner: Owner
+}
+
+export interface ActivityEntry {
+  id?: string
+  timestamp: string // ISO datetime
+  actor: 'max' | 'jaz'
+  action: string
+  targetId?: string
+  detail?: string
+  summary: string // composed human-readable sentence from backend
+}
+
 export interface WhoAmI {
   identity: 'max' | 'jaz' | 'shared'
   displayName: string

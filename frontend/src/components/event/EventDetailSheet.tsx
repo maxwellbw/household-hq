@@ -1,7 +1,8 @@
-import { useRef } from 'react'
+import { useRef, useState } from 'react'
 import { formatDate, formatTime, isAllDay, dayKey } from '@/lib/datetime'
 import { ownerStyle } from '@/lib/owners'
 import { TaskRow } from '@/components/task/TaskRow'
+import { EventEditSheet } from '@/components/event/EventEditSheet'
 import { useDialogA11y } from '@/hooks/useDialogA11y'
 import { cn } from '@/lib/utils'
 import type { EventWithTasks } from '@/lib/tether'
@@ -18,9 +19,11 @@ export function EventDetailSheet({ event, timezone, onClose }: EventDetailSheetP
   const allDay = isAllDay(event.start, event.end)
   const eventStartKey = dayKey(event.start, timezone)
   const panelRef = useRef<HTMLDivElement>(null)
+  const [showEdit, setShowEdit] = useState(false)
   useDialogA11y(panelRef, onClose)
 
   return (
+    <>
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-ink/30 sm:items-center" onClick={onClose}>
       <div
         ref={panelRef}
@@ -41,6 +44,7 @@ export function EventDetailSheet({ event, timezone, onClose }: EventDetailSheetP
                   event.owner === 'jaz' && 'bg-owner-jaz',
                   event.owner === 'both' && 'bg-owner-both',
                 )}
+                aria-hidden="true"
               >
                 {style.initial}
               </span>
@@ -51,14 +55,24 @@ export function EventDetailSheet({ event, timezone, onClose }: EventDetailSheetP
               {formatDate(event.start, timezone)}
             </p>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close"
-            className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-control text-ink-muted hover:bg-surface-alt focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-          >
-            ✕
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setShowEdit(true)}
+              aria-label="Edit event"
+              className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-control text-sm font-medium text-ink-muted hover:bg-surface-alt focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+            >
+              Edit
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close"
+              className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-control text-ink-muted hover:bg-surface-alt focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+            >
+              ✕
+            </button>
+          </div>
         </div>
 
         {event.notes && <p className="mb-4 text-sm text-ink">{event.notes}</p>}
@@ -75,5 +89,9 @@ export function EventDetailSheet({ event, timezone, onClose }: EventDetailSheetP
         )}
       </div>
     </div>
+    {showEdit && (
+      <EventEditSheet event={event} onClose={() => setShowEdit(false)} />
+    )}
+    </>
   )
 }

@@ -101,9 +101,11 @@ var HANDLERS = {
   'tasks.list':     function (p, actor, identity) { return listTasks_(p, actor, identity); },
   'tasks.create':   function (p, actor) { return { task: createTask_(p, actor) }; },
   'tasks.update':   function (p, actor) { return { task: updateTask_(p, actor) }; },
-  'tasks.complete': function (p, actor) { return completeTask_(p, actor); },
-  'tasks.reopen':   function (p, actor) { return reopenTask_(p, actor); },
-  'tasks.delete':   function (p, actor) { return { id: deleteTask_(p, actor) }; }, // feature 007: mirror cleanup
+  'tasks.complete':  function (p, actor) { return completeTask_(p, actor); },
+  'tasks.reopen':    function (p, actor) { return reopenTask_(p, actor); },
+  'tasks.snooze':    function (p, actor) { return snoozeTask_(p, actor); },
+  'tasks.unsnooze':  function (p, actor) { return unsnoozeTask_(p, actor); },
+  'tasks.delete':    function (p, actor) { return { id: deleteTask_(p, actor) }; }, // feature 007: mirror cleanup
 
   'templates.list':   function () { return { templates: listRecords_(TABS.TEMPLATES) }; },
   'templates.create': function (p, actor) { return { template: createTemplate_(p, actor) }; },
@@ -415,6 +417,35 @@ function reopenTask_(payload, actor) {
   var result = setTaskLifecycle_(String(payload.id).trim(), 'open', actor, 'reopen');
   if (result.changed) {
     mirrorTaskToCalendar_(result.task, actor); // feature 007: re-creates the calendar entry
+    result.task = rereadTask_(result.task.id) || result.task;
+  }
+  return result;
+}
+
+/**
+ * Snooze a task (feature 012 US3): validates dueDate, delegates to setTaskSnooze_,
+ * mirrors to calendar on change. Returns { task, changed }.
+ */
+function snoozeTask_(payload, actor) {
+  requireFields_(payload, ['id', 'dueDate']);
+  validateFields_(TABS.TASKS, { dueDate: String(payload.dueDate || '').trim() });
+  var result = setTaskSnooze_(String(payload.id).trim(), String(payload.dueDate).trim(), actor);
+  if (result.changed) {
+    mirrorTaskToCalendar_(result.task, actor); // snoozed future task should appear in calendar
+    result.task = rereadTask_(result.task.id) || result.task;
+  }
+  return result;
+}
+
+/**
+ * Unsnooze a task (feature 012 US3): returns to 'open', re-creates calendar mirror.
+ * Returns { task, changed }.
+ */
+function unsnoozeTask_(payload, actor) {
+  requireFields_(payload, ['id']);
+  var result = setTaskUnsnooze_(String(payload.id).trim(), actor);
+  if (result.changed) {
+    mirrorTaskToCalendar_(result.task, actor); // re-create the calendar entry
     result.task = rereadTask_(result.task.id) || result.task;
   }
   return result;
