@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { apiCall } from '@/lib/api'
 import { useAuth } from '@/hooks/useAuth'
-import type { Task } from '@/types/domain'
+import type { Owner, Task } from '@/types/domain'
 import type { NewEventInput, NewOneTimeTaskInput, NewRecurringInput } from '@/lib/quickAdd'
 import { buildEventPayload, buildOneTimeTaskPayload, buildRecurringPayload } from '@/lib/quickAdd'
 
@@ -63,6 +63,23 @@ export function useCreateOneTimeTask(timezone: string) {
       }
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tasks'] }),
+  })
+}
+
+/** Update an existing event (US4) — invalidate events on success. */
+export function useUpdateEvent() {
+  const { session, handleAuthError } = useAuth()
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (payload: { id: string; title?: string; start?: string; end?: string; owner?: Owner }) => {
+      try {
+        return await apiCall('events.update', payload, { token: session!.token, actingPerson: session!.actingPerson })
+      } catch (err) {
+        handleAuthError(err)
+        throw err
+      }
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['events'] }),
   })
 }
 
