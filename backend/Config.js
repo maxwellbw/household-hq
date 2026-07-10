@@ -98,7 +98,8 @@ var ACTION_VERBS = {
   create: 'added', update: 'edited', complete: 'completed', reopen: 'reopened',
   delete: 'deleted', 'adopt-id': 'assigned an id to', provision: 'set up',
   'gcal-sync': 'synced to calendar', 'digest-weekly': 'emailed the week ahead',
-  'digest-monthly': 'emailed the month ahead', 'ntfy-ping': 'sent a completion ping'
+  'digest-monthly': 'emailed the month ahead', 'ntfy-ping': 'sent a completion ping',
+  snooze: 'snoozed', unsnooze: 'un-snoozed'
 };
 
 /** feature 009 — free, keyless push-notification host; a platform choice, not household data. */
@@ -110,7 +111,7 @@ var NTFY_BASE_URL = 'https://ntfy.sh';
  * `*.update`, or `*.delete` counts.
  */
 function isWriteAction_(action) {
-  return /\.(create|update|delete)$/.test(String(action));
+  return /\.(create|update|delete|complete|reopen|snooze|unsnooze)$/.test(String(action));
 }
 
 /**

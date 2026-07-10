@@ -1,18 +1,18 @@
 import { useState, type ReactNode } from 'react'
-import { Calendar, ListChecks, Rss, MoreHorizontal, Plus } from 'lucide-react'
+import { Plus } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { ownerStyle } from '@/lib/owners'
 import { cn } from '@/lib/utils'
 import { QuickAddSheet } from '@/components/quickadd/QuickAddSheet'
+import { NAV_ITEMS, type NavSection } from '@/components/shell/navItems'
 
-const TABS = [
-  { key: 'calendar', label: 'Calendar', icon: Calendar },
-  { key: 'tasks', label: 'Tasks', icon: ListChecks },
-  { key: 'feed', label: 'Feed', icon: Rss },
-  { key: 'more', label: 'More', icon: MoreHorizontal },
-] as const
+interface AppShellProps {
+  children: ReactNode
+  active: NavSection
+  onNavigate: (section: NavSection) => void
+}
 
-export function AppShell({ children }: { children: ReactNode }) {
+export function AppShell({ children, active, onNavigate }: AppShellProps) {
   const { session, signOut } = useAuth()
   const who = session?.who
   const owner = who?.identity === 'shared' ? session?.actingPerson : who?.identity
@@ -45,28 +45,64 @@ export function AppShell({ children }: { children: ReactNode }) {
         )}
       </header>
 
-      <main className="flex-1 overflow-y-auto pb-16 sm:pb-0">{children}</main>
+      {/* Row container: left rail (desktop) + scrollable content */}
+      <div className="flex flex-1 overflow-hidden">
+        {/* Desktop left sidebar rail — hidden on mobile */}
+        <nav
+          aria-label="Main navigation"
+          className="hidden sm:flex sm:w-[72px] sm:flex-col sm:gap-1 sm:border-r sm:border-border sm:bg-surface sm:px-1 sm:py-4"
+        >
+          {NAV_ITEMS.map(({ key, label, icon: Icon }) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => onNavigate(key)}
+              aria-current={key === active ? 'page' : undefined}
+              aria-label={label}
+              className={cn(
+                'flex min-h-[56px] w-full flex-col items-center justify-center gap-1 rounded-lg px-1 py-2 text-[10px] font-medium transition-colors',
+                'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
+                key === active
+                  ? 'bg-accent-soft text-accent'
+                  : 'text-ink-muted hover:bg-surface-alt hover:text-ink',
+              )}
+            >
+              <Icon className="h-5 w-5" aria-hidden="true" />
+              {label}
+            </button>
+          ))}
+        </nav>
 
+        {/* Main content area */}
+        <main className="flex-1 overflow-y-auto pb-16 sm:pb-0">{children}</main>
+      </div>
+
+      {/* Quick-add FAB */}
       <button
         type="button"
         onClick={() => setQuickAddOpen(true)}
         aria-label="Add something"
-        className="fixed bottom-20 right-4 flex h-14 w-14 items-center justify-center rounded-full bg-accent text-surface shadow-card hover:bg-accent-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent sm:bottom-6"
+        className="fixed bottom-20 right-4 z-10 flex h-14 w-14 items-center justify-center rounded-full bg-accent text-surface shadow-card hover:bg-accent-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent sm:bottom-6"
       >
         <Plus className="h-6 w-6" aria-hidden="true" />
       </button>
 
-      <nav className="fixed inset-x-0 bottom-0 flex border-t border-border bg-surface sm:hidden">
-        {TABS.map(({ key, label, icon: Icon }) => (
+      {/* Mobile bottom tab bar — hidden on sm+ */}
+      <nav
+        aria-label="Main navigation"
+        className="fixed inset-x-0 bottom-0 z-10 flex border-t border-border bg-surface sm:hidden"
+      >
+        {NAV_ITEMS.map(({ key, label, icon: Icon }) => (
           <button
             key={key}
             type="button"
-            disabled={key !== 'calendar'}
+            onClick={() => onNavigate(key)}
+            aria-current={key === active ? 'page' : undefined}
             className={cn(
-              'flex min-h-[44px] flex-1 flex-col items-center justify-center gap-0.5 py-2 text-xs',
-              key === 'calendar' ? 'text-accent' : 'text-ink-faint',
+              'flex min-h-[44px] flex-1 flex-col items-center justify-center gap-0.5 py-2 text-xs transition-colors',
+              'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
+              key === active ? 'text-accent' : 'text-ink-faint',
             )}
-            aria-current={key === 'calendar' ? 'page' : undefined}
           >
             <Icon className="h-5 w-5" aria-hidden="true" />
             {label}

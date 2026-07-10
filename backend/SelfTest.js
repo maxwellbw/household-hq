@@ -32,6 +32,7 @@ function selfTest() {
   liveCalendarReconcile_();
   unitDigests_();
   unitNtfy_();
+  liveSnooze_();
   Logger.log('ALL PASS');
 }
 
@@ -1015,6 +1016,80 @@ function unitDigests_() {
   assert_(typeof sendMonthlyDigestNow === 'function', 'sendMonthlyDigestNow is a public entry point');
 
   Logger.log('unit digests: pass');
+}
+
+// ---------------------------------------------------------------------------
+// Live: snooze / unsnooze (feature 012 US3, contract §SelfTest — T016)
+// ---------------------------------------------------------------------------
+
+function liveSnooze_() {
+  var id = SELFTEST_PREFIX + Utilities.getUuid();
+  createTask_({ id: id, title: SELFTEST_PREFIX + 'snooze probe', owner: 'jaz', dueDate: '2026-07-10' }, 'selftest');
+
+  // 1. Snooze open task → changed:true, status='snoozed', dueDate updated, one history entry, one log row.
+  var r1 = snoozeTask_({ id: id, dueDate: '2026-07-14' }, 'selftest');
+  assert_(r1.changed === true, 'snooze returns changed:true');
+  assert_(r1.task.status === 'snoozed', 'snooze sets status=snoozed');
+  assert_(r1.task.dueDate === '2026-07-14', 'snooze sets new dueDate');
+  assert_(r1.task.snoozeHistory.indexOf('2026-07-10→2026-07-14') === 0,
+    'snooze appends one history entry (oldDue→newDue)');
+  assert_(countLogRows_(id, 'snooze') === 1, 'snooze appends exactly one ActivityLog snooze row');
+
+  // 2. Snooze again to a new date → second history entry, dueDate moved, second log row.
+  var r2 = snoozeTask_({ id: id, dueDate: '2026-07-20' }, 'selftest');
+  assert_(r2.changed === true, 'second snooze returns changed:true');
+  assert_(r2.task.dueDate === '2026-07-20', 'second snooze moves dueDate');
+  assert_(r2.task.snoozeHistory.indexOf('2026-07-14→2026-07-20') > 0,
+    'second snooze appends a second history entry');
+  assert_(r2.task.snoozeHistory.split(' | ').length === 2, 'snoozeHistory now has exactly two entries');
+  assert_(countLogRows_(id, 'snooze') === 2, 'second snooze appends a second ActivityLog row');
+
+  // 3. Snooze to the same date again → changed:false, no new history/log row (idempotent).
+  var r3 = snoozeTask_({ id: id, dueDate: '2026-07-20' }, 'selftest');
+  assert_(r3.changed === false, 'snooze to same date is a no-change (idempotent)');
+  assert_(r3.task.snoozeHistory.split(' | ').length === 2, 'idempotent snooze adds no history entry');
+  assert_(countLogRows_(id, 'snooze') === 2, 'idempotent snooze adds no ActivityLog row');
+
+  // 4. Unsnooze → status='open', history preserved, one unsnooze log row; unsnooze again → no-change.
+  var r4 = unsnoozeTask_({ id: id }, 'selftest');
+  assert_(r4.changed === true, 'unsnooze returns changed:true');
+  assert_(r4.task.status === 'open', 'unsnooze sets status=open');
+  assert_(r4.task.snoozeHistory.split(' | ').length === 2, 'unsnooze preserves snoozeHistory');
+  assert_(countLogRows_(id, 'unsnooze') === 1, 'unsnooze appends exactly one ActivityLog unsnooze row');
+  var r4b = unsnoozeTask_({ id: id }, 'selftest');
+  assert_(r4b.changed === false, 'unsnooze of an already-open task is a no-change');
+  assert_(countLogRows_(id, 'unsnooze') === 1, 're-unsnooze adds no ActivityLog row');
+
+  // 5. Shared-account snooze without actingPerson → ACTING_PERSON_REQUIRED.
+  //    With actingPerson → actor is the named person in the log (guards R4 isWriteAction_ change).
+  var sharedLists = {
+    maxEmail: SELFTEST_PREFIX + 'ignored@x.com',
+    jazEmail: SELFTEST_PREFIX + 'ignored2@x.com',
+    shared: [SELFTEST_PREFIX + 'shared@x.com']
+  };
+  var sharedId = matchIdentity_({ email: SELFTEST_PREFIX + 'shared@x.com', name: 'Shared' }, sharedLists);
+  assertFails_('ACTING_PERSON_REQUIRED', function () {
+    resolveWriteActor_(sharedId, 'tasks.snooze', {});
+  }, 'shared-account snooze without actingPerson → ACTING_PERSON_REQUIRED');
+  assert_(resolveWriteActor_(sharedId, 'tasks.snooze', { actingPerson: 'max' }) === 'max',
+    'shared-account snooze with actingPerson max → actor=max');
+
+  // 6. Bad request: missing id / invalid dueDate rejected.
+  assertFails_('BAD_REQUEST', function () {
+    snoozeTask_({ dueDate: '2026-07-14' }, 'selftest');
+  }, 'snooze without id → BAD_REQUEST');
+  assertFails_('BAD_REQUEST', function () {
+    snoozeTask_({ id: id }, 'selftest');
+  }, 'snooze without dueDate → BAD_REQUEST');
+  assertFails_('VALIDATION_FAILED', function () {
+    snoozeTask_({ id: id, dueDate: 'not-a-date' }, 'selftest');
+  }, 'snooze with invalid dueDate → VALIDATION_FAILED');
+  assertFails_('BAD_REQUEST', function () {
+    unsnoozeTask_({}, 'selftest');
+  }, 'unsnooze without id → BAD_REQUEST');
+
+  deleteRecordById_(TABS.TASKS, id, 'selftest');
+  Logger.log('live snooze: pass');
 }
 
 /** Test-only: hand-edit a single Settings row's value by key (Settings has no write API). */
