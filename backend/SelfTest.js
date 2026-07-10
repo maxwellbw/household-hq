@@ -31,6 +31,7 @@ function selfTest() {
   liveCalendarTaskSync_();
   liveCalendarReconcile_();
   unitDigests_();
+  unitNtfy_();
   Logger.log('ALL PASS');
 }
 
@@ -1014,4 +1015,60 @@ function unitDigests_() {
   assert_(typeof sendMonthlyDigestNow === 'function', 'sendMonthlyDigestNow is a public entry point');
 
   Logger.log('unit digests: pass');
+}
+
+/** Test-only: hand-edit a single Settings row's value by key (Settings has no write API). */
+function setSettingValue_(key, value) {
+  var sheet = getSheet_(TABS.SETTINGS);
+  var values = sheet.getDataRange().getValues();
+  for (var r = 1; r < values.length; r++) {
+    if (String(values[r][0]).trim() === key) {
+      sheet.getRange(r + 1, 2).setValue(value);
+      return;
+    }
+  }
+  sheet.appendRow([key, value, 'selftest']);
+}
+
+/** feature 009 — ntfy completion pings: pure helpers + best-effort gating, no real POST. */
+function unitNtfy_() {
+  // --- recipient routing (FR-002, FR-003) --------------------------------------------------
+  assert_(otherPerson_('max') === 'jaz', 'otherPerson_ of max is jaz');
+  assert_(otherPerson_('jaz') === 'max', 'otherPerson_ of jaz is max');
+
+  // --- topic selection (FR-004) --------------------------------------------------------------
+  var settings = { ntfyTopicMax: 'topic-max', ntfyTopicJaz: 'topic-jaz' };
+  assert_(ntfyTopicFor_('max', settings) === 'topic-max', 'ntfyTopicFor_ selects ntfyTopicMax for Max');
+  assert_(ntfyTopicFor_('jaz', settings) === 'topic-jaz', 'ntfyTopicFor_ selects ntfyTopicJaz for Jaz');
+  assert_(ntfyTopicFor_('max', {}) === '', 'ntfyTopicFor_ returns blank when the Settings key is unset');
+
+  // --- message formatting (FR-002, edge cases) ------------------------------------------------
+  assert_(buildPingMessage_('max', 'Take out recycling') === 'Max completed: Take out recycling',
+    'buildPingMessage_ names the completer and the task title');
+  assert_(buildPingMessage_('jaz', '') === 'Jaz completed a task',
+    'buildPingMessage_ falls back to a sensible message for a blank title');
+  var longTitle = new Array(200).join('x');
+  var longMessage = buildPingMessage_('max', longTitle);
+  assert_(longMessage.length < longTitle.length, 'buildPingMessage_ clamps an unusually long title');
+  assert_(longMessage.indexOf('Max completed: ') === 0, 'a clamped message still names the completer');
+
+  // --- best-effort gating: disabled and blank-topic paths never reach UrlFetchApp (FR-005, FR-006) --
+  var fakeTaskDisabled = { id: SELFTEST_PREFIX + 'ntfy-disabled-' + Utilities.getUuid(), title: 'disabled-path task' };
+  setSettingValue_('ntfyEnabled', 'FALSE');
+  pingCompletion_(fakeTaskDisabled, 'max'); // must not throw, must not POST
+  var disabledLog = readActivityFeed_({ limit: 100 }).filter(function (e) { return e.targetId === fakeTaskDisabled.id; });
+  assert_(disabledLog.length === 1 && disabledLog[0].detail.indexOf('disabled') !== -1,
+    'pingCompletion_ logs a skip and sends nothing when ntfyEnabled is FALSE');
+  setSettingValue_('ntfyEnabled', 'TRUE');
+
+  var fakeTaskBlank = { id: SELFTEST_PREFIX + 'ntfy-blanktopic-' + Utilities.getUuid(), title: 'blank-topic task' };
+  var savedJazTopic = readSettingsMap_()['ntfyTopicJaz'];
+  setSettingValue_('ntfyTopicJaz', '');
+  pingCompletion_(fakeTaskBlank, 'max'); // recipient is jaz; her topic is blank -> must not throw, must not POST
+  var blankLog = readActivityFeed_({ limit: 100 }).filter(function (e) { return e.targetId === fakeTaskBlank.id; });
+  assert_(blankLog.length === 1 && blankLog[0].detail.indexOf('topic blank') !== -1,
+    'pingCompletion_ logs a skip and sends nothing when the recipient topic is blank');
+  setSettingValue_('ntfyTopicJaz', savedJazTopic || '');
+
+  Logger.log('unit ntfy: pass');
 }
