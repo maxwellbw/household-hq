@@ -112,10 +112,10 @@ description: "Task list for feature 014 — Home Dashboard"
 
 ## Phase 7: Polish & Cross-Cutting Concerns
 
-- [ ] T024 Add `frontend/src/components/dashboard/DashboardHome.test.tsx`: render test with seeded query-client data — app lands on dashboard, all three sections present, quiet-week shows only calm empty states (SC-006).
-- [ ] T025 Run `/impeccable audit` on the dashboard UI; fix any owner-color contrast / WCAG 2.1 AA findings (SC-005) and general polish.
-- [ ] T026 `cd frontend && npm run build && npm test` green (no type errors); walk quickstart.md Scenarios A–F locally.
-- [ ] T027 Update `BACKLOG.md` (stage → built / PR link) and the "Currently active" note per the start-feature loop.
+- [x] T024 Add `frontend/src/components/dashboard/DashboardHome.test.tsx`: render test with seeded query-client data — app lands on dashboard, all three sections present, quiet-week shows only calm empty states (SC-006).
+- [x] T025 Run `/impeccable audit` on the dashboard UI; fix any owner-color contrast / WCAG 2.1 AA findings (SC-005) and general polish.
+- [x] T026 `cd frontend && npm run build && npm test` green (no type errors); walk quickstart.md Scenarios A–F locally.
+- [x] T027 Update `BACKLOG.md` (stage → built / PR link) and the "Currently active" note per the start-feature loop.
 
 ---
 

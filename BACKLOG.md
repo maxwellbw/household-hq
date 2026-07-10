@@ -37,7 +37,7 @@ screens. These four features close that gap, **in this order**, before 010/011:
 |---|---|---|---|---|
 | 012 | App shell & task UX | ✅ merged | [specs/012-app-shell-task-ux](specs/012-app-shell-task-ux/spec.md) | [#10](https://github.com/maxwellbw/household-hq/pull/10) |
 | 013 | Someday list (tap-to-schedule; drag deferred) | ✅ merged | [specs/013-someday-list](specs/013-someday-list/spec.md) | [#11](https://github.com/maxwellbw/household-hq/pull/11) |
-| 014 | Home dashboard | ⬜ not started | — | — |
+| 014 | Home dashboard | 🏗️ built — pending PR + Max co-sign (US4) | [specs/014-home-dashboard](specs/014-home-dashboard/spec.md) | — |
 | 015 | Recurring seed pack & alternating weeks | ⬜ not started | — | — |
 
 **012 — App shell & task UX** (frontend-only; every backend piece already exists).
@@ -92,7 +92,7 @@ recurring-chore streaks/history (#17), shopping/errand list items on tasks (#18 
 
 ## Currently active
 
-**In progress: 014 — Home dashboard** (next up — requires constitution amendment co-approved by Max before implementation; see entry below).
+**Built, awaiting PR + merge: 014 — Home dashboard.** All Phase 1–7 tasks complete (T001–T027). Branch `014-home-dashboard`. Governance amendment (US4: dashboard-first principle, constitution v1.1.0) ready — **Max must co-approve before merge**. Next up after merge: 015 — Recurring seed pack & alternating weeks.
 
 _013 merged to `main` (PR #11). Frontend-only. Undated open standalone tasks appear in a Someday section below the calendar, owner-filtered, completable/reopenable in place. Tapping a task title opens a bottom-sheet dialog asking date + owner (no pre-selection); Confirm gated on both; success invalidates `['tasks']` so the task moves to the calendar without a refresh. US3 (desktop drag-onto-day) deferred: Schedule-X month-grid cells have no `data-date`, making drop-date reconstruction wrong on month navigation — revisit when Schedule-X exposes stable `data-date`. Three WCAG AA contrast failures fixed in the audit pass (selected-owner text, Confirm button, broken aria-labelledby)._
 
