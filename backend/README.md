@@ -15,6 +15,7 @@ Sheet schema and the JSON API every later feature calls. Dependency-free by cons
 | `ActivityLog.js` | append-only log writer (one row per successful mutation) |
 | `Setup.js` | `setupDatabase()` — idempotent provisioning (operator-run, not an API action) |
 | `Recurring.js` | occurrence math, nightly generator, trigger installer, rule CRUD (feature 004) |
+| `Seed.js` | `seedRecurringPack()` — one-time starter pack of home-maintenance chores (feature 015) |
 | `PrepTasks.js` | prep-id/date math, `syncPrepForEvent_` sync brain, nightly generator, trigger installer (feature 005) |
 | `CalendarSync.js` | calendar builders, `syncCalendarForEvent_`/`syncCalendarForTask_` mirror brain, `syncCalendar()` nightly reconcile + orphan sweep, trigger installer (feature 007) |
 | `SelfTest.js` | `selfTest()` — manually-run end-to-end checks |
@@ -115,6 +116,42 @@ D1–D11).
 - **Logging.** Generated/re-dated/purged prep Tasks and the `prepGeneratedFor` write log
   under actor `system`; event and checklist CRUD log under the acting user.
 
+## Recurring seed pack & alternating weeks (feature 015)
+
+A one-time starter pack of common home-maintenance chores, plus the pattern for modeling
+alternating-week curbside pickup with the existing engine — **no new recurrence concepts**.
+Spec: [`specs/015-recurring-seed-pack/`](../specs/015-recurring-seed-pack/). **One schema
+change**: the `Recurring` tab gains `seedKey` (landed via `setupDatabase()`'s header
+migration, same mechanism as `prepGeneratedFor`/`gcalEventId`); one new Settings key,
+`recurringSeedApplied`.
+
+- **Alternating-week bins, with zero engine change.** The engine's `biweekly` cadence is
+  already a fixed 14-day step from `anchorDate`. To alternate two biweekly pickups (e.g.
+  recycling one week, yard waste the next): create both as `biweekly` rules and set their
+  `anchorDate`s **exactly 7 days apart**; add a `weekly` rule for anything collected every
+  week (e.g. trash). The two biweekly rules then never land in the same week and each recurs
+  every other week — no special "alternating" flag or cadence exists or is needed. Editing
+  the anchor dates (keeping them 7 days apart) shifts the whole schedule while preserving the
+  pattern. The starter pack's `trash`/`recycling`/`yardwaste` rows are a worked example.
+- **`seedRecurringPack()`** appends the starter pack (HVAC air filter quarterly, dishwasher
+  filter monthly, gutters annually, detector batteries annually, mow lawn weekly
+  April–October, plus the three bin rules — see `SEED_PACK` in `Config.js`) as ordinary
+  `Recurring` rows. Editor-run only, like `setupDatabase()` — **not** an API action, **not** a
+  trigger. Safe to re-run: identity is a per-chore `seedKey`, not title, so renaming a seeded
+  rule never causes a re-add.
+- **Never-resurrect.** The `recurringSeedApplied` Settings value is a `; `-delimited ledger of
+  every seed key ever applied. A chore is skipped once its key is in the ledger **or** is the
+  `seedKey` of a live row — so deleting a seeded chore by hand is permanent across re-runs,
+  the same guarantee feature 004 gives a deleted occurrence. To deliberately re-seed a removed
+  chore: delete its row **and** remove its key from `recurringSeedApplied`.
+- **Seeded rows are ordinary rules.** They carry no locked fields; the household edits or
+  deletes them exactly like any hand-entered `Recurring` row, and the generator treats them
+  identically. Seeded anchors are placeholders (computed relative to the seed run date) —
+  correct them to the household's real collection/maintenance days after seeding.
+- **Logging.** Each newly-seeded rule logs its own `create` row (actor `system`) via the same
+  `createRecord_` path the recurring generator uses per occurrence; a re-run with nothing new
+  to add makes no Sheet or log writes at all.
+
 ## Google Calendar sync (feature 007)
 
 One-way outbound mirror of Events + dated Tasks to the shared "Household" Google Calendar,
@@ -181,6 +218,9 @@ and yields "Page Not Found".
 5. **Install the nightly triggers:** in the editor, run `installRecurringTrigger()` (feature
    004), `installPrepTrigger()` (feature 005), and `installCalendarTrigger()` (feature 007)
    once each. Re-running any of them is safe (it replaces rather than stacks the trigger).
+5a. **Optional starter chores (feature 015):** run `seedRecurringPack()` once to populate the
+    `Recurring` tab with the starter pack (bins, HVAC filter, gutters, etc.) — correct the
+    seeded anchor dates to the household's real schedule afterward. Safe to re-run.
 6. **Feature 007 only:** re-authorize once (the manifest now requests the `calendar` scope) —
    run **`checkCalendarAuth()`** from the editor to trigger the consent prompt for the
    deploying shared account (plain `selfTest()` won't trigger it on its own: with
@@ -189,9 +229,9 @@ and yields "Page Not Found".
    calendar's ID.
 
 Note: after any header change to `Config.HEADERS` (e.g. feature 005's `prepGeneratedFor`,
-feature 007's `gcalEventId` on Tasks), re-run `setupDatabase()` — it appends any missing
-header to an already-provisioned tab without touching existing columns or data (safe to
-re-run).
+feature 007's `gcalEventId` on Tasks, feature 015's `seedKey` on Recurring), re-run
+`setupDatabase()` — it appends any missing header to an already-provisioned tab without
+touching existing columns or data (safe to re-run).
 
 ## Deployment mode (interim; ratified by feature 002)
 

@@ -434,6 +434,37 @@ function readSettingsMap_() {
   return out;
 }
 
+/**
+ * Upsert a Settings row by key (feature 015): overwrite the value cell if the key already
+ * has a row, else append a new `[key, value, '']` row. Plain-text write, like every other
+ * Settings/Sheet mutation (research D6). Locked — Settings has no `id` column so this can't
+ * go through createRecord_/updateRecordById_, but the same withLock_ serialization applies.
+ */
+function setSettingValue_(key, value) {
+  withLock_(function () {
+    var sheet = getSheet_(TABS.SETTINGS);
+    var headerRow = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    var map = buildHeaderMap_(TABS.SETTINGS, headerRow);
+    var last = sheet.getLastRow();
+    var keyCol = map['key'];
+    var valueCol = map['value'];
+    for (var r = 2; r <= last; r++) {
+      var rowKey = String(sheet.getRange(r, keyCol + 1).getValue()).trim();
+      if (rowKey === key) {
+        var cell = sheet.getRange(r, valueCol + 1);
+        cell.setNumberFormat('@');
+        cell.setValue(String(value));
+        return;
+      }
+    }
+    var arr = [];
+    for (var i = 0; i < headerRow.length; i++) arr[i] = '';
+    arr[keyCol] = key;
+    arr[valueCol] = value;
+    writeRowAsText_(sheet, sheet.getLastRow() + 1, arr);
+  });
+}
+
 var _tzCache = null;
 
 /** Household timezone from Settings, falling back to the script tz then the default. */
