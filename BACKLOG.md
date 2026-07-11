@@ -11,36 +11,20 @@ order confirmed by Jaz 2026-07-11, including 010/011 — definitely a go, slotte
 
 ## The queue — up next, in order
 
-**Next up: 018 — Stay signed in** (confirmed 2026-07-11: sign-in friction hurts every visit,
-so it goes first).
+**Next up: 022 — UX fix batch 2** (018 merged 2026-07-11; 022 is next in the confirmed order).
 
 | Order | # | Feature | Stage | Spec folder | PR |
 |---|---|---|---|---|---|
-| 1 | 018 | Stay signed in (session persistence) | 🔧 implemented, pending PR | [specs/018-stay-signed-in](specs/018-stay-signed-in/spec.md) | — |
-| 2 | 022 | UX fix batch 2 (snooze on calendar, delete, collapse) | ⬜ not started | — | — |
-| 3 | 019 | Task & event details + collaboration | ⬜ not started | — | — |
-| 4 | 020 | Settings editor under More | ⬜ not started | — | — |
-| 5 | 021 | Someday force-rank + Tasks-tab Someday section | ⬜ not started | — | — |
-| 6 | 023 | Dog-care recurring seed rows | ⬜ not started | — | — |
-| 7 | 024 | Grocery & household lists | ⬜ not started | — | — |
-| 8 | 025 | Recurring events | ⬜ not started | — | — |
-| 9 | 026 | Inbound gcal import (personal calendars) | ⬜ not started | — | — |
-| 10 | 010 | PWA install + web push | ⬜ not started | — | — |
-| 11 | 011 | Weather-aware dog-walk window finder | ⬜ not started | — | — |
-
-**018 — Stay signed in.** Google ID tokens live ~1 hour and the app holds them in memory
-only (feature 002/006 decision, now outgrown) — so every visit re-prompts, worst on mobile.
-Persist the session and silently re-acquire tokens (GIS auto-select / One Tap re-prompt)
-so sign-in is rare, not routine. Pairs naturally with 010 (PWA) later. **Implemented
-2026-07-11** (frontend-only, no backend/scope/clasp change): `auto_select` + a silent
-`prompt()` restore on boot (`RestoringGate`), reactive single-flight token refresh + retry
-via a new `authedCall()` (migrated 7 hook files off raw `apiCall`), and a `localStorage`
-"remember me" hint + acting-person value — **no credential is ever persisted**. Shared-account
-returns show a dismissible "Signed in as X — switch?" banner instead of the blocking prompt.
-Sign-out clears the hints; declined/failed silent restore falls back to the sign-in wall once,
-no loop. 202 tests green (17 new), `/impeccable audit` fixed one missing focus ring.
-**Live Google OAuth restore/refresh could not be exercised in the sandbox — needs the
-real-device quickstart pass before merge** (same limitation as 016/017).
+| 1 | 022 | UX fix batch 2 (snooze on calendar, delete, collapse) | ⬜ not started | — | — |
+| 2 | 019 | Task & event details + collaboration | ⬜ not started | — | — |
+| 3 | 020 | Settings editor under More | ⬜ not started | — | — |
+| 4 | 021 | Someday force-rank + Tasks-tab Someday section | ⬜ not started | — | — |
+| 5 | 023 | Dog-care recurring seed rows | ⬜ not started | — | — |
+| 6 | 024 | Grocery & household lists | ⬜ not started | — | — |
+| 7 | 025 | Recurring events | ⬜ not started | — | — |
+| 8 | 026 | Inbound gcal import (personal calendars) | ⬜ not started | — | — |
+| 9 | 010 | PWA install + web push | ⬜ not started | — | — |
+| 10 | 011 | Weather-aware dog-walk window finder | ⬜ not started | — | — |
 
 **022 — UX fix batch 2** (frontend-only; every backend piece exists). (a) **Snooze from the
 calendar**: `TaskDetailSheet` (which calendar task chips open since 016) gets a Snooze
@@ -162,6 +146,7 @@ prep template).
 | 015 | Recurring seed pack & alternating weeks | [specs/015-recurring-seed-pack](specs/015-recurring-seed-pack/spec.md) | [#14](https://github.com/maxwellbw/household-hq/pull/14) |
 | 016 | UX fix batch (task editing + dead controls) | [specs/016-ux-fix-batch](specs/016-ux-fix-batch/spec.md) | [#15](https://github.com/maxwellbw/household-hq/pull/15) |
 | 017 | Calendar views & 7-day surfaces | [specs/017-calendar-views](specs/017-calendar-views/spec.md) | [#16](https://github.com/maxwellbw/household-hq/pull/16) |
+| 018 | Stay signed in (session persistence) | [specs/018-stay-signed-in](specs/018-stay-signed-in/spec.md) | [#17](https://github.com/maxwellbw/household-hq/pull/17) |
 
 **Planning history:** Phase 1 (001–007) + Phase 2 (008–009) per brief §10 · Phase 2.5
 (012–015) planned 2026-07-09, Jaz's feedback round 1 — the backend had outrun the UI ·
@@ -173,11 +158,25 @@ grocery lists + inbound gcal import from the parked list.
 ### Post-merge notes & open follow-ups
 
 **Open follow-ups first:** 009's live validation is still deferred (run `setupDatabase()` +
-`selfTest()`, pick topics, subscribe phones, quickstart A–F). 016 and 017 both shipped
-without a live browser pass (the sandboxed preview can't do real Google OAuth) — **a manual
-desktop + mobile quickstart pass is still recommended for both.** 006's T057 live sign-in
+`selfTest()`, pick topics, subscribe phones, quickstart A–F). 016, 017, and **018** all
+shipped without a live browser pass (the sandboxed preview can't do real Google OAuth) —
+**a manual desktop + mobile quickstart pass is still recommended for all three; 018
+especially, since its core value (silent restore/refresh) is exactly what the sandbox
+can't exercise** — see `specs/018-stay-signed-in/quickstart.md`. 006's T057 live sign-in
 walkthrough was never formally run. 013's US3 (desktop drag-onto-day) is deferred until
 Schedule-X exposes stable `data-date` on month-grid cells.
+
+_018 (PR #17). Frontend-only, no backend/scope/clasp change. GIS `auto_select` + a silent
+`prompt()` restore on boot (`RestoringGate` while resolving; falls back to the sign-in wall
+once, no loop, on decline); reactive single-flight token refresh + retry via a new
+`authedCall()` on `useAuth` (migrated all 7 data hooks off raw `apiCall({ token:
+session!.token })`); new `frontend/src/lib/session-store.ts` holds only an auto-sign-in
+hint + the remembered acting person in `localStorage` — **no credential is ever
+persisted**. Shared-account returns show a dismissible `ActingPersonAffirm` ("Signed in as
+X — switch?") instead of the blocking prompt. Sign-out clears both storage keys and
+disables auto-select. 202 tests green (17 new); `/impeccable audit` fixed one WCAG 2.4.7
+gap (missing focus ring). Merged without the real-device quickstart pass (Jaz's call,
+2026-07-11) — see the follow-up note above._
 
 _017 (PR #16). Frontend-only. `CalendarViewSwitcher` adds fixed Sun–Sat week + rolling
 Next-7-days views on desktop **and** mobile via bespoke `DayListView`/`DayColumn` all-day
