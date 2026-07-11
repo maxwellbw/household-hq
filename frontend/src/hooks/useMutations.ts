@@ -1,5 +1,4 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { apiCall } from '@/lib/api'
 import { useAuth } from '@/hooks/useAuth'
 import type { Owner, Task } from '@/types/domain'
 import type { NewEventInput, NewOneTimeTaskInput, NewRecurringInput } from '@/lib/quickAdd'
@@ -9,16 +8,12 @@ import { buildSchedulePayload } from '@/lib/schedule'
 
 /** Quick-add creates (US5) — invalidate the relevant list on success so the new item appears immediately. */
 export function useCreateEvent() {
-  const { session, handleAuthError } = useAuth()
+  const { authedCall, handleAuthError } = useAuth()
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (input: NewEventInput) => {
       try {
-        return await apiCall(
-          'events.create',
-          buildEventPayload(input),
-          { token: session!.token, actingPerson: session!.actingPerson },
-        )
+        return await authedCall('events.create', buildEventPayload(input))
       } catch (err) {
         handleAuthError(err)
         throw err
@@ -29,16 +24,12 @@ export function useCreateEvent() {
 }
 
 export function useCreateRecurring() {
-  const { session, handleAuthError } = useAuth()
+  const { authedCall, handleAuthError } = useAuth()
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (input: NewRecurringInput) => {
       try {
-        return await apiCall(
-          'recurring.create',
-          buildRecurringPayload(input),
-          { token: session!.token, actingPerson: session!.actingPerson },
-        )
+        return await authedCall('recurring.create', buildRecurringPayload(input))
       } catch (err) {
         handleAuthError(err)
         throw err
@@ -49,16 +40,12 @@ export function useCreateRecurring() {
 }
 
 export function useCreateOneTimeTask(timezone: string) {
-  const { session, handleAuthError } = useAuth()
+  const { authedCall, handleAuthError } = useAuth()
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (input: NewOneTimeTaskInput) => {
       try {
-        return await apiCall(
-          'tasks.create',
-          buildOneTimeTaskPayload(input, timezone),
-          { token: session!.token, actingPerson: session!.actingPerson },
-        )
+        return await authedCall('tasks.create', buildOneTimeTaskPayload(input, timezone))
       } catch (err) {
         handleAuthError(err)
         throw err
@@ -70,12 +57,12 @@ export function useCreateOneTimeTask(timezone: string) {
 
 /** Update an existing event (US4) — invalidate events on success. */
 export function useUpdateEvent() {
-  const { session, handleAuthError } = useAuth()
+  const { authedCall, handleAuthError } = useAuth()
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (payload: { id: string; title?: string; start?: string; end?: string; owner?: Owner }) => {
       try {
-        return await apiCall('events.update', payload, { token: session!.token, actingPerson: session!.actingPerson })
+        return await authedCall('events.update', payload)
       } catch (err) {
         handleAuthError(err)
         throw err
@@ -87,13 +74,13 @@ export function useUpdateEvent() {
 
 /** Task check-off / reopen (US6) — optimistic flip, revert + plain error on failure. */
 function useSetTaskStatus(action: 'tasks.complete' | 'tasks.reopen', nextStatus: Task['status']) {
-  const { session, handleAuthError } = useAuth()
+  const { authedCall, handleAuthError } = useAuth()
   const queryClient = useQueryClient()
 
   return useMutation({
     mutationFn: async (taskId: string) => {
       try {
-        return await apiCall(action, { id: taskId }, { token: session!.token, actingPerson: session!.actingPerson })
+        return await authedCall(action, { id: taskId })
       } catch (err) {
         handleAuthError(err)
         throw err
@@ -124,16 +111,12 @@ export function useReopenTask() {
 
 /** Snooze a task to a new dueDate — optimistic flip to 'snoozed', invalidate on settle. */
 export function useSnoozeTask() {
-  const { session, handleAuthError } = useAuth()
+  const { authedCall, handleAuthError } = useAuth()
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async ({ id, dueDate }: { id: string; dueDate: string }) => {
       try {
-        return await apiCall(
-          'tasks.snooze',
-          { id, dueDate },
-          { token: session!.token, actingPerson: session!.actingPerson },
-        )
+        return await authedCall('tasks.snooze', { id, dueDate })
       } catch (err) {
         handleAuthError(err)
         throw err
@@ -156,16 +139,12 @@ export function useSnoozeTask() {
 
 /** Schedule a someday task by setting its dueDate + owner via tasks.update (FR-009). */
 export function useScheduleTask() {
-  const { session, handleAuthError } = useAuth()
+  const { authedCall, handleAuthError } = useAuth()
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (draft: ScheduleDraft) => {
       try {
-        return await apiCall(
-          'tasks.update',
-          buildSchedulePayload(draft),
-          { token: session!.token, actingPerson: session!.actingPerson },
-        )
+        return await authedCall('tasks.update', buildSchedulePayload(draft))
       } catch (err) {
         handleAuthError(err)
         throw err
@@ -177,12 +156,12 @@ export function useScheduleTask() {
 
 /** Update a task's title/owner/dueDate (US2) — dueDate: '' clears the date. */
 export function useUpdateTask() {
-  const { session, handleAuthError } = useAuth()
+  const { authedCall, handleAuthError } = useAuth()
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (payload: { id: string; title?: string; owner?: Owner; dueDate?: string }) => {
       try {
-        return await apiCall('tasks.update', payload, { token: session!.token, actingPerson: session!.actingPerson })
+        return await authedCall('tasks.update', payload)
       } catch (err) {
         handleAuthError(err)
         throw err
@@ -194,16 +173,12 @@ export function useUpdateTask() {
 
 /** Unsnooze a task — optimistic flip back to 'open', invalidate on settle. */
 export function useUnsnoozeTask() {
-  const { session, handleAuthError } = useAuth()
+  const { authedCall, handleAuthError } = useAuth()
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (taskId: string) => {
       try {
-        return await apiCall(
-          'tasks.unsnooze',
-          { id: taskId },
-          { token: session!.token, actingPerson: session!.actingPerson },
-        )
+        return await authedCall('tasks.unsnooze', { id: taskId })
       } catch (err) {
         handleAuthError(err)
         throw err
