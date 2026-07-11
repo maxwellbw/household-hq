@@ -12,6 +12,7 @@ import { buildCalendarModel, type EventWithTasks } from '@/lib/tether'
 import { EventContent } from '@/components/calendar/EventContent'
 import { EmptyState } from '@/components/calendar/EmptyState'
 import { EventDetailSheet } from '@/components/event/EventDetailSheet'
+import { TaskDetailSheet } from '@/components/task/TaskDetailSheet'
 import type { Owner } from '@/types/domain'
 
 function useIsMobile(): boolean {
@@ -41,6 +42,7 @@ export function CalendarHome({ visibleOwners }: CalendarHomeProps) {
   const isMobile = useIsMobile()
   const [visibleRange, setVisibleRange] = useState<{ start: string; end: string } | null>(null)
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null)
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
 
   const isLoading = eventsQuery.isLoading || tasksQuery.isLoading
   const isError = eventsQuery.isError || tasksQuery.isError
@@ -90,6 +92,11 @@ export function CalendarHome({ visibleOwners }: CalendarHomeProps) {
   const calendarApp = useCalendarApp({
     views: [createViewMonthGrid(), createViewMonthAgenda()],
     defaultView: isMobile ? 'month-agenda' : 'month-grid',
+    // Schedule-X's own breakpoint-based view-switcher (default true) fights our
+    // useIsMobile() choice and destroys/recreates the event DOM on every resize
+    // (address-bar show/hide, orientation change) — a likely cause of taps
+    // silently missing (research R4b). We already own the mobile/desktop split.
+    isResponsive: false,
     selectedDate: Temporal.PlainDate.from(todayKey(timezone)),
     events: scheduleXEvents,
     timezone,
@@ -100,7 +107,11 @@ export function CalendarHome({ visibleOwners }: CalendarHomeProps) {
       },
       onEventClick: (calendarEvent: { id: string | number }) => {
         const id = String(calendarEvent.id)
-        if (!id.startsWith('task-')) setSelectedEventId(id)
+        if (id.startsWith('task-')) {
+          setSelectedTaskId(id.slice('task-'.length))
+        } else {
+          setSelectedEventId(id)
+        }
       },
     },
   })
@@ -123,6 +134,7 @@ export function CalendarHome({ visibleOwners }: CalendarHomeProps) {
   }, [visibleEvents, visibleStandaloneTasks, visibleRange])
 
   const selectedEvent = selectedEventId ? visibleEvents.find((e) => e.id === selectedEventId) : null
+  const selectedTask = selectedTaskId ? visibleStandaloneTasks.find((t) => t.id === selectedTaskId) : null
 
   if (isLoading) {
     return <div className="flex h-64 items-center justify-center text-ink-muted">Loading your calendar…</div>
@@ -148,7 +160,10 @@ export function CalendarHome({ visibleOwners }: CalendarHomeProps) {
 
   return (
     <div className="sx-react-calendar-wrapper flex shrink-0 flex-col">
-      <ScheduleXCalendar calendarApp={calendarApp} customComponents={{ monthGridEvent: EventContent }} />
+      <ScheduleXCalendar
+        calendarApp={calendarApp}
+        customComponents={{ monthGridEvent: EventContent, monthAgendaEvent: EventContent }}
+      />
       {itemsInVisibleRange.length === 0 && <EmptyState />}
       {dataUpdatedAt > 0 && (
         <p className="px-4 py-1 text-xs text-ink-faint">
@@ -157,6 +172,9 @@ export function CalendarHome({ visibleOwners }: CalendarHomeProps) {
       )}
       {selectedEvent && (
         <EventDetailSheet event={selectedEvent} timezone={timezone} onClose={() => setSelectedEventId(null)} />
+      )}
+      {selectedTask && (
+        <TaskDetailSheet task={selectedTask} onClose={() => setSelectedTaskId(null)} />
       )}
     </div>
   )

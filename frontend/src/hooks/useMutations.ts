@@ -175,6 +175,23 @@ export function useScheduleTask() {
   })
 }
 
+/** Update a task's title/owner/dueDate (US2) — dueDate: '' clears the date. */
+export function useUpdateTask() {
+  const { session, handleAuthError } = useAuth()
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (payload: { id: string; title?: string; owner?: Owner; dueDate?: string }) => {
+      try {
+        return await apiCall('tasks.update', payload, { token: session!.token, actingPerson: session!.actingPerson })
+      } catch (err) {
+        handleAuthError(err)
+        throw err
+      }
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tasks'] }),
+  })
+}
+
 /** Unsnooze a task — optimistic flip back to 'open', invalidate on settle. */
 export function useUnsnoozeTask() {
   const { session, handleAuthError } = useAuth()
