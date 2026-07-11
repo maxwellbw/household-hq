@@ -11,30 +11,19 @@ order confirmed by Jaz 2026-07-11, including 010/011 — definitely a go, slotte
 
 ## The queue — up next, in order
 
-**Next up: 022 — UX fix batch 2** (018 merged 2026-07-11; 022 is next in the confirmed order).
+**Next up: 019 — Task & event details + collaboration** (022 merged 2026-07-11; 019 is next in the confirmed order).
 
 | Order | # | Feature | Stage | Spec folder | PR |
 |---|---|---|---|---|---|
-| 1 | 022 | UX fix batch 2 (snooze on calendar, delete, collapse) | 🟢 implemented, pending PR | [specs/022-ux-fix-batch-2](specs/022-ux-fix-batch-2/spec.md) | — |
-| 2 | 019 | Task & event details + collaboration | ⬜ not started | — | — |
-| 3 | 020 | Settings editor under More | ⬜ not started | — | — |
-| 4 | 021 | Someday force-rank + Tasks-tab Someday section | ⬜ not started | — | — |
-| 5 | 023 | Dog-care recurring seed rows | ⬜ not started | — | — |
-| 6 | 024 | Grocery & household lists | ⬜ not started | — | — |
-| 7 | 025 | Recurring events | ⬜ not started | — | — |
-| 8 | 026 | Inbound gcal import (personal calendars) | ⬜ not started | — | — |
-| 9 | 010 | PWA install + web push | ⬜ not started | — | — |
-| 10 | 011 | Weather-aware dog-walk window finder | ⬜ not started | — | — |
-
-**022 — UX fix batch 2** (frontend-only; every backend piece exists). (a) **Snooze from the
-calendar**: `TaskDetailSheet` (which calendar task chips open since 016) gets a Snooze
-action opening the existing `SnoozeDialog` — today it only offers Un-snooze. (b) **Delete
-events & tasks in the UI**: wire `events.delete`/`tasks.delete` (already in `Api.js`, with
-gcal mirror cleanup) into the detail/edit sheets with a confirm dialog. For
-recurring-generated tasks, **instance only + confirm** (clarified 2026-07-11) — the rule
-keeps generating; rules are deleted in More → Recurring as today. (c) **Collapsible Tasks-tab
-sections**: Open becomes collapsible like Done already is (021's Someday section arrives
-collapsible on its own).
+| 1 | 019 | Task & event details + collaboration | ⬜ not started | — | — |
+| 2 | 020 | Settings editor under More | ⬜ not started | — | — |
+| 3 | 021 | Someday force-rank + Tasks-tab Someday section | ⬜ not started | — | — |
+| 4 | 023 | Dog-care recurring seed rows | ⬜ not started | — | — |
+| 5 | 024 | Grocery & household lists | ⬜ not started | — | — |
+| 6 | 025 | Recurring events | ⬜ not started | — | — |
+| 7 | 026 | Inbound gcal import (personal calendars) | ⬜ not started | — | — |
+| 8 | 010 | PWA install + web push | ⬜ not started | — | — |
+| 9 | 011 | Weather-aware dog-walk window finder | ⬜ not started | — | — |
 
 **019 — Task & event details + collaboration** (scope extended 2026-07-11, Jaz's feedback
 round 3). (a) **Notes on tasks**: new Tasks sheet column (Events already have `notes`),
@@ -147,6 +136,7 @@ prep template).
 | 016 | UX fix batch (task editing + dead controls) | [specs/016-ux-fix-batch](specs/016-ux-fix-batch/spec.md) | [#15](https://github.com/maxwellbw/household-hq/pull/15) |
 | 017 | Calendar views & 7-day surfaces | [specs/017-calendar-views](specs/017-calendar-views/spec.md) | [#16](https://github.com/maxwellbw/household-hq/pull/16) |
 | 018 | Stay signed in (session persistence) | [specs/018-stay-signed-in](specs/018-stay-signed-in/spec.md) | [#17](https://github.com/maxwellbw/household-hq/pull/17) |
+| 022 | UX fix batch 2 (snooze on calendar, delete, collapsible Open) | [specs/022-ux-fix-batch-2](specs/022-ux-fix-batch-2/spec.md) | [#18](https://github.com/maxwellbw/household-hq/pull/18) |
 
 **Planning history:** Phase 1 (001–007) + Phase 2 (008–009) per brief §10 · Phase 2.5
 (012–015) planned 2026-07-09, Jaz's feedback round 1 — the backend had outrun the UI ·
@@ -158,9 +148,9 @@ grocery lists + inbound gcal import from the parked list.
 ### Post-merge notes & open follow-ups
 
 **Open follow-ups first:** 009's live validation is still deferred (run `setupDatabase()` +
-`selfTest()`, pick topics, subscribe phones, quickstart A–F). 016, 017, and **018** all
+`selfTest()`, pick topics, subscribe phones, quickstart A–F). 016, 017, 018, and **022** all
 shipped without a live browser pass (the sandboxed preview can't do real Google OAuth) —
-**a manual desktop + mobile quickstart pass is still recommended for all three; 018
+**a manual desktop + mobile quickstart pass is still recommended for all four; 018
 especially, since its core value (silent restore/refresh) is exactly what the sandbox
 can't exercise** — see `specs/018-stay-signed-in/quickstart.md`. 006's T057 live sign-in
 walkthrough was never formally run. 013's US3 (desktop drag-onto-day) is deferred until
@@ -177,6 +167,19 @@ X — switch?") instead of the blocking prompt. Sign-out clears both storage key
 disables auto-select. 202 tests green (17 new); `/impeccable audit` fixed one WCAG 2.4.7
 gap (missing focus ring). Merged without the real-device quickstart pass (Jaz's call,
 2026-07-11) — see the follow-up note above._
+
+_022 (PR #18). Frontend-only; every backend piece (`tasks.snooze`, `tasks.delete`,
+`events.delete`) already existed. `TaskDetailSheet` gained a persistent Snooze action
+opening the existing `SnoozeDialog` (previously only Un-snooze was reachable from the
+calendar). New shared `ConfirmDialog` (`components/ui/`) + `useDeleteTask`/`useDeleteEvent`
+wire delete into both detail sheets: recurring-generated tasks get instance-only copy (rule
+untouched, still managed under More → Recurring); events show the exact prep-task count
+that will also be removed (clarified 2026-07-11), or omit the clause when there are none.
+Tasks-tab Open section is now collapsible like Done, defaulting expanded — the pattern
+021's Someday section will reuse. 219 tests green (17 new); `/impeccable audit` (code-level
+— sandbox blocks live OAuth) fixed a 44px touch-target gap in the new `ConfirmDialog`.
+Merged without the real-device quickstart pass (Jaz's call, 2026-07-11) — see the
+follow-up note above._
 
 _017 (PR #16). Frontend-only. `CalendarViewSwitcher` adds fixed Sun–Sat week + rolling
 Next-7-days views on desktop **and** mobile via bespoke `DayListView`/`DayColumn` all-day
