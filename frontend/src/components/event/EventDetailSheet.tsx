@@ -3,7 +3,10 @@ import { formatDate, formatTime, isAllDay, dayKey } from '@/lib/datetime'
 import { ownerStyle } from '@/lib/owners'
 import { TaskRow } from '@/components/task/TaskRow'
 import { EventEditSheet } from '@/components/event/EventEditSheet'
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { useDialogA11y } from '@/hooks/useDialogA11y'
+import { useDeleteEvent } from '@/hooks/useMutations'
+import { useToast } from '@/hooks/useToast'
 import { cn } from '@/lib/utils'
 import type { EventWithTasks } from '@/lib/tether'
 
@@ -20,7 +23,25 @@ export function EventDetailSheet({ event, timezone, onClose }: EventDetailSheetP
   const eventStartKey = dayKey(event.start, timezone)
   const panelRef = useRef<HTMLDivElement>(null)
   const [showEdit, setShowEdit] = useState(false)
+  const [showDelete, setShowDelete] = useState(false)
   useDialogA11y(panelRef, onClose)
+
+  const deleteEvent = useDeleteEvent()
+  const toast = useToast()
+  const prepCount = event.tasks.length
+
+  function handleDelete() {
+    deleteEvent.mutate(event.id, {
+      onSuccess: () => {
+        toast.show(`${event.title} deleted`)
+        onClose()
+      },
+      onError: () => {
+        toast.show("Couldn't delete — it may have already been removed")
+        onClose()
+      },
+    })
+  }
 
   return (
     <>
@@ -66,6 +87,14 @@ export function EventDetailSheet({ event, timezone, onClose }: EventDetailSheetP
             </button>
             <button
               type="button"
+              onClick={() => setShowDelete(true)}
+              aria-label="Delete event"
+              className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-control text-sm font-medium text-danger hover:bg-surface-alt focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-danger"
+            >
+              Delete
+            </button>
+            <button
+              type="button"
               onClick={onClose}
               aria-label="Close"
               className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-control text-ink-muted hover:bg-surface-alt focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
@@ -91,6 +120,20 @@ export function EventDetailSheet({ event, timezone, onClose }: EventDetailSheetP
     </div>
     {showEdit && (
       <EventEditSheet event={event} onClose={() => setShowEdit(false)} />
+    )}
+    {showDelete && (
+      <ConfirmDialog
+        title="Delete event?"
+        body={
+          prepCount > 0
+            ? `Its ${prepCount} prep task${prepCount === 1 ? '' : 's'} will also be removed.`
+            : undefined
+        }
+        confirmLabel="Delete"
+        isPending={deleteEvent.isPending}
+        onConfirm={handleDelete}
+        onClose={() => setShowDelete(false)}
+      />
     )}
     </>
   )

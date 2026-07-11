@@ -1,11 +1,13 @@
 import { useRef, useState } from 'react'
 import { ownerStyle } from '@/lib/owners'
 import { useDialogA11y } from '@/hooks/useDialogA11y'
-import { useUnsnoozeTask } from '@/hooks/useMutations'
+import { useUnsnoozeTask, useDeleteTask } from '@/hooks/useMutations'
 import { useToast } from '@/hooks/useToast'
 import { parseSnoozeHistory } from '@/lib/tasks'
 import { cn } from '@/lib/utils'
 import { TaskEditSheet } from '@/components/task/TaskEditSheet'
+import { SnoozeDialog } from '@/components/task/SnoozeDialog'
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import type { Task } from '@/types/domain'
 
 interface TaskDetailSheetProps {
@@ -21,16 +23,33 @@ export function TaskDetailSheet({ task, onClose, initialEdit = false }: TaskDeta
   useDialogA11y(panelRef, onClose)
 
   const unsnooze = useUnsnoozeTask()
+  const deleteTask = useDeleteTask()
   const toast = useToast()
   const [showEdit, setShowEdit] = useState(initialEdit)
+  const [showSnooze, setShowSnooze] = useState(false)
+  const [showDelete, setShowDelete] = useState(false)
   const style = ownerStyle(task.owner)
   const isSnoozed = task.status === 'snoozed'
+  const isRecurring = !!task.recurringId
   const historyRows = parseSnoozeHistory(task.snoozeHistory)
 
   function handleUnsnooze() {
     unsnooze.mutate(task.id, {
       onSuccess: () => {
         toast.show(`${task.title} unsnoozed`)
+        onClose()
+      },
+    })
+  }
+
+  function handleDelete() {
+    deleteTask.mutate(task.id, {
+      onSuccess: () => {
+        toast.show(`${task.title} deleted`)
+        onClose()
+      },
+      onError: () => {
+        toast.show("Couldn't delete — it may have already been removed")
         onClose()
       },
     })
@@ -92,6 +111,14 @@ export function TaskDetailSheet({ task, onClose, initialEdit = false }: TaskDeta
             </button>
             <button
               type="button"
+              onClick={() => setShowDelete(true)}
+              aria-label="Delete task"
+              className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-control text-sm font-medium text-danger hover:bg-surface-alt focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-danger"
+            >
+              Delete
+            </button>
+            <button
+              type="button"
               onClick={onClose}
               aria-label="Close"
               className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-control text-ink-muted hover:bg-surface-alt focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
@@ -122,21 +149,49 @@ export function TaskDetailSheet({ task, onClose, initialEdit = false }: TaskDeta
           )}
         </div>
 
-        {/* Un-snooze action */}
-        {isSnoozed && (
-          <button
-            type="button"
-            onClick={handleUnsnooze}
-            disabled={unsnooze.isPending}
-            className="w-full rounded-control border border-border bg-surface px-4 py-2.5 text-sm font-medium text-ink hover:bg-surface-alt focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {unsnooze.isPending ? 'Removing snooze…' : 'Un-snooze'}
-          </button>
-        )}
+        {/* Snooze / Un-snooze actions */}
+        <div className="flex gap-2">
+          {task.dueDate && (
+            <button
+              type="button"
+              onClick={() => setShowSnooze(true)}
+              className="flex-1 rounded-control border border-border bg-surface px-4 py-2.5 text-sm font-medium text-ink hover:bg-surface-alt focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+            >
+              Snooze
+            </button>
+          )}
+          {isSnoozed && (
+            <button
+              type="button"
+              onClick={handleUnsnooze}
+              disabled={unsnooze.isPending}
+              className="flex-1 rounded-control border border-border bg-surface px-4 py-2.5 text-sm font-medium text-ink hover:bg-surface-alt focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {unsnooze.isPending ? 'Removing snooze…' : 'Un-snooze'}
+            </button>
+          )}
+        </div>
       </div>
     </div>
     {showEdit && (
       <TaskEditSheet task={task} onClose={() => setShowEdit(false)} />
+    )}
+    {showSnooze && (
+      <SnoozeDialog task={task} onClose={() => setShowSnooze(false)} />
+    )}
+    {showDelete && (
+      <ConfirmDialog
+        title="Delete task?"
+        body={
+          isRecurring
+            ? 'This deletes only this occurrence. The recurring rule keeps making new ones (manage rules in More → Recurring).'
+            : undefined
+        }
+        confirmLabel="Delete"
+        isPending={deleteTask.isPending}
+        onConfirm={handleDelete}
+        onClose={() => setShowDelete(false)}
+      />
     )}
     </>
   )
