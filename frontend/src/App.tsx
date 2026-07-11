@@ -2,7 +2,9 @@ import { useEffect, useState } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { AppShell } from '@/components/shell/AppShell'
 import { SignInGate } from '@/components/auth/SignInGate'
+import { RestoringGate } from '@/components/auth/RestoringGate'
 import { ActingPersonPrompt } from '@/components/auth/ActingPersonPrompt'
+import { ActingPersonAffirm } from '@/components/auth/ActingPersonAffirm'
 import { CalendarHome } from '@/components/calendar/CalendarHome'
 import { OwnerFilterChips } from '@/components/calendar/OwnerFilterChips'
 import { useOwnerFilter } from '@/hooks/useOwnerFilter'
@@ -36,6 +38,10 @@ function App() {
     }
   }, [active, calendarFocusDate])
 
+  if (status === 'restoring') {
+    return <RestoringGate />
+  }
+
   if (status !== 'signed-in' || !session) {
     return <SignInGate />
   }
@@ -56,6 +62,9 @@ function App() {
 
   return (
     <AppShell active={active} onNavigate={setActive}>
+      {session.who.needsActingPerson && session.actingPerson && (
+        <ActingPersonAffirm person={session.actingPerson} />
+      )}
       {active === 'home' && <DashboardHome onOpenDate={openCalendarOnDate} />}
       {active === 'calendar' && (
         <div className="flex flex-col">

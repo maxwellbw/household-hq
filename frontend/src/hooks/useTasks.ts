@@ -1,16 +1,15 @@
 import { useQuery } from '@tanstack/react-query'
-import { apiCall } from '@/lib/api'
 import { useAuth } from '@/hooks/useAuth'
 import type { Task } from '@/types/domain'
 
 export function useTasks() {
-  const { session, handleAuthError } = useAuth()
+  const { session, authedCall, handleAuthError } = useAuth()
 
   return useQuery({
     queryKey: ['tasks'],
     queryFn: async () => {
       try {
-        const { tasks } = await apiCall<{ tasks: Task[] }>('tasks.list', {}, { token: session!.token })
+        const { tasks } = await authedCall<{ tasks: Task[] }>('tasks.list')
         return tasks
       } catch (err) {
         handleAuthError(err)
