@@ -21,6 +21,9 @@ function selfTest() {
   liveRecurringGeneration_();
   liveRecurringCrud_();
   liveRecurringCatchUp_();
+  unitSeedPack_();
+  liveSeedPack_();
+  unitAlternatingBins_();
   liveEventCrud_();
   liveTemplateCrud_();
   unitPrepMath_();
@@ -34,6 +37,20 @@ function selfTest() {
   unitNtfy_();
   liveSnooze_();
   Logger.log('ALL PASS');
+}
+
+/**
+ * Feature-015 targeted runner. The full `selfTest()` suite has grown past the 6-minute Apps
+ * Script execution limit (the calendar blocks make real Calendar API calls), so this public
+ * entry point runs *only* the seed-pack checks — a few seconds — for validating feature 015
+ * in isolation. Public name (no trailing underscore) so it appears in the editor Run menu.
+ * The `unit*`/`live*` helpers it calls are private and can't be run from the menu directly.
+ */
+function selfTestSeedPack() {
+  unitSeedPack_();
+  liveSeedPack_();
+  unitAlternatingBins_();
+  Logger.log('SEED PACK: ALL PASS');
 }
 
 function assert_(cond, message) {
@@ -524,6 +541,133 @@ function liveRecurringCatchUp_() {
   tasks.forEach(function (t) { deleteRecordById_(TABS.TASKS, t.id, 'selftest'); });
   deleteRecordById_(TABS.RECURRING, ruleId, 'selftest');
   Logger.log('live recurring catch-up: pass');
+}
+
+// ---------------------------------------------------------------------------
+// Unit: recurring seed pack — pack shape, anchor math, ledger parsing (feature 015)
+// ---------------------------------------------------------------------------
+
+function unitSeedPack_() {
+  // The starter pack itself: 8 chores, valid cadences/owners, mow-lawn's season window.
+  assert_(SEED_PACK.length === 8, 'SEED_PACK has 8 starter chores');
+  var keys = SEED_PACK.map(function (c) { return c.seedKey; });
+  assert_(keys.length === Object.keys(keys.reduce(function (s, k) { s[k] = true; return s; }, {})).length,
+    'every seedKey in SEED_PACK is unique');
+  SEED_PACK.forEach(function (c) {
+    assert_(CADENCES.indexOf(c.cadence) >= 0, 'chore "' + c.seedKey + '" has a valid cadence');
+    assert_(OWNERS.indexOf(c.defaultOwner) >= 0, 'chore "' + c.seedKey + '" has a valid defaultOwner');
+  });
+  var mow = SEED_PACK.filter(function (c) { return c.seedKey === 'mow-lawn'; })[0];
+  assert_(mow && String(mow.seasonStart) === '4' && String(mow.seasonEnd) === '10',
+    'mow-lawn is seeded April-October (FR-006)');
+  var gutters = SEED_PACK.filter(function (c) { return c.seedKey === 'gutters'; })[0];
+  assert_(gutters && gutters.cadence === 'annually', 'gutters is a single annual rule, not biannual');
+
+  // Anchor math.
+  assert_(computeSeedAnchor_('today', '2026-07-10') === '2026-07-10', 'today anchor is today');
+  assert_(computeSeedAnchor_('today+7', '2026-07-10') === '2026-07-17', 'today+7 anchor is 7 days out');
+  assert_(nextMonthDayOnOrAfter_('2026-07-10', 10, 15) === '2026-10-15',
+    'fall anchor resolves to this year when the date is still ahead');
+  assert_(nextMonthDayOnOrAfter_('2026-11-10', 11, 1) === '2027-11-01',
+    'fall anchor rolls to next year once the date has passed');
+
+  // Ledger parse/serialize round-trip.
+  var parsed = parseAppliedKeys_('trash; recycling;  yardwaste ');
+  assert_(parsed.trash && parsed.recycling && parsed.yardwaste, 'ledger parses all keys, trims whitespace');
+  assert_(Object.keys(parsed).length === 3, 'blank/duplicate entries do not inflate the ledger');
+  assert_(serializeAppliedKeys_({ b: true, a: true }) === 'a; b', 'ledger serializes sorted for stable diffs');
+  Logger.log('unit seed pack: pass');
+}
+
+// ---------------------------------------------------------------------------
+// Live: recurring seed pack — idempotence, edit-preservation, never-resurrect (US1/US2)
+// ---------------------------------------------------------------------------
+
+/**
+ * Exercises the real `seedRecurringPack()` against a small isolated test pack (not the
+ * production `SEED_PACK`) so running selfTest() never permanently seeds real household
+ * chores. The shared `recurringSeedApplied` ledger is still the real one — restored at the
+ * end so the live seed pack's own idempotency is untouched by this test run.
+ */
+function liveSeedPack_() {
+  var testPack = [
+    { seedKey: SELFTEST_PREFIX + 'chore-a', title: SELFTEST_PREFIX + 'chore a', cadence: 'weekly', anchorRule: 'today', defaultOwner: 'both' },
+    { seedKey: SELFTEST_PREFIX + 'chore-b', title: SELFTEST_PREFIX + 'chore b', cadence: 'monthly', anchorRule: 'today', defaultOwner: 'max' }
+  ];
+  var ledgerBefore = readSettingsMap_()['recurringSeedApplied'];
+  var rulesForKey = function (key) {
+    return listRecords_(TABS.RECURRING).filter(function (r) { return r.seedKey === key; });
+  };
+
+  seedRecurringPack(testPack);
+  assert_(rulesForKey(testPack[0].seedKey).length === 1, 'first run seeds chore a');
+  assert_(rulesForKey(testPack[1].seedKey).length === 1, 'first run seeds chore b');
+  var ledgerAfterFirst = parseAppliedKeys_(readSettingsMap_()['recurringSeedApplied']);
+  assert_(ledgerAfterFirst[testPack[0].seedKey] && ledgerAfterFirst[testPack[1].seedKey],
+    'ledger records both newly-seeded keys');
+
+  // Re-run: idempotent, no duplicates (SC-002).
+  seedRecurringPack(testPack);
+  assert_(rulesForKey(testPack[0].seedKey).length === 1 && rulesForKey(testPack[1].seedKey).length === 1,
+    're-run creates no duplicate rows');
+
+  // Edit preservation, rename included since identity is the seed key, not title (SC-003).
+  var ruleA = rulesForKey(testPack[0].seedKey)[0];
+  var editedAnchor = addDays_(ruleA.anchorDate, 3);
+  updateRecordById_(TABS.RECURRING, ruleA.id,
+    { title: SELFTEST_PREFIX + 'renamed', defaultOwner: 'jaz', anchorDate: editedAnchor }, 'selftest');
+  seedRecurringPack(testPack);
+  var ruleAAfter = rulesForKey(testPack[0].seedKey)[0];
+  assert_(ruleAAfter.title === SELFTEST_PREFIX + 'renamed' && ruleAAfter.defaultOwner === 'jaz' &&
+    ruleAAfter.anchorDate === editedAnchor,
+    're-run preserves a hand-edited (renamed, reassigned, re-anchored) seeded rule');
+  assert_(rulesForKey(testPack[0].seedKey).length === 1, 'edit-preservation re-run creates no duplicate');
+
+  // Never-resurrect (FR-004b): delete chore b's row, re-run, confirm it is not recreated.
+  var ruleB = rulesForKey(testPack[1].seedKey)[0];
+  deleteRecordById_(TABS.RECURRING, ruleB.id, 'selftest');
+  seedRecurringPack(testPack);
+  assert_(rulesForKey(testPack[1].seedKey).length === 0, 'deleted seeded chore is not resurrected on re-run');
+
+  // No-op run: nothing left to add, so the ledger is untouched (FR-009 — no spurious writes).
+  var ledgerBeforeNoop = readSettingsMap_()['recurringSeedApplied'];
+  seedRecurringPack(testPack);
+  assert_(readSettingsMap_()['recurringSeedApplied'] === ledgerBeforeNoop,
+    'a run with nothing to add leaves the ledger untouched');
+
+  // Cleanup: remove the surviving seeded row and restore the ledger exactly.
+  rulesForKey(testPack[0].seedKey).forEach(function (r) { deleteRecordById_(TABS.RECURRING, r.id, 'selftest'); });
+  setSettingValue_('recurringSeedApplied', ledgerBefore || '');
+  Logger.log('live seed pack: pass');
+}
+
+// ---------------------------------------------------------------------------
+// Unit: alternating bins — trash weekly, recycling/yard waste biweekly offset 7 days (US3)
+// ---------------------------------------------------------------------------
+
+function unitAlternatingBins_() {
+  var trash = SEED_PACK.filter(function (c) { return c.seedKey === 'trash'; })[0];
+  var recycling = SEED_PACK.filter(function (c) { return c.seedKey === 'recycling'; })[0];
+  var yardwaste = SEED_PACK.filter(function (c) { return c.seedKey === 'yardwaste'; })[0];
+  var today = '2026-07-10';
+  var windowEnd = addDays_(today, 55); // an 8-week span (days 0-55); day 56 would start a 9th week
+
+  var trashAnchor = computeSeedAnchor_(trash.anchorRule, today);
+  var recyclingAnchor = computeSeedAnchor_(recycling.anchorRule, today);
+  var yardwasteAnchor = computeSeedAnchor_(yardwaste.anchorRule, today);
+  assert_(yardwasteAnchor === addDays_(recyclingAnchor, 7),
+    'yard waste is anchored exactly 7 days after recycling');
+
+  var trashOcc = occurrencesInWindow_(trashAnchor, 'weekly', addDays_(today, -1), windowEnd);
+  var recyclingOcc = occurrencesInWindow_(recyclingAnchor, 'biweekly', addDays_(today, -1), windowEnd);
+  var yardwasteOcc = occurrencesInWindow_(yardwasteAnchor, 'biweekly', addDays_(today, -1), windowEnd);
+
+  assert_(trashOcc.length === 8, 'trash comes due every one of the 8 weeks (SC-004)');
+  assert_(recyclingOcc.length === 4 && yardwasteOcc.length === 4,
+    'recycling and yard waste each come due in exactly 4 of the 8 weeks (SC-004)');
+  var overlap = recyclingOcc.filter(function (d) { return yardwasteOcc.indexOf(d) >= 0; });
+  assert_(overlap.length === 0, 'recycling and yard waste never fall due in the same week');
+  Logger.log('unit alternating bins: pass');
 }
 
 // ---------------------------------------------------------------------------
