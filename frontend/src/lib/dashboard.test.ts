@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { highlights, loadBalance, resolveViewer, smartViews } from './dashboard'
+import { highlights, loadBalance, resolveViewer, sevenDayTiles, smartViews } from './dashboard'
 import { monthRange, weekRange } from './datetime'
 import type { Event, RecurringRule, Session, Task } from '@/types/domain'
 
@@ -307,6 +307,55 @@ describe('highlights — Scenario E', () => {
     const r = rule({ id: 'r6', cadence: 'quarterly', title: 'Service the HVAC' })
     const t = task({ id: 't6', recurringId: 'r6', dueDate: '2026-07-17', title: 'Service the HVAC', status: 'done' })
     expect(highlights([], [r], [t], TZ)).toEqual([])
+  })
+})
+
+// FIXED_NOW = 2026-07-10 (Friday) in America/Los_Angeles; strip = Jul 10–16.
+
+describe('sevenDayTiles', () => {
+  it('returns exactly 7 tiles, today first', () => {
+    const tiles = sevenDayTiles([], [], TZ)
+    expect(tiles).toHaveLength(7)
+    expect(tiles[0].dateKey).toBe('2026-07-10')
+    expect(tiles[0].isToday).toBe(true)
+    expect(tiles[6].dateKey).toBe('2026-07-16')
+  })
+
+  it('counts open dated tasks by owner on their due date', () => {
+    const tasks = [
+      task({ id: 't1', owner: 'max', dueDate: '2026-07-11' }),
+      task({ id: 't2', owner: 'jaz', dueDate: '2026-07-11' }),
+      task({ id: 't3', owner: 'both', dueDate: '2026-07-11' }),
+    ]
+    const tiles = sevenDayTiles(tasks, [], TZ)
+    const tile = tiles.find((t) => t.dateKey === '2026-07-11')
+    expect(tile?.countsByOwner).toEqual({ max: 1, jaz: 1, both: 1 })
+    expect(tile?.total).toBe(3)
+  })
+
+  it('excludes done and snoozed tasks', () => {
+    const tasks = [
+      task({ id: 't1', owner: 'max', dueDate: '2026-07-11', status: 'done' }),
+      task({ id: 't2', owner: 'max', dueDate: '2026-07-11', status: 'snoozed' }),
+    ]
+    const tiles = sevenDayTiles(tasks, [], TZ)
+    const tile = tiles.find((t) => t.dateKey === '2026-07-11')
+    expect(tile?.total).toBe(0)
+  })
+
+  it('counts a multi-day event on every day it spans', () => {
+    const e = event({ id: 'e1', owner: 'both', start: '2026-07-11', end: '2026-07-13' })
+    const tiles = sevenDayTiles([], [e], TZ)
+    expect(tiles.find((t) => t.dateKey === '2026-07-11')?.countsByOwner.both).toBe(1)
+    expect(tiles.find((t) => t.dateKey === '2026-07-12')?.countsByOwner.both).toBe(1)
+    expect(tiles.find((t) => t.dateKey === '2026-07-13')?.countsByOwner.both).toBe(1)
+    expect(tiles.find((t) => t.dateKey === '2026-07-14')?.countsByOwner.both).toBe(0)
+  })
+
+  it('a day with no items has zeroed counts but is still present (FR-018)', () => {
+    const tiles = sevenDayTiles([], [], TZ)
+    expect(tiles.every((t) => t.total === 0)).toBe(true)
+    expect(tiles).toHaveLength(7)
   })
 })
 

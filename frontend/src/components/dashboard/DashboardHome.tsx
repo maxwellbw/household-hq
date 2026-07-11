@@ -4,13 +4,18 @@ import { useEvents } from '@/hooks/useEvents'
 import { useRecurring } from '@/hooks/useRecurring'
 import { useSettings } from '@/hooks/useSettings'
 import { useAuth } from '@/hooks/useAuth'
-import { highlights, loadBalance, resolveViewer, smartViews } from '@/lib/dashboard'
+import { highlights, loadBalance, resolveViewer, sevenDayTiles, smartViews } from '@/lib/dashboard'
 import { monthRange, weekRange } from '@/lib/datetime'
 import { SmartViews } from '@/components/dashboard/SmartViews'
 import { LoadBalance } from '@/components/dashboard/LoadBalance'
 import { Highlights } from '@/components/dashboard/Highlights'
+import { SevenDayStrip } from '@/components/dashboard/SevenDayStrip'
 
-export function DashboardHome() {
+interface DashboardHomeProps {
+  onOpenDate: (dateKey: string) => void
+}
+
+export function DashboardHome({ onOpenDate }: DashboardHomeProps) {
   const tasksQuery = useTasks()
   const eventsQuery = useEvents()
   const recurringQuery = useRecurring()
@@ -42,6 +47,11 @@ export function DashboardHome() {
     [eventsQuery.data, recurringQuery.data, tasksQuery.data, timezone],
   )
 
+  const strip = useMemo(
+    () => sevenDayTiles(tasksQuery.data ?? [], eventsQuery.data ?? [], timezone),
+    [tasksQuery.data, eventsQuery.data, timezone],
+  )
+
   if (isPending) {
     return (
       <div className="flex flex-col gap-4 px-4 py-6" aria-busy="true" aria-label="Loading dashboard">
@@ -66,6 +76,7 @@ export function DashboardHome() {
 
   return (
     <div className="flex flex-col py-2">
+      <SevenDayStrip tiles={strip} onOpenDate={onOpenDate} />
       <SmartViews views={views} timezone={timezone} />
       <LoadBalance weekBalance={weekBal} monthBalance={monthBal} viewer={viewer} />
       <Highlights items={highlightItems} />

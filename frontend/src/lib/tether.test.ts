@@ -49,6 +49,26 @@ describe('buildCalendarModel', () => {
     expect(model.events[0].openTaskCount).toBe(1)
   })
 
+  it('computes doneTaskCount and totalTaskCount for the "M/N tasks" chip indicator', () => {
+    const events = [event('e1')]
+    const tasks = [
+      task('t1', { eventId: 'e1', status: 'open' }),
+      task('t2', { eventId: 'e1', status: 'done' }),
+      task('t3', { eventId: 'e1', status: 'done' }),
+      task('t4', { eventId: 'e1', status: 'snoozed' }),
+    ]
+    const model = buildCalendarModel(events, tasks)
+    expect(model.events[0].doneTaskCount).toBe(2)
+    expect(model.events[0].totalTaskCount).toBe(4)
+  })
+
+  it('reports totalTaskCount 0 for an event with no prep tasks', () => {
+    const events = [event('e1')]
+    const model = buildCalendarModel(events, [])
+    expect(model.events[0].totalTaskCount).toBe(0)
+    expect(model.events[0].doneTaskCount).toBe(0)
+  })
+
   it('places a task with no eventId into standaloneTasks', () => {
     const events = [event('e1')]
     const tasks = [task('t1')]

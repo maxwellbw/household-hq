@@ -10,6 +10,7 @@
 // epoch instant and hand that to Intl.DateTimeFormat for display.
 
 import { Temporal } from 'temporal-polyfill'
+import type { Task } from '@/types/domain'
 
 const DEFAULT_TIMEZONE = 'America/Los_Angeles'
 
@@ -74,6 +75,21 @@ export function formatDate(
   return new Intl.DateTimeFormat('en-US', { timeZone: timezone, ...opts }).format(new Date(ms))
 }
 
+/**
+ * Formats a bare YYYY-MM-DD day key (already household-local) for display —
+ * e.g. week/day-column headers and dashboard tiles. No timezone conversion:
+ * the key already names a specific calendar day, so we render it at a fixed
+ * UTC instant to sidestep any DST/offset shifting.
+ */
+export function formatDayLabel(
+  dateKey: string,
+  opts: Intl.DateTimeFormatOptions = { weekday: 'short', month: 'short', day: 'numeric' },
+): string {
+  const date = Temporal.PlainDate.from(dateKey)
+  const fixedInstant = new Date(Date.UTC(date.year, date.month - 1, date.day, 12))
+  return new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', ...opts }).format(fixedInstant)
+}
+
 /** Today's YYYY-MM-DD in the household timezone — independent of device timezone. */
 export function todayKey(timezone: string = DEFAULT_TIMEZONE): string {
   return new Intl.DateTimeFormat('en-CA', {
@@ -115,6 +131,14 @@ export function weekRange(timezone: string = DEFAULT_TIMEZONE, weekStartsOn: 'su
   return { startKey: sunday.toString(), endKey: saturday.toString() }
 }
 
+/** Rolling window of `n` days starting today (inclusive) in the household timezone. */
+export function nextNDaysRange(n: number, timezone: string = DEFAULT_TIMEZONE): DayRange {
+  const today = todayKey(timezone)
+  const start = Temporal.PlainDate.from(today)
+  const end = start.add({ days: n - 1 })
+  return { startKey: start.toString(), endKey: end.toString() }
+}
+
 /** Current calendar month (first to last day) in the household timezone. */
 export function monthRange(timezone: string = DEFAULT_TIMEZONE): DayRange {
   const today = todayKey(timezone)
@@ -122,6 +146,14 @@ export function monthRange(timezone: string = DEFAULT_TIMEZONE): DayRange {
   const firstDay = date.with({ day: 1 })
   const lastDay = firstDay.add({ months: 1 }).subtract({ days: 1 })
   return { startKey: firstDay.toString(), endKey: lastDay.toString() }
+}
+
+/**
+ * Display-only overdue classification (feature 017 FR-012): an open task whose
+ * dueDate is strictly before today. Never persisted — recomputed each render.
+ */
+export function isOverdue(task: Pick<Task, 'status' | 'dueDate'>, todayKeyValue: string): boolean {
+  return task.status === 'open' && !!task.dueDate && task.dueDate < todayKeyValue
 }
 
 /** True when `key` falls within `[range.startKey, range.endKey]` (inclusive). */
