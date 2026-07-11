@@ -67,8 +67,8 @@ describe('CalendarHome', () => {
   it('shows a prep-count indicator on an event with tethered tasks', async () => {
     render(<CalendarHome visibleOwners={new Set(ALL_OWNERS)} />)
     // t1 is tethered to e1 (Dentist) via eventId — the tether should surface
-    // as a "1 prep task" badge on the event chip (EventContent).
-    expect(await screen.findByText('1 prep task')).toBeInTheDocument()
+    // as a "0/1 tasks" done/total badge on the event chip (EventContent).
+    expect(await screen.findByText('0/1 tasks')).toBeInTheDocument()
   })
 
   it('renders a standalone task (no eventId) on its own date, not dropped', async () => {

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { AppShell } from '@/components/shell/AppShell'
 import { SignInGate } from '@/components/auth/SignInGate'
@@ -20,6 +20,21 @@ function App() {
   const [active, setActive] = useState<NavSection>('home')
   const [schedulingTaskId, setSchedulingTaskId] = useState<string | null>(null)
   const [prefilledDate, setPrefilledDate] = useState<string>('')
+  const [calendarFocusDate, setCalendarFocusDate] = useState<string | null>(null)
+
+  function openCalendarOnDate(dateKey: string) {
+    setCalendarFocusDate(dateKey)
+    setActive('calendar')
+  }
+
+  // Consumed once by CalendarHome's initial mount (it seeds Schedule-X's
+  // selectedDate from this prop) — cleared right after so a later, unrelated
+  // visit to the Calendar tab doesn't re-jump to a stale deep-linked date.
+  useEffect(() => {
+    if (active === 'calendar' && calendarFocusDate) {
+      setCalendarFocusDate(null)
+    }
+  }, [active, calendarFocusDate])
 
   if (status !== 'signed-in' || !session) {
     return <SignInGate />
@@ -41,11 +56,11 @@ function App() {
 
   return (
     <AppShell active={active} onNavigate={setActive}>
-      {active === 'home' && <DashboardHome />}
+      {active === 'home' && <DashboardHome onOpenDate={openCalendarOnDate} />}
       {active === 'calendar' && (
         <div className="flex flex-col">
           <OwnerFilterChips visibleOwners={visibleOwners} onToggle={toggle} />
-          <CalendarHome visibleOwners={visibleOwners} />
+          <CalendarHome visibleOwners={visibleOwners} focusDate={calendarFocusDate ?? undefined} />
           <SomedayList visibleOwners={visibleOwners} onSchedule={openScheduleDialog} />
         </div>
       )}
