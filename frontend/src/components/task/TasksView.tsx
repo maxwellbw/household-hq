@@ -18,6 +18,7 @@ export function TasksView() {
   const [doneExpanded, setDoneExpanded] = useState(false)
   const [snoozeTask, setSnoozeTask] = useState<Task | null>(null)
   const [detailTask, setDetailTask] = useState<Task | null>(null)
+  const [detailEdit, setDetailEdit] = useState(false)
 
   if (isPending) {
     return (
@@ -74,7 +75,8 @@ export function TasksView() {
                 task={task}
                 timezone={timezone}
                 onSnooze={() => setSnoozeTask(task)}
-                onDetail={() => setDetailTask(task)}
+                onDetail={() => { setDetailTask(task); setDetailEdit(false) }}
+                onEditDue={() => { setDetailTask(task); setDetailEdit(true) }}
               />
             ))}
           </div>
@@ -103,7 +105,8 @@ export function TasksView() {
                     key={task.id}
                     task={task}
                     timezone={timezone}
-                    onDetail={() => setDetailTask(task)}
+                    onDetail={() => { setDetailTask(task); setDetailEdit(false) }}
+                    onEditDue={() => { setDetailTask(task); setDetailEdit(true) }}
                   />
                 ))}
               </div>
@@ -116,7 +119,11 @@ export function TasksView() {
         <SnoozeDialog task={snoozeTask} onClose={() => setSnoozeTask(null)} />
       )}
       {detailTask && (
-        <TaskDetailSheet task={detailTask} onClose={() => setDetailTask(null)} />
+        <TaskDetailSheet
+          task={detailTask}
+          initialEdit={detailEdit}
+          onClose={() => { setDetailTask(null); setDetailEdit(false) }}
+        />
       )}
     </div>
   )

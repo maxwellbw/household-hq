@@ -54,9 +54,14 @@ describe('buildOneTimeTaskPayload', () => {
     expect(payload).toEqual({ title: 'Buy milk', owner: 'max', dueDate: '2026-07-22' })
   })
 
-  it('defaults dueDate to today in the household timezone when omitted', () => {
+  it('omits dueDate (stays undated, lands in Someday) when the input has no date', () => {
     const payload = buildOneTimeTaskPayload({ title: 'Buy milk', owner: 'max' }, TZ)
-    expect(payload.dueDate).toBeTruthy()
-    expect(typeof payload.dueDate).toBe('string')
+    expect(payload).toEqual({ title: 'Buy milk', owner: 'max' })
+    expect('dueDate' in payload).toBe(false)
+  })
+
+  it('passes a provided dueDate through unchanged', () => {
+    const payload = buildOneTimeTaskPayload({ title: 'Buy milk', owner: 'max', dueDate: '2026-07-22' }, TZ)
+    expect(payload.dueDate).toBe('2026-07-22')
   })
 })

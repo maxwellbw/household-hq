@@ -1,10 +1,22 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, fireEvent } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { CalendarHome } from './CalendarHome'
 import { ALL_OWNERS } from '@/lib/owners'
 
 vi.mock('@/hooks/useSettings', () => ({
   useSettings: () => ({ timezone: 'America/Los_Angeles' }),
+}))
+
+vi.mock('@/hooks/useMutations', () => ({
+  useCompleteTask: () => ({ mutate: vi.fn() }),
+  useReopenTask: () => ({ mutate: vi.fn() }),
+  useSnoozeTask: () => ({ mutate: vi.fn() }),
+  useUnsnoozeTask: () => ({ mutate: vi.fn() }),
+  useUpdateTask: () => ({ mutateAsync: vi.fn().mockResolvedValue({}), isPending: false }),
+}))
+
+vi.mock('@/hooks/useToast', () => ({
+  useToast: () => ({ show: vi.fn() }),
 }))
 
 vi.mock('@/hooks/useEvents', () => ({
@@ -70,5 +82,21 @@ describe('CalendarHome', () => {
     expect(await screen.findByText('Family dinner')).toBeInTheDocument()
     expect(screen.queryByText('Dentist')).not.toBeInTheDocument()
     expect(screen.queryByText('Water the plants')).not.toBeInTheDocument()
+  })
+
+  it('tapping an event chip opens EventDetailSheet (US4, FR-013)', async () => {
+    render(<CalendarHome visibleOwners={new Set(ALL_OWNERS)} />)
+    fireEvent.click(await screen.findByText('Dentist'))
+    const dialog = await screen.findByRole('dialog')
+    expect(dialog).toHaveAttribute('aria-label', 'Dentist')
+  })
+
+  it('tapping a standalone task chip opens TaskDetailSheet, not ignored (US4, FR-014 — regression guard for the ignored-task-tap bug)', async () => {
+    render(<CalendarHome visibleOwners={new Set(ALL_OWNERS)} />)
+    fireEvent.click(await screen.findByText('Water the plants'))
+    const dialog = await screen.findByRole('dialog')
+    expect(dialog).toHaveAttribute('aria-label', 'Water the plants')
+    // The task detail sheet (not the event sheet) is open — it has an Edit task button.
+    expect(screen.getByRole('button', { name: 'Edit task' })).toBeInTheDocument()
   })
 })

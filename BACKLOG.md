@@ -71,6 +71,63 @@ starter pack of common home-maintenance chores (air filter quarterly, dishwasher
 smoke-detector batteries, …) seeded by a one-time editor function. Decide seasonal windows
 (mow April–October — brief open question #4) at this feature's clarify.
 
+## Phase 2.6 — Fix & flow (planned 2026-07-10, Jaz's feedback round 2)
+
+Jaz's second feedback pass after living with 012–015. Mix of confirmed bugs (root causes
+identified in code) and new capabilities. Order clarified with Jaz 2026-07-10: bug batch
+first, then calendar, then the rest. Slots before 010/011 (same UI-before-backend
+rationale as Phase 2.5 — Phase 3 reorder still pending Max's co-sign).
+
+| # | Feature | Stage | Spec folder | PR |
+|---|---|---|---|---|
+| 016 | UX fix batch (task editing + dead controls) | 🔨 implemented, pending PR | [specs/016-ux-fix-batch](specs/016-ux-fix-batch/spec.md) | — |
+| 017 | Calendar views & 7-day surfaces | ⬜ not started | — | — |
+| 018 | Stay signed in (session persistence) | ⬜ not started | — | — |
+| 019 | Task collaboration (notes, links, acknowledge) | ⬜ not started | — | — |
+| 020 | Settings editor under More | ⬜ not started | — | — |
+| 021 | Someday force-rank | ⬜ not started | — | — |
+
+**016 — UX fix batch** (frontend-only; every backend piece exists). Confirmed bugs:
+Quick Add force-dates blank-date tasks to today (`quickAdd.ts` `buildOneTimeTaskPayload`
+`dueDate || todayKey()` — defeats 013's Someday list and is why it looks empty);
+TaskRow's "Edit due" menu item is dead (`TasksView` never passes `onEditDue`); tasks can't
+be edited/reassigned anywhere (`TaskDetailSheet` shows only snooze history — backend
+`tasks.update` already accepts title/owner/dueDate); calendar items don't open on tap
+(events *should* open `EventDetailSheet` — investigate why not, mobile + desktop; task
+clicks are explicitly ignored in `CalendarHome` `onEventClick` — add a task detail sheet).
+
+**017 — Calendar views & 7-day surfaces.** View dropdown gets **both** a fixed Sun–Sat
+week view and a rolling next-7-days view (clarified 2026-07-10); week starts Sunday
+everywhere; month prev/next arrows visible on mobile + month scrolling; de-clutter desktop
+month-grid stacking (compact chips / "+N more"); event chips show prep-task progress
+("3/7 tasks"); **overdue is display-only** (clarified: an overdue open task keeps its real
+dueDate in the Sheet but renders on today with an overdue badge — no nightly date rewriting,
+no gcal re-sync churn; dashboard already has the Overdue smart view). Plus the dashboard's
+**rolling 7-day strip**: seven compact day tiles (today first) with owner-colored dots/counts,
+tap a day → calendar on that date.
+
+**018 — Stay signed in.** Google ID tokens live ~1 hour and the app holds them in memory
+only (feature 002/006 decision, now outgrown) — so every visit re-prompts, worst on mobile.
+Persist the session and silently re-acquire tokens (GIS auto-select / One Tap re-prompt)
+so sign-in is rare, not routine. Pairs naturally with 010 (PWA) later.
+
+**019 — Task collaboration.** (a) **Notes on tasks**: new Tasks sheet column (Events
+already have `notes`), editable wherever details open, URLs render as tappable links
+(air-filter buy link, reservation / Google Maps link). (b) **Acknowledge/commit**
+(clarified 2026-07-10): tasks assigned to the other person get an "I've got it" action;
+the assigner gets a **dismissible dashboard notification + instant ntfy ping** (009
+plumbing reused); unacknowledged assigned tasks visibly read as "not yet committed".
+Inbound gcal reservation import explicitly deferred (parked below with the unscheduled items).
+
+**020 — Settings editor under More.** Curated form (clarified: not a raw key–value
+editor): digest schedule (weekly/monthly day + hour), ntfy pings on/off, calendar reminder
+minutes, timezone. Allowlist emails and ntfy topics stay Sheet-only for safety. Needs a
+`settings.update` backend action (does not exist yet).
+
+**021 — Someday force-rank.** "This or that?" pairwise session through the Someday list
+producing **one shared household ranking** (clarified: not per-owner); persisted order
+drives the list. Efficient insertion (merge-sort-style comparisons), resumable.
+
 ## Phase 3 — Stretch (follows Phase 2.5 — reorder of brief §10 pending Max's co-sign)
 
 | # | Feature | Stage | Spec folder | PR |
@@ -81,7 +138,10 @@ smoke-detector batteries, …) seeded by a one-time editor function. Decide seas
 **Still unscheduled from the brief** (park here until prioritized): quick-add by email (#14),
 recurring-chore streaks/history (#17), shopping/errand list items on tasks (#18 — the
 `listItems` field already exists in the Tasks schema), and naming the app (open question #6 —
-"Household HQ" is still the placeholder).
+"Household HQ" is still the placeholder). **Added 2026-07-10:** inbound Google Calendar
+import — pull externally-created events (e.g. OpenTable reservations) from the shared
+calendar into the app; needs dedupe against our own outbound mirrors (007), so deferred
+from 019's scope.
 
 ## Phase 4 — Someday (data-model-compatible only; build nothing yet)
 
@@ -92,7 +152,27 @@ recurring-chore streaks/history (#17), shopping/errand list items on tasks (#18 
 
 ## Currently active
 
-**Next up: 015 — Recurring seed pack & alternating weeks.**
+**016 — UX fix batch: implemented, awaiting review/PR.** Frontend-only, no backend deploy
+needed. Fixed: (1) Quick Add blank-date tasks now omit `dueDate` instead of defaulting to
+today, so they land in Someday. (2) New `TaskEditSheet` (mirrors `EventEditSheet`) lets
+title/owner/dueDate be edited from a read-only-then-Edit `TaskDetailSheet`, via new
+`useUpdateTask`. (3) TaskRow's "Edit due" now opens that same detail sheet already in edit
+mode. (4) Calendar taps: task chips now open `TaskDetailSheet` (were explicitly ignored);
+event taps' root cause was confirmed to be Schedule-X's own `isResponsive` breakpoint logic
+fighting our `isMobile`/`defaultView` choice and destroying/rebuilding event DOM nodes on
+resize — fixed with `isResponsive: false`; also registered `monthAgendaEvent` so the mobile
+agenda view gets our owner-colored `EventContent` instead of Schedule-X's plain default
+(see `specs/016-ux-fix-batch/research.md` R4b for the full trace). 150 tests green (up from
+136 baseline), build clean, `/impeccable audit` clean (one contrast fix applied: informative
+empty-state text moved off `--ink-faint` onto `--ink-muted`, 3.06:1 → 5.68:1).
+**Live quickstart validation (desktop + mobile in a real browser) could not be completed
+in this session** — the app requires real Google OAuth sign-in against the allowlisted
+accounts, which the sandboxed preview browser has no credentials for; automated
+component/integration tests exercise the same code paths instead. Recommend a quick manual
+pass before merging.
+
+_015 merged to `main` (PR #14). Recurring seed pack + alternating-week bins as offset
+biweekly rules._
 
 _014 merged to `main` (PR #12). Frontend-only. Dashboard is now the landing view (replaces calendar-first): smart views (Today / Overdue / This weekend), week + month load balance per owner, and ≤ 3 sparse highlights (upcoming multi-day/weekend events, rare quarterly/annual chores). Constitution amended v1.0.0 → v1.1.0 (dashboard-first principle), co-approved by Max + Jaz. WCAG AA P1 fix: owner-both dot contrast lifted from 4.05:1 to 5.25:1 across all views. 136 tests green._
 

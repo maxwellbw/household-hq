@@ -4,7 +4,6 @@
 // few taps (FR-023). No new backend surface.
 
 import type { Cadence, Owner } from '@/types/domain'
-import { todayKey } from '@/lib/datetime'
 
 export interface NewEventInput {
   title: string
@@ -23,7 +22,7 @@ export interface NewRecurringInput {
 
 export interface NewOneTimeTaskInput {
   title: string
-  dueDate?: string // ISO date; defaults to today
+  dueDate?: string // ISO date; omitted → undated (Someday)
   owner: Owner
 }
 
@@ -56,11 +55,11 @@ export function buildRecurringPayload(input: NewRecurringInput): Record<string, 
   }
 }
 
-/** → tasks.create payload. */
-export function buildOneTimeTaskPayload(input: NewOneTimeTaskInput, timezone: string): Record<string, unknown> {
+/** → tasks.create payload. Omits dueDate when blank so the task lands undated in Someday. */
+export function buildOneTimeTaskPayload(input: NewOneTimeTaskInput, _timezone: string): Record<string, unknown> {
   return {
     title: input.title,
     owner: input.owner,
-    dueDate: input.dueDate || todayKey(timezone),
+    ...(input.dueDate ? { dueDate: input.dueDate } : {}),
   }
 }

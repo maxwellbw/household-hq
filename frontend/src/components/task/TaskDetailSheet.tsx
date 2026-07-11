@@ -1,24 +1,28 @@
-import { useRef } from 'react'
+import { useRef, useState } from 'react'
 import { ownerStyle } from '@/lib/owners'
 import { useDialogA11y } from '@/hooks/useDialogA11y'
 import { useUnsnoozeTask } from '@/hooks/useMutations'
 import { useToast } from '@/hooks/useToast'
 import { parseSnoozeHistory } from '@/lib/tasks'
 import { cn } from '@/lib/utils'
+import { TaskEditSheet } from '@/components/task/TaskEditSheet'
 import type { Task } from '@/types/domain'
 
 interface TaskDetailSheetProps {
   task: Task
   onClose: () => void
+  /** Opens the sheet already in edit mode (e.g. from the row's "Edit due" action). */
+  initialEdit?: boolean
 }
 
-/** Sheet showing task info, full snooze history, and an Un-snooze action when snoozed. */
-export function TaskDetailSheet({ task, onClose }: TaskDetailSheetProps) {
+/** Sheet showing task info + snooze history, read-only by default with an Edit button (US2). */
+export function TaskDetailSheet({ task, onClose, initialEdit = false }: TaskDetailSheetProps) {
   const panelRef = useRef<HTMLDivElement>(null)
   useDialogA11y(panelRef, onClose)
 
   const unsnooze = useUnsnoozeTask()
   const toast = useToast()
+  const [showEdit, setShowEdit] = useState(initialEdit)
   const style = ownerStyle(task.owner)
   const isSnoozed = task.status === 'snoozed'
   const historyRows = parseSnoozeHistory(task.snoozeHistory)
@@ -33,6 +37,7 @@ export function TaskDetailSheet({ task, onClose }: TaskDetailSheetProps) {
   }
 
   return (
+    <>
     <div
       className="fixed inset-0 z-50 flex items-end justify-center bg-ink/30 sm:items-center"
       onClick={onClose}
@@ -76,14 +81,24 @@ export function TaskDetailSheet({ task, onClose }: TaskDetailSheetProps) {
               )}
             </p>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close"
-            className="flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-control text-ink-muted hover:bg-surface-alt focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-          >
-            ✕
-          </button>
+          <div className="flex shrink-0 items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setShowEdit(true)}
+              aria-label="Edit task"
+              className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-control text-sm font-medium text-ink-muted hover:bg-surface-alt focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+            >
+              Edit
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close"
+              className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-control text-ink-muted hover:bg-surface-alt focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+            >
+              ✕
+            </button>
+          </div>
         </div>
 
         {/* Snooze history */}
@@ -92,7 +107,7 @@ export function TaskDetailSheet({ task, onClose }: TaskDetailSheetProps) {
             Snooze history
           </h3>
           {historyRows.length === 0 ? (
-            <p className="text-sm text-ink-faint">No snoozes yet.</p>
+            <p className="text-sm text-ink-muted">No snoozes yet.</p>
           ) : (
             <ol className="space-y-2">
               {historyRows.map((row, i) => (
@@ -120,5 +135,9 @@ export function TaskDetailSheet({ task, onClose }: TaskDetailSheetProps) {
         )}
       </div>
     </div>
+    {showEdit && (
+      <TaskEditSheet task={task} onClose={() => setShowEdit(false)} />
+    )}
+    </>
   )
 }
