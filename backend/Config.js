@@ -61,7 +61,7 @@ var HEADERS = {
           'completedBy', 'completedAt', 'snoozeHistory', 'listItems', 'gcalEventId'],
   TaskTemplates: ['id', 'eventType', 'taskTitle', 'offsetDays', 'defaultOwner'],
   Recurring: ['id', 'title', 'cadence', 'anchorDate', 'defaultOwner', 'lastGenerated',
-              'seasonStart', 'seasonEnd'],
+              'seasonStart', 'seasonEnd', 'seedKey'],
   ActivityLog: ['timestamp', 'actor', 'action', 'targetId', 'detail'],
   Settings: ['key', 'value', 'notes']
 };
@@ -220,5 +220,27 @@ var SETTINGS_SEED = [
   ['weatherPrecipPct', '40', 'feature 011'],
   ['weatherColdFloorF', '25', 'feature 011'],
   ['recurringLookaheadDays', '30',
-    'feature 004; days ahead the nightly generator materializes. Blank/≤0 falls back to 30']
+    'feature 004; days ahead the nightly generator materializes. Blank/≤0 falls back to 30'],
+  ['recurringSeedApplied', '',
+    'feature 015; "; "-delimited seed keys already applied by seedRecurringPack(); enables ' +
+    'never-resurrect. Clear a key (and delete its row) by hand to re-enable seeding of that chore.']
+];
+
+// ---------------------------------------------------------------------------
+// Feature 015 — recurring seed pack (research R1/R2/R4): starter home-maintenance chores
+// plus alternating-week bin collection, seeded once by seedRecurringPack() (Seed.js).
+// Anchors are placeholders computed relative to the seed run date; the household corrects
+// them afterward. anchorRule ∈ 'today' | 'today+7' | 'fall-oct15' | 'fall-nov1'
+// (see Seed.js `computeSeedAnchor_`).
+// ---------------------------------------------------------------------------
+
+var SEED_PACK = [
+  { seedKey: 'trash', title: 'Trash', cadence: 'weekly', anchorRule: 'today', defaultOwner: 'both' },
+  { seedKey: 'recycling', title: 'Recycling', cadence: 'biweekly', anchorRule: 'today', defaultOwner: 'both' },
+  { seedKey: 'yardwaste', title: 'Yard waste', cadence: 'biweekly', anchorRule: 'today+7', defaultOwner: 'both' },
+  { seedKey: 'hvac-filter', title: 'Change HVAC air filter', cadence: 'quarterly', anchorRule: 'today', defaultOwner: 'both' },
+  { seedKey: 'dishwasher-filter', title: 'Clean dishwasher filter', cadence: 'monthly', anchorRule: 'today', defaultOwner: 'both' },
+  { seedKey: 'gutters', title: 'Clean gutters', cadence: 'annually', anchorRule: 'fall-oct15', defaultOwner: 'both' },
+  { seedKey: 'detector-batteries', title: 'Replace smoke/CO detector batteries', cadence: 'annually', anchorRule: 'fall-nov1', defaultOwner: 'both' },
+  { seedKey: 'mow-lawn', title: 'Mow lawn', cadence: 'weekly', anchorRule: 'today', defaultOwner: 'both', seasonStart: 4, seasonEnd: 10 }
 ];
