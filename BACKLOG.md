@@ -38,7 +38,7 @@ screens. These four features close that gap, **in this order**, before 010/011:
 | 012 | App shell & task UX | ✅ merged | [specs/012-app-shell-task-ux](specs/012-app-shell-task-ux/spec.md) | [#10](https://github.com/maxwellbw/household-hq/pull/10) |
 | 013 | Someday list (tap-to-schedule; drag deferred) | ✅ merged | [specs/013-someday-list](specs/013-someday-list/spec.md) | [#11](https://github.com/maxwellbw/household-hq/pull/11) |
 | 014 | Home dashboard | ✅ merged | [specs/014-home-dashboard](specs/014-home-dashboard/spec.md) | [#12](https://github.com/maxwellbw/household-hq/pull/12) |
-| 015 | Recurring seed pack & alternating weeks | ✅ merged | [specs/015-recurring-seed-pack](specs/015-recurring-seed-pack/spec.md) | — |
+| 015 | Recurring seed pack & alternating weeks | ✅ merged | [specs/015-recurring-seed-pack](specs/015-recurring-seed-pack/spec.md) | [#14](https://github.com/maxwellbw/household-hq/pull/14) |
 
 **012 — App shell & task UX** (frontend-only; every backend piece already exists).
 Working Tasks / Feed / More navigation on mobile *and* desktop (006 shipped them as disabled
