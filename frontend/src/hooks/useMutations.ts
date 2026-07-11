@@ -171,6 +171,45 @@ export function useUpdateTask() {
   })
 }
 
+/** Delete a task (022 US2) — server hard-deletes + mirror cleanup; instance-only for
+ *  recurring-generated tasks (rule untouched). No optimistic removal: rare/destructive. */
+export function useDeleteTask() {
+  const { authedCall, handleAuthError } = useAuth()
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (taskId: string) => {
+      try {
+        return await authedCall('tasks.delete', { id: taskId })
+      } catch (err) {
+        handleAuthError(err)
+        throw err
+      }
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['tasks'] }),
+  })
+}
+
+/** Delete an event (022 US2) — server hard-deletes, purges all its prep tasks (done +
+ *  outstanding), and removes the calendar mirror. Invalidates both events and tasks. */
+export function useDeleteEvent() {
+  const { authedCall, handleAuthError } = useAuth()
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (eventId: string) => {
+      try {
+        return await authedCall('events.delete', { id: eventId })
+      } catch (err) {
+        handleAuthError(err)
+        throw err
+      }
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['events'] })
+      queryClient.invalidateQueries({ queryKey: ['tasks'] })
+    },
+  })
+}
+
 /** Unsnooze a task — optimistic flip back to 'open', invalidate on settle. */
 export function useUnsnoozeTask() {
   const { authedCall, handleAuthError } = useAuth()

@@ -18,6 +18,7 @@ vi.mock('@/hooks/useMutations', () => ({
   useSnoozeTask: () => ({ mutate: vi.fn() }),
   useUnsnoozeTask: () => ({ mutate: vi.fn() }),
   useUpdateTask: () => ({ mutateAsync: vi.fn().mockResolvedValue({}), isPending: false }),
+  useDeleteTask: () => ({ mutate: vi.fn(), isPending: false }),
 }))
 
 vi.mock('@/hooks/useToast', () => ({
@@ -45,5 +46,30 @@ describe('TasksView — Edit due', () => {
     fireEvent.click(screen.getByText('Water the plants'))
     expect(screen.queryByPlaceholderText('Task title')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Edit task' })).toBeInTheDocument()
+  })
+})
+
+describe('TasksView — collapsible Open section (022 US3)', () => {
+  it('Open is expanded by default, showing its count and tasks', () => {
+    render(<TasksView />)
+    const header = screen.getByRole('button', { name: /Open \(1\)/ })
+    expect(header).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByText('Water the plants')).toBeInTheDocument()
+  })
+
+  it('collapsing Open hides its tasks while the header/count stays visible', () => {
+    render(<TasksView />)
+    fireEvent.click(screen.getByRole('button', { name: /Open \(1\)/ }))
+    expect(screen.getByRole('button', { name: /Open \(1\)/ })).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByText('Water the plants')).not.toBeInTheDocument()
+  })
+
+  it('expanding Open again shows its tasks', () => {
+    render(<TasksView />)
+    const header = screen.getByRole('button', { name: /Open \(1\)/ })
+    fireEvent.click(header)
+    fireEvent.click(header)
+    expect(header).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByText('Water the plants')).toBeInTheDocument()
   })
 })

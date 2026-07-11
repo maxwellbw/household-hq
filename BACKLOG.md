@@ -15,7 +15,7 @@ order confirmed by Jaz 2026-07-11, including 010/011 — definitely a go, slotte
 
 | Order | # | Feature | Stage | Spec folder | PR |
 |---|---|---|---|---|---|
-| 1 | 022 | UX fix batch 2 (snooze on calendar, delete, collapse) | ⬜ not started | — | — |
+| 1 | 022 | UX fix batch 2 (snooze on calendar, delete, collapse) | 🟢 implemented, pending PR | [specs/022-ux-fix-batch-2](specs/022-ux-fix-batch-2/spec.md) | — |
 | 2 | 019 | Task & event details + collaboration | ⬜ not started | — | — |
 | 3 | 020 | Settings editor under More | ⬜ not started | — | — |
 | 4 | 021 | Someday force-rank + Tasks-tab Someday section | ⬜ not started | — | — |

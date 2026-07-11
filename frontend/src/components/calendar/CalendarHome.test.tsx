@@ -13,6 +13,8 @@ vi.mock('@/hooks/useMutations', () => ({
   useSnoozeTask: () => ({ mutate: vi.fn() }),
   useUnsnoozeTask: () => ({ mutate: vi.fn() }),
   useUpdateTask: () => ({ mutateAsync: vi.fn().mockResolvedValue({}), isPending: false }),
+  useDeleteTask: () => ({ mutate: vi.fn(), isPending: false }),
+  useDeleteEvent: () => ({ mutate: vi.fn(), isPending: false }),
 }))
 
 vi.mock('@/hooks/useToast', () => ({
