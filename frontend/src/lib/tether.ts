@@ -7,6 +7,8 @@ import type { Event, Task, Owner } from '@/types/domain'
 export interface EventWithTasks extends Event {
   tasks: Task[]
   openTaskCount: number
+  totalTaskCount: number
+  doneTaskCount: number
 }
 
 export interface CalendarModel {
@@ -53,6 +55,8 @@ export function buildCalendarModel(events: Event[], tasks: Task[]): CalendarMode
       ...event,
       tasks: eventTasks,
       openTaskCount: eventTasks.filter((t) => t.status === 'open').length,
+      totalTaskCount: eventTasks.length,
+      doneTaskCount: eventTasks.filter((t) => t.status === 'done').length,
     }
   })
 

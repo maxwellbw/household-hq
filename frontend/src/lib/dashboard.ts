@@ -1,6 +1,6 @@
 import { Temporal } from 'temporal-polyfill'
 import type { Cadence, Event, Owner, RecurringRule, Session, Task } from '@/types/domain'
-import { dayKey, formatDate, inRange, todayKey, weekendRange, type DayRange } from '@/lib/datetime'
+import { dayKey, formatDate, inRange, nextNDaysRange, todayKey, weekendRange, type DayRange } from '@/lib/datetime'
 
 // ── Smart Views (US1) ────────────────────────────────────────────────────────
 
@@ -68,6 +68,49 @@ export function loadBalance(tasks: Task[], range: DayRange): LoadBalanceResult {
     result[t.owner]++
   }
   return result
+}
+
+// ── Seven-day strip (US7) ────────────────────────────────────────────────────
+
+export interface DayTileSummary {
+  dateKey: string
+  isToday: boolean
+  countsByOwner: Record<Owner, number>
+  total: number
+}
+
+/**
+ * Seven day-tiles, today first, for the dashboard's rolling week strip
+ * (feature 017 FR-015–018). Counts open dated tasks + spanning events by
+ * owner per day; empty days are present with zeroed counts, never omitted.
+ */
+export function sevenDayTiles(tasks: Task[], events: Event[], timezone: string): DayTileSummary[] {
+  const range = nextNDaysRange(7, timezone)
+  const todayK = todayKey(timezone)
+  const start = Temporal.PlainDate.from(range.startKey)
+  const dateKeys = Array.from({ length: 7 }, (_, i) => start.add({ days: i }).toString())
+
+  return dateKeys.map((k) => {
+    const countsByOwner: Record<Owner, number> = { max: 0, jaz: 0, both: 0 }
+
+    for (const e of events) {
+      const startK = dayKey(e.start, timezone)
+      const endK = dayKey(e.end, timezone)
+      if (k >= startK && k <= endK) countsByOwner[e.owner]++
+    }
+
+    for (const t of tasks) {
+      if (t.status !== 'open' || !t.dueDate) continue
+      if (dayKey(t.dueDate, timezone) === k) countsByOwner[t.owner]++
+    }
+
+    return {
+      dateKey: k,
+      isToday: k === todayK,
+      countsByOwner,
+      total: countsByOwner.max + countsByOwner.jaz + countsByOwner.both,
+    }
+  })
 }
 
 export function resolveViewer(session: Session | null): 'max' | 'jaz' | null {
