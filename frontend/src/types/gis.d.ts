@@ -8,10 +8,16 @@ interface GoogleIdConfiguration {
   cancel_on_tap_outside?: boolean
 }
 
+interface PromptMomentNotification {
+  isNotDisplayed(): boolean
+  isSkippedMoment(): boolean
+  isDismissedMoment(): boolean
+}
+
 interface GoogleAccountsId {
   initialize(config: GoogleIdConfiguration): void
   renderButton(parent: HTMLElement, options: Record<string, unknown>): void
-  prompt(): void
+  prompt(momentListener?: (notification: PromptMomentNotification) => void): void
   disableAutoSelect(): void
 }
 
