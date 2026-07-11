@@ -45,3 +45,30 @@
   color: var(--accent);
   font-weight: 600;
 }
+
+/*
+ * Feature 017 (mobile month navigation): Schedule-X's own container-width
+ * detection independently hides the prev/next month controls whenever it
+ * measures its wrapper as narrow (`.sx__is-calendar-small`), regardless of
+ * our `isResponsive: false` — we already own the mobile/desktop split via
+ * useIsMobile(), so undo that hiding here rather than fight the library's
+ * internal ResizeObserver.
+ */
+.sx-react-calendar-wrapper .sx__forward-backward-navigation {
+  display: flex !important;
+}
+
+/*
+ * `.sx__calendar` ships with `height: 100%; overflow: hidden`, which
+ * collapses against our wrapper (an auto-height flex column, not a fixed
+ * viewport) and clips the month grid instead of letting every week reach
+ * the page's own scroll — the exact "can't scroll to see all weeks" bug.
+ * Let it grow to its natural content height and scroll with the page.
+ */
+.sx-react-calendar-wrapper .sx__calendar {
+  height: auto;
+  overflow: visible;
+}
+.sx-react-calendar-wrapper .sx__view-container {
+  overflow: visible;
+}

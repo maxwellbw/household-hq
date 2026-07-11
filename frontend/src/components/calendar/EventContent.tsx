@@ -1,16 +1,22 @@
 import { ownerStyle } from '@/lib/owners'
 import { formatTime, isAllDay } from '@/lib/datetime'
 import { cn } from '@/lib/utils'
-import type { Event, Owner } from '@/types/domain'
+import type { EventWithTasks } from '@/lib/tether'
+import type { Event, Owner, Task } from '@/types/domain'
 
 interface ScheduleXEventProps {
   calendarEvent: {
     id: string | number
     title?: string
     owner?: Owner
-    _raw?: Event
+    _raw?: Event | EventWithTasks | Task
     _kind?: 'event' | 'task'
+    _overdue?: boolean
   }
+}
+
+function isEventRaw(raw: Event | EventWithTasks | Task | undefined): raw is Event | EventWithTasks {
+  return !!raw && 'start' in raw
 }
 
 const OWNER_EDGE: Record<Owner, string> = {
@@ -26,18 +32,22 @@ const OWNER_TINT: Record<Owner, string> = {
 }
 
 /**
- * Custom month-grid event render (DESIGN.md "Event card/pill"): owner-colored
- * 3px left edge + soft owner tint, title, time/all-day, and a prep-count
- * badge when the event has tethered tasks (openTaskCount is attached by
- * lib/tether.ts once US2 wires it in; absent here it simply renders none).
+ * Custom event chip render (DESIGN.md "Event card/pill"), reused across the
+ * month grid, week/next-7 day-lists, and single-day view: owner-colored 3px
+ * left edge + soft owner tint, title, time/all-day, a "done/total tasks"
+ * prep-progress badge when the event has a checklist, and an Overdue badge
+ * for tasks displayed on today past their real due date (feature 017).
  */
 export function EventContent({ calendarEvent }: ScheduleXEventProps) {
   const raw = calendarEvent._raw
   const owner = calendarEvent.owner ?? raw?.owner ?? 'both'
   const style = ownerStyle(owner)
-  const allDay = raw ? isAllDay(raw.start, raw.end) : false
-  const time = raw && !allDay ? formatTime(raw.start) : null
-  const openTaskCount = (raw as (Event & { openTaskCount?: number }) | undefined)?.openTaskCount
+  const eventRaw = isEventRaw(raw) ? raw : undefined
+  const allDay = eventRaw ? isAllDay(eventRaw.start, eventRaw.end) : true
+  const time = eventRaw && !allDay ? formatTime(eventRaw.start) : null
+  const eventWithTasks = eventRaw && 'tasks' in eventRaw ? (eventRaw as EventWithTasks) : undefined
+  const totalTaskCount = eventWithTasks?.totalTaskCount
+  const doneTaskCount = eventWithTasks?.doneTaskCount
 
   return (
     <div
@@ -60,15 +70,21 @@ export function EventContent({ calendarEvent }: ScheduleXEventProps) {
           {style.initial}
         </span>
         <span className="truncate font-medium text-ink">{calendarEvent.title ?? raw?.title}</span>
-        {calendarEvent._kind === 'task' && (
-          <span className="ml-auto shrink-0 text-[9px] uppercase tracking-wide text-ink-faint">Task</span>
+        {calendarEvent._overdue ? (
+          <span className="ml-auto shrink-0 rounded-full bg-danger px-1.5 text-[9px] font-medium uppercase tracking-wide text-surface">
+            Overdue
+          </span>
+        ) : (
+          calendarEvent._kind === 'task' && (
+            <span className="ml-auto shrink-0 text-[9px] uppercase tracking-wide text-ink-faint">Task</span>
+          )
         )}
       </div>
       <div className="flex items-center gap-1.5 text-ink-muted">
         {time && <span className="tabular-nums">{time}</span>}
-        {typeof openTaskCount === 'number' && openTaskCount > 0 && (
+        {typeof totalTaskCount === 'number' && totalTaskCount > 0 && (
           <span className="rounded-full bg-surface px-1 text-[10px]">
-            {openTaskCount} prep {openTaskCount === 1 ? 'task' : 'tasks'}
+            {doneTaskCount}/{totalTaskCount} tasks
           </span>
         )}
       </div>

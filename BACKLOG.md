@@ -80,8 +80,8 @@ rationale as Phase 2.5 — Phase 3 reorder still pending Max's co-sign).
 
 | # | Feature | Stage | Spec folder | PR |
 |---|---|---|---|---|
-| 016 | UX fix batch (task editing + dead controls) | 🔨 implemented, pending PR | [specs/016-ux-fix-batch](specs/016-ux-fix-batch/spec.md) | — |
-| 017 | Calendar views & 7-day surfaces | ⬜ not started | — | — |
+| 016 | UX fix batch (task editing + dead controls) | ✅ merged | [specs/016-ux-fix-batch](specs/016-ux-fix-batch/spec.md) | [#15](https://github.com/maxwellbw/household-hq/pull/15) |
+| 017 | Calendar views & 7-day surfaces | 🟨 implemented, pending PR | [specs/017-calendar-views](specs/017-calendar-views/spec.md) | — |
 | 018 | Stay signed in (session persistence) | ⬜ not started | — | — |
 | 019 | Task collaboration (notes, links, acknowledge) | ⬜ not started | — | — |
 | 020 | Settings editor under More | ⬜ not started | — | — |
@@ -152,24 +152,50 @@ from 019's scope.
 
 ## Currently active
 
-**016 — UX fix batch: implemented, awaiting review/PR.** Frontend-only, no backend deploy
-needed. Fixed: (1) Quick Add blank-date tasks now omit `dueDate` instead of defaulting to
-today, so they land in Someday. (2) New `TaskEditSheet` (mirrors `EventEditSheet`) lets
-title/owner/dueDate be edited from a read-only-then-Edit `TaskDetailSheet`, via new
-`useUpdateTask`. (3) TaskRow's "Edit due" now opens that same detail sheet already in edit
-mode. (4) Calendar taps: task chips now open `TaskDetailSheet` (were explicitly ignored);
-event taps' root cause was confirmed to be Schedule-X's own `isResponsive` breakpoint logic
-fighting our `isMobile`/`defaultView` choice and destroying/rebuilding event DOM nodes on
-resize — fixed with `isResponsive: false`; also registered `monthAgendaEvent` so the mobile
-agenda view gets our owner-colored `EventContent` instead of Schedule-X's plain default
-(see `specs/016-ux-fix-batch/research.md` R4b for the full trace). 150 tests green (up from
-136 baseline), build clean, `/impeccable audit` clean (one contrast fix applied: informative
-empty-state text moved off `--ink-faint` onto `--ink-muted`, 3.06:1 → 5.68:1).
-**Live quickstart validation (desktop + mobile in a real browser) could not be completed
-in this session** — the app requires real Google OAuth sign-in against the allowlisted
-accounts, which the sandboxed preview browser has no credentials for; automated
-component/integration tests exercise the same code paths instead. Recommend a quick manual
-pass before merging.
+**017 — Calendar views & 7-day surfaces: implemented, pending PR.** Frontend-only, no backend
+deploy needed. Fixed week (Sun–Sat) and rolling Next-7-days views added to a new
+`CalendarViewSwitcher` (Month/Week/Next-7), available on **both** desktop and mobile via new
+bespoke `DayListView`/`DayColumn` all-day chip columns (not Schedule-X's hourly week grid —
+household items are almost entirely all-day; see `research.md` R1). Sunday is now first-of-week
+everywhere (`firstDayOfWeek: 7` + existing `weekRange()`). Root-caused and fixed two real mobile
+month-nav bugs in `calendar-theme.css`: Schedule-X's own `.sx__is-calendar-small` container-width
+detection was hiding the prev/next month arrows independent of our `isResponsive: false`, and
+`.sx__calendar`'s `height:100%; overflow:hidden` was clipping the month grid against our
+auto-height wrapper instead of letting it scroll with the page. Desktop month cells now cap at
+3 chips via Schedule-X's `monthGridOptions.nEventsPerDay`, with "+N more" jumping to a focused
+single-day list (clarified: jump, not popover). Event chips show prep-progress as "M/N tasks"
+(new `doneTaskCount`/`totalTaskCount` on `EventWithTasks`). Overdue open tasks display-only
+remap onto **today** with an Overdue badge (new `isOverdue`/`taskDisplayDateKey` helpers) —
+stored `dueDate` never touched, no re-sync. New dashboard `SevenDayStrip` (today-first,
+owner-colored dot/counts, empty tiles present) deep-links into the calendar via a lifted
+`calendarFocusDate` in `App.tsx`. 185 tests green (up from 150 baseline), build clean.
+`/impeccable audit` pass caught and fixed 3 issues before merge: two new empty-state "—"
+indicators on `--ink-faint` repeating the exact contrast bug fixed once already in 016 (moved to
+`--ink-muted`), and the view switcher's touch target was 36px (bumped to 44px). **Live browser
+validation blocked in this sandboxed environment** — the app requires real Google OAuth sign-in
+against the allowlist, same limitation noted for 016; verified instead via the full component/unit
+test suite, direct inspection of Schedule-X's installed source for the two CSS root-causes above,
+and a preview smoke-test confirming the app builds/runs with no console errors up to the sign-in
+gate. **A real desktop + mobile manual pass (quickstart Scenarios A–G) is recommended before or
+right after merge.**
+
+_016 merged to `main` (PR #15). Frontend-only, no backend deploy needed. Fixed: (1) Quick Add
+blank-date tasks now omit `dueDate` instead of defaulting to today, so they land in Someday.
+(2) New `TaskEditSheet` (mirrors `EventEditSheet`) lets title/owner/dueDate be edited from a
+read-only-then-Edit `TaskDetailSheet`, via new `useUpdateTask`. (3) TaskRow's "Edit due" now
+opens that same detail sheet already in edit mode. (4) Calendar taps: task chips now open
+`TaskDetailSheet` (were explicitly ignored); event taps' root cause was confirmed to be
+Schedule-X's own `isResponsive` breakpoint logic fighting our `isMobile`/`defaultView` choice
+and destroying/rebuilding event DOM nodes on resize — fixed with `isResponsive: false`; also
+registered `monthAgendaEvent` so the mobile agenda view gets our owner-colored `EventContent`
+instead of Schedule-X's plain default (see `specs/016-ux-fix-batch/research.md` R4b for the
+full trace). 150 tests green (up from 136 baseline), build clean, `/impeccable audit` clean
+(one contrast fix applied: informative empty-state text moved off `--ink-faint` onto
+`--ink-muted`, 3.06:1 → 5.68:1). **Live quickstart validation (desktop + mobile in a real
+browser) could not be completed pre-merge** — the app requires real Google OAuth sign-in
+against the allowlisted accounts, which the sandboxed preview environment had no credentials
+for; automated component/integration tests exercised the same code paths instead. A quick
+manual pass on desktop + mobile is still recommended._
 
 _015 merged to `main` (PR #14). Recurring seed pack + alternating-week bins as offset
 biweekly rules._

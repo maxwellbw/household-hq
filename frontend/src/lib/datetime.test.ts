@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { dayKey, endBeforeStart, formatTime, inRange, isAllDay, monthRange, relativeDue, toZonedDateTime, weekendRange, weekRange } from './datetime'
+import { dayKey, endBeforeStart, formatTime, inRange, isAllDay, isOverdue, monthRange, nextNDaysRange, relativeDue, toZonedDateTime, weekendRange, weekRange } from './datetime'
 
 const TZ = 'America/Los_Angeles'
 
@@ -133,6 +133,41 @@ describe('weekRange', () => {
   it('starts today when today is Sunday', () => {
     vi.setSystemTime(new Date('2026-07-12T18:00:00Z')) // Sunday LA
     expect(weekRange('America/Los_Angeles')).toEqual({ startKey: '2026-07-12', endKey: '2026-07-18' })
+  })
+})
+
+describe('nextNDaysRange', () => {
+  it('starts today and spans n days inclusive (today is Friday)', () => {
+    expect(nextNDaysRange(7, 'America/Los_Angeles')).toEqual({ startKey: '2026-07-10', endKey: '2026-07-16' })
+  })
+
+  it('crosses a month boundary correctly', () => {
+    vi.setSystemTime(new Date('2026-07-29T18:00:00Z')) // 2026-07-29 in LA
+    expect(nextNDaysRange(7, 'America/Los_Angeles')).toEqual({ startKey: '2026-07-29', endKey: '2026-08-04' })
+  })
+})
+
+describe('isOverdue', () => {
+  const TODAY = '2026-07-10'
+
+  it('is true for an open task with a past due date', () => {
+    expect(isOverdue({ status: 'open', dueDate: '2026-07-09' }, TODAY)).toBe(true)
+  })
+
+  it('is false for a task due today', () => {
+    expect(isOverdue({ status: 'open', dueDate: '2026-07-10' }, TODAY)).toBe(false)
+  })
+
+  it('is false for a done task even if dueDate is past', () => {
+    expect(isOverdue({ status: 'done', dueDate: '2026-07-01' }, TODAY)).toBe(false)
+  })
+
+  it('is false for a snoozed task even if dueDate is past', () => {
+    expect(isOverdue({ status: 'snoozed', dueDate: '2026-07-01' }, TODAY)).toBe(false)
+  })
+
+  it('is false for an open task with no due date', () => {
+    expect(isOverdue({ status: 'open', dueDate: undefined }, TODAY)).toBe(false)
   })
 })
 

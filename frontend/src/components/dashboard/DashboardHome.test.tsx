@@ -38,7 +38,7 @@ vi.mock('@/hooks/useRecurring', () => ({
 
 describe('DashboardHome', () => {
   it('renders all five section headings on load', () => {
-    render(<DashboardHome />)
+    render(<DashboardHome onOpenDate={vi.fn()} />)
     expect(screen.getByText('Today')).toBeInTheDocument()
     expect(screen.getByText('Overdue')).toBeInTheDocument()
     expect(screen.getByText('This weekend')).toBeInTheDocument()
@@ -47,7 +47,7 @@ describe('DashboardHome', () => {
   })
 
   it('quiet week — all sections show calm empty states, no errors and no blank panels', () => {
-    render(<DashboardHome />)
+    render(<DashboardHome onOpenDate={vi.fn()} />)
     // SmartViews empty states
     expect(screen.getByText('Nothing due today — enjoy the quiet.')).toBeInTheDocument()
     expect(screen.getByText('All caught up — nothing overdue.')).toBeInTheDocument()
@@ -64,7 +64,7 @@ describe('DashboardHome', () => {
 
   it('shows loading skeletons while data is pending', () => {
     mockUseTasks.mockReturnValueOnce({ data: undefined, isPending: true, isError: false })
-    render(<DashboardHome />)
+    render(<DashboardHome onOpenDate={vi.fn()} />)
     expect(screen.getByLabelText('Loading dashboard')).toBeInTheDocument()
     expect(screen.queryByText('Today')).not.toBeInTheDocument()
   })
