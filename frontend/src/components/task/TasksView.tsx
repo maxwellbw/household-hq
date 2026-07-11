@@ -16,6 +16,7 @@ export function TasksView() {
   const { timezone } = useSettings()
   const { visibleOwners, toggle } = useOwnerFilter()
   const [doneExpanded, setDoneExpanded] = useState(false)
+  const [openExpanded, setOpenExpanded] = useState(true)
   const [snoozeTask, setSnoozeTask] = useState<Task | null>(null)
   const [detailTask, setDetailTask] = useState<Task | null>(null)
   const [detailEdit, setDetailEdit] = useState(false)
@@ -50,36 +51,47 @@ export function TasksView() {
       <OwnerFilterChips visibleOwners={visibleOwners} onToggle={toggle} />
 
       <div className="px-4 py-2">
-        {/* Open group */}
-        <h2 className="mb-1 px-1 text-xs font-medium uppercase tracking-wide text-ink-faint">
-          Open
-        </h2>
+        {/* Open group — collapsible, expanded by default */}
+        <button
+          type="button"
+          onClick={() => setOpenExpanded((v) => !v)}
+          aria-expanded={openExpanded}
+          className="mb-1 flex min-h-[44px] w-full items-center gap-1 px-1 text-left text-xs font-medium uppercase tracking-wide text-ink-faint hover:text-ink-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+        >
+          {openExpanded
+            ? <ChevronDown size={14} aria-hidden="true" />
+            : <ChevronRight size={14} aria-hidden="true" />
+          }
+          Open ({open.length})
+        </button>
 
-        {noTasksAtAll ? (
-          <div className="flex flex-col items-center gap-1 py-10 text-center">
-            <p className="font-display text-base text-ink">Nothing on the list yet</p>
-            <p className="text-sm text-ink-muted">Tap + to add a task.</p>
-          </div>
-        ) : nothingAfterFilter ? (
-          <div className="flex flex-col items-center gap-1 py-10 text-center">
-            <p className="font-display text-base text-ink">No tasks for this filter</p>
-            <p className="text-sm text-ink-muted">Try toggling an owner chip above.</p>
-          </div>
-        ) : open.length === 0 ? (
-          <p className="px-1 py-4 text-sm text-ink-muted">All caught up — nothing open right now.</p>
-        ) : (
-          <div className="rounded-card bg-surface shadow-card">
-            {open.map((task) => (
-              <TaskRow
-                key={task.id}
-                task={task}
-                timezone={timezone}
-                onSnooze={() => setSnoozeTask(task)}
-                onDetail={() => { setDetailTask(task); setDetailEdit(false) }}
-                onEditDue={() => { setDetailTask(task); setDetailEdit(true) }}
-              />
-            ))}
-          </div>
+        {openExpanded && (
+          noTasksAtAll ? (
+            <div className="flex flex-col items-center gap-1 py-10 text-center">
+              <p className="font-display text-base text-ink">Nothing on the list yet</p>
+              <p className="text-sm text-ink-muted">Tap + to add a task.</p>
+            </div>
+          ) : nothingAfterFilter ? (
+            <div className="flex flex-col items-center gap-1 py-10 text-center">
+              <p className="font-display text-base text-ink">No tasks for this filter</p>
+              <p className="text-sm text-ink-muted">Try toggling an owner chip above.</p>
+            </div>
+          ) : open.length === 0 ? (
+            <p className="px-1 py-4 text-sm text-ink-muted">All caught up — nothing open right now.</p>
+          ) : (
+            <div className="rounded-card bg-surface shadow-card">
+              {open.map((task) => (
+                <TaskRow
+                  key={task.id}
+                  task={task}
+                  timezone={timezone}
+                  onSnooze={() => setSnoozeTask(task)}
+                  onDetail={() => { setDetailTask(task); setDetailEdit(false) }}
+                  onEditDue={() => { setDetailTask(task); setDetailEdit(true) }}
+                />
+              ))}
+            </div>
+          )
         )}
 
         {/* Done group — collapsed by default */}
