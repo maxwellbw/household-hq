@@ -100,7 +100,8 @@ var ACTION_VERBS = {
   delete: 'deleted', 'adopt-id': 'assigned an id to', provision: 'set up',
   'gcal-sync': 'synced to calendar', 'digest-weekly': 'emailed the week ahead',
   'digest-monthly': 'emailed the month ahead', 'ntfy-ping': 'sent a completion ping',
-  snooze: 'snoozed', unsnooze: 'un-snoozed', acknowledge: 'committed to'
+  snooze: 'snoozed', unsnooze: 'un-snoozed', acknowledge: 'committed to',
+  'settings-update': 'updated settings'
 };
 
 /** feature 009 — free, keyless push-notification host; a platform choice, not household data. */
@@ -225,6 +226,22 @@ var SETTINGS_SEED = [
   ['recurringSeedApplied', '',
     'feature 015; "; "-delimited seed keys already applied by seedRecurringPack(); enables ' +
     'never-resurrect. Clear a key (and delete its row) by hand to re-enable seeding of that chore.']
+];
+
+// ---------------------------------------------------------------------------
+// Feature 020 — curated Settings editor: the only Settings keys writable via
+// settings.update (emails, ntfy topics, calendar/weather keys stay Sheet-only).
+// ---------------------------------------------------------------------------
+
+var EDITABLE_SETTINGS = [
+  'digestWeeklyEnabled', 'digestWeeklyDay', 'digestMonthlyEnabled', 'digestMonthlyDay',
+  'digestHour', 'ntfyEnabled', 'gcalEventReminderMin', 'timezone'
+];
+
+/** Curated timezone choices for the editor (and the backend's allow-set for `timezone`). */
+var SETTINGS_TIMEZONES = [
+  'America/Los_Angeles', 'America/Denver', 'America/Chicago',
+  'America/New_York', 'America/Phoenix', 'Pacific/Honolulu'
 ];
 
 // ---------------------------------------------------------------------------

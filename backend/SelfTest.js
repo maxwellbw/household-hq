@@ -34,6 +34,7 @@ function selfTest() {
   liveCalendarTaskSync_();
   liveCalendarReconcile_();
   unitDigests_();
+  liveSettingsUpdate_();
   unitNtfy_();
   liveSnooze_();
   liveTaskNotes_();
@@ -1199,6 +1200,82 @@ function unitDigests_() {
   assert_(typeof sendMonthlyDigestNow === 'function', 'sendMonthlyDigestNow is a public entry point');
 
   Logger.log('unit digests: pass');
+}
+
+// ---------------------------------------------------------------------------
+// Live: settings.update (feature 020 — curated Settings editor)
+// ---------------------------------------------------------------------------
+
+/** Exercises updateSettings_ against the live Settings tab: whitelist enforcement,
+ *  per-field validation (no partial writes), digest-trigger reinstall on hour change, and
+ *  exactly-one ActivityLog row per successful save. Snapshots and restores every touched key
+ *  so the household's real settings are unaffected by the run. */
+function liveSettingsUpdate_() {
+  var before = readSettingsMap_();
+  var logCountBefore = countLogRows_('settings', 'settings-update');
+
+  // 1. Valid digest-field save writes only the changed keys and logs exactly one row.
+  var newWeeklyDay = before.digestWeeklyDay === 'Wednesday' ? 'Thursday' : 'Wednesday';
+  var r1 = updateSettings_({ digestWeeklyDay: newWeeklyDay, digestMonthlyDay: 'last' }, 'selftest');
+  assert_(r1.settings.digestWeeklyDay === newWeeklyDay, 'digestWeeklyDay persisted');
+  assert_(readSettingsMap_().gcalEventReminderMin === before.gcalEventReminderMin,
+    'an untouched whitelisted key is left alone by a partial save');
+  assert_(countLogRows_('settings', 'settings-update') === logCountBefore + 1,
+    'a successful save appends exactly one settings-update ActivityLog row');
+
+  // 2. Re-saving identical values is a no-op: empty changed[], no new log row (idempotent).
+  var r2 = updateSettings_({ digestWeeklyDay: newWeeklyDay }, 'selftest');
+  assert_(r2.changed.length === 0, 're-saving identical values reports no changes');
+  assert_(countLogRows_('settings', 'settings-update') === logCountBefore + 1,
+    'a no-op save appends no ActivityLog row');
+
+  // 3. Invalid digestHour is rejected before any write (no partial writes).
+  assertFails_('BAD_REQUEST', function () {
+    updateSettings_({ digestHour: '25', digestWeeklyDay: 'Friday' }, 'selftest');
+  }, 'digestHour=25 → BAD_REQUEST');
+  assert_(readSettingsMap_().digestWeeklyDay === newWeeklyDay,
+    'a rejected save writes nothing, even for the other valid fields in the same payload');
+
+  // 4. Invalid gcalEventReminderMin is rejected, no write.
+  assertFails_('BAD_REQUEST', function () {
+    updateSettings_({ gcalEventReminderMin: '-5' }, 'selftest');
+  }, 'gcalEventReminderMin=-5 → BAD_REQUEST');
+
+  // 5. Invalid timezone is rejected, no write.
+  assertFails_('BAD_REQUEST', function () {
+    updateSettings_({ timezone: 'Mars/Olympus_Mons' }, 'selftest');
+  }, 'an off-list timezone → BAD_REQUEST');
+
+  // 6. A non-whitelisted key is rejected outright — Sheet-only settings stay untouched
+  //    (FR-013/SC-004), even when mixed with an otherwise-valid field.
+  var maxEmailBefore = before.maxEmail;
+  assertFails_('BAD_REQUEST', function () {
+    updateSettings_({ maxEmail: 'nope@example.com', digestHour: String(before.digestHour || 7) }, 'selftest');
+  }, 'a non-editable key (maxEmail) → BAD_REQUEST');
+  assert_(readSettingsMap_().maxEmail === maxEmailBefore, 'maxEmail is untouched by a rejected save');
+
+  // 7. Changing digestHour reinstalls the daily digest trigger at the new hour.
+  var newHour = String((Number(before.digestHour || 7) + 1) % 24);
+  var r7 = updateSettings_({ digestHour: newHour }, 'selftest');
+  assert_(r7.digestTriggerReinstalled === true, 'changing digestHour reinstalls the digest trigger');
+  var sendDigestsTriggers = ScriptApp.getProjectTriggers().filter(function (t) {
+    return t.getHandlerFunction() === 'sendDigests';
+  });
+  assert_(sendDigestsTriggers.length === 1, 'exactly one sendDigests trigger exists after reinstall');
+
+  // 8. A save that doesn't touch digestHour does not report a reinstall.
+  var r8 = updateSettings_({ ntfyEnabled: before.ntfyEnabled === 'FALSE' ? 'TRUE' : 'FALSE' }, 'selftest');
+  assert_(r8.digestTriggerReinstalled === false, 'a save without digestHour does not reinstall the trigger');
+
+  // Restore every key this test touched, back to the pre-test snapshot.
+  updateSettings_({
+    digestWeeklyDay: before.digestWeeklyDay || 'Sunday',
+    digestMonthlyDay: before.digestMonthlyDay || 'last',
+    digestHour: String(before.digestHour || 7),
+    ntfyEnabled: before.ntfyEnabled === 'FALSE' ? 'FALSE' : 'TRUE'
+  }, 'selftest');
+
+  Logger.log('live settings.update: pass');
 }
 
 // ---------------------------------------------------------------------------

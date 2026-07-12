@@ -1,12 +1,13 @@
 import { useState } from 'react'
-import { ChevronRight, RefreshCw, ClipboardList, LogOut } from 'lucide-react'
+import { ChevronRight, RefreshCw, ClipboardList, Settings2, LogOut } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { RecurringManager } from '@/components/more/RecurringManager'
 import { TemplatesManager } from '@/components/more/TemplatesManager'
+import { SettingsView } from '@/components/more/SettingsView'
 import { ownerStyle } from '@/lib/owners'
 import { cn } from '@/lib/utils'
 
-type Subscreen = null | 'recurring' | 'templates'
+type Subscreen = null | 'recurring' | 'templates' | 'settings'
 
 /** More hub — account info + sign out + Recurring/Templates managers (US6, T032). */
 export function MoreView() {
@@ -53,6 +54,25 @@ export function MoreView() {
     )
   }
 
+  if (subscreen === 'settings') {
+    return (
+      <div className="flex flex-col">
+        <div className="flex items-center gap-2 border-b border-border bg-surface px-4 py-3">
+          <button
+            type="button"
+            onClick={() => setSubscreen(null)}
+            className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-control text-ink-muted hover:bg-surface-alt focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+            aria-label="Back to More"
+          >
+            ←
+          </button>
+          <h2 className="font-display text-lg text-ink">Settings</h2>
+        </div>
+        <SettingsView />
+      </div>
+    )
+  }
+
   return (
     <div className="flex flex-col gap-6 px-4 py-6">
       {/* Manage section */}
@@ -84,13 +104,28 @@ export function MoreView() {
               type="button"
               onClick={() => setSubscreen('templates')}
               className={cn(
-                'flex min-h-[52px] w-full items-center gap-3 px-4 py-3 text-left',
+                'flex min-h-[52px] w-full items-center gap-3 border-b border-border px-4 py-3 text-left',
                 'hover:bg-surface-alt',
                 'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
               )}
             >
               <ClipboardList className="h-5 w-5 shrink-0 text-ink-muted" aria-hidden="true" />
               <span className="flex-1 text-sm text-ink">Prep Templates</span>
+              <ChevronRight className="h-4 w-4 shrink-0 text-ink-faint" aria-hidden="true" />
+            </button>
+          </li>
+          <li>
+            <button
+              type="button"
+              onClick={() => setSubscreen('settings')}
+              className={cn(
+                'flex min-h-[52px] w-full items-center gap-3 px-4 py-3 text-left',
+                'hover:bg-surface-alt',
+                'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
+              )}
+            >
+              <Settings2 className="h-5 w-5 shrink-0 text-ink-muted" aria-hidden="true" />
+              <span className="flex-1 text-sm text-ink">Settings</span>
               <ChevronRight className="h-4 w-4 shrink-0 text-ink-faint" aria-hidden="true" />
             </button>
           </li>
