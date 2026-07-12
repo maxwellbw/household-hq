@@ -6,7 +6,11 @@ import { DashboardHome } from './DashboardHome'
 // empty states, not for data-fetching logic (covered in dashboard.test.ts).
 
 vi.mock('@/hooks/useSettings', () => ({
-  useSettings: () => ({ timezone: 'America/Los_Angeles' }),
+  useSettings: () => ({ timezone: 'America/Los_Angeles', data: { settings: { timezone: 'America/Los_Angeles' } } }),
+}))
+
+vi.mock('@/hooks/useLists', () => ({
+  useListItems: () => ({ data: [], isPending: false, isError: false }),
 }))
 
 vi.mock('@/hooks/useAuth', () => ({

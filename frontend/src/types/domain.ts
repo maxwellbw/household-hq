@@ -42,6 +42,26 @@ export interface Settings {
   [key: string]: string
 }
 
+// Feature 024 — grocery & household lists. No owner field: every list/item is
+// implicitly shared, unlike Tasks/Events (research R2).
+export type ListItemStatus = 'need' | 'stocked'
+export type ListSection = 'produce' | 'dairy' | 'frozen' | 'pantry' | 'household' | 'other' | ''
+
+export interface List {
+  id: string
+  name: string
+}
+
+export interface ListItem {
+  id: string
+  listId: string
+  name: string
+  status: ListItemStatus
+  section: ListSection
+  staple: 'TRUE' | 'FALSE'
+  note?: string
+}
+
 export interface RecurringRule {
   id: string
   title: string
