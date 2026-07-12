@@ -15,6 +15,7 @@ Sheet schema and the JSON API every later feature calls. Dependency-free by cons
 | `ActivityLog.js` | append-only log writer (one row per successful mutation) |
 | `Setup.js` | `setupDatabase()` — idempotent provisioning (operator-run, not an API action) |
 | `Recurring.js` | occurrence math, nightly generator, trigger installer, rule CRUD (feature 004) |
+| `RecurringEvents.js` | occurrence id/timing math, nightly generator (Events + inline prep), trigger installer, rule CRUD (feature 025) |
 | `Seed.js` | `seedRecurringPack()` — one-time starter pack of home-maintenance chores (feature 015) |
 | `PrepTasks.js` | prep-id/date math, `syncPrepForEvent_` sync brain, nightly generator, trigger installer (feature 005) |
 | `CalendarSync.js` | calendar builders, `syncCalendarForEvent_`/`syncCalendarForTask_` mirror brain, `syncCalendar()` nightly reconcile + orphan sweep, trigger installer (feature 007) |
@@ -152,6 +153,57 @@ migration, same mechanism as `prepGeneratedFor`/`gcalEventId`); one new Settings
   `createRecord_` path the recurring generator uses per occurrence; a re-run with nothing new
   to add makes no Sheet or log writes at all.
 
+## Recurring events (feature 025)
+
+Extends the recurrence concept from feature 004 (which only ever materializes Tasks) to
+Events — birthdays, anniversaries, annual checkups no longer need re-entering by hand.
+**Two schema changes**: a new `RecurringEvents` tab (own rule type, distinct from `Recurring`
+— see design note below) and the `Events` tab gains `recurringEventId` (landed via
+`setupDatabase()`'s header migration, same mechanism as `prepGeneratedFor`/`gcalEventId`).
+One new Settings key, `recurringEventsLookaheadDays` (default 60). Delta contract:
+[`recurring-events.md`](../specs/025-recurring-events/contracts/recurring-events.md); design
+rationale: [`research.md`](../specs/025-recurring-events/research.md) (decisions D1–D8).
+
+- **Rule management.** `recurringEvents.create` / `.update` / `.delete` join
+  `recurringEvents.list`. A rule is `title, cadence (same seven cadences as `Recurring`),
+  anchorDate, startTime? (HH:mm — blank ⇒ all-day occurrences), durationMinutes? (only
+  meaningful with startTime), defaultOwner, templateId? (attaches a feature-005 prep
+  checklist by its `eventType`), location?, notes?, seasonStart?, seasonEnd?`. Like
+  `Recurring`, **`lastGenerated` is generator-managed** — `BAD_REQUEST` on create/update.
+- **Why a separate tab, not a `kind` flag on `Recurring`?** Event rules need columns chores
+  don't (`startTime`, `durationMinutes`, `templateId`, `location`) — folding them together
+  would leave every row half-blank. Both engines share the same pure date math
+  (`occurrencesInWindow_`, `inSeason_`, `addMonthsClamped_`, `addDays_` — all in
+  `Recurring.js`) rather than duplicating it.
+- **The nightly generator**, `generateRecurringEvents()`, reads every rule and materializes
+  each occurrence due within `recurringEventsLookaheadDays` (default 60 — longer than 004's
+  30, so long-lead prep on annual events has room to materialize before its offset date) as
+  an ordinary Event linked back via `recurringEventId`. All-day when the rule has no
+  `startTime` (date-only `start`/`end` — the frontend already renders that as all-day);
+  timed otherwise, ending `durationMinutes` (default 60) after `startTime`. It is a
+  **trigger**, not an API action — install it once with `installRecurringEventsTrigger()`
+  (idempotent). Runs at hour 2, ahead of 004 (3), 005 (4), 007 (5), and 008 (6), so
+  occurrences exist before every downstream nightly job.
+- **Prep is inline, reusing 005 unchanged.** Immediately after creating each occurrence,
+  the generator calls `syncPrepForEvent_` — the same function `createEvent_` calls — so a
+  rule with a `templateId` gets its occurrence's prep tasks the same run, dated by each
+  step's offset relative to the occurrence. A rule with no template, or one naming a
+  deleted template, simply yields a plain occurrence — `syncPrepForEvent_` already tolerates
+  that with no error.
+- **Idempotent by construction**, exactly like 004: each occurrence's id is deterministic
+  (`'v' + hex(MD5(recurringEventId + '|' + date))`), and the rule's `lastGenerated`
+  high-water mark means a hand-deleted occurrence is never resurrected.
+- **Deleting an occurrence already cascades its prep — no new code.** `deleteEvent_`
+  (feature 005) already purges *all* prep tasks for any event it deletes, completed and
+  outstanding alike; occurrence Events are ordinary Events, so this was already covered
+  (confirmed by `SelfTest.js`, not re-implemented — see research D7 for how this was
+  discovered mid-implementation).
+- **All-day events now round-trip through the API.** `Events.start`/`end` validation
+  changed from `datetime`-only to `datetimeOrDate` (accepts a date-only value too), so a
+  hand/API edit to an all-day occurrence's date no longer fails validation.
+- **Logging.** Each generated occurrence (and its prep) logs under actor `system`, same as
+  004/005; rule CRUD logs under the acting user.
+
 ## Google Calendar sync (feature 007)
 
 One-way outbound mirror of Events + dated Tasks to the shared "Household" Google Calendar,
@@ -215,9 +267,10 @@ and yields "Page Not Found".
    (`Config.js`) by hand — see feature 002 quickstart.
 4. **Validate:** follow [`quickstart.md`](../specs/001-sheets-schema-and-api/quickstart.md),
    or run `selfTest()` in the editor (expects `ALL PASS`).
-5. **Install the nightly triggers:** in the editor, run `installRecurringTrigger()` (feature
-   004), `installPrepTrigger()` (feature 005), and `installCalendarTrigger()` (feature 007)
-   once each. Re-running any of them is safe (it replaces rather than stacks the trigger).
+5. **Install the nightly triggers:** in the editor, run `installRecurringEventsTrigger()`
+   (feature 025), `installRecurringTrigger()` (feature 004), `installPrepTrigger()` (feature
+   005), and `installCalendarTrigger()` (feature 007) once each. Re-running any of them is
+   safe (it replaces rather than stacks the trigger).
 5a. **Optional starter chores (feature 015):** run `seedRecurringPack()` once to populate the
     `Recurring` tab with the starter pack (bins, HVAC filter, gutters, etc.) — correct the
     seeded anchor dates to the household's real schedule afterward. Safe to re-run.
@@ -229,9 +282,10 @@ and yields "Page Not Found".
    calendar's ID.
 
 Note: after any header change to `Config.HEADERS` (e.g. feature 005's `prepGeneratedFor`,
-feature 007's `gcalEventId` on Tasks, feature 015's `seedKey` on Recurring), re-run
-`setupDatabase()` — it appends any missing header to an already-provisioned tab without
-touching existing columns or data (safe to re-run).
+feature 007's `gcalEventId` on Tasks, feature 015's `seedKey` on Recurring, feature 025's
+`recurringEventId` on Events plus the new `RecurringEvents` tab), re-run `setupDatabase()`
+— it appends any missing header/tab without touching existing columns or data (safe to
+re-run).
 
 ## Deployment mode (interim; ratified by feature 002)
 
