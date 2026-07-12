@@ -73,7 +73,7 @@ function App() {
           <SomedayList visibleOwners={visibleOwners} onSchedule={openScheduleDialog} />
         </div>
       )}
-      {active === 'tasks' && <TasksView />}
+      {active === 'tasks' && <TasksView onScheduleSomeday={openScheduleDialog} />}
       {active === 'feed' && <FeedView />}
       {active === 'more' && <MoreView />}
 

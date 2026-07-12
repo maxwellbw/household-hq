@@ -7,19 +7,27 @@ import { groupTasks } from '@/lib/tasks'
 import { TaskRow } from '@/components/task/TaskRow'
 import { SnoozeDialog } from '@/components/task/SnoozeDialog'
 import { TaskDetailSheet } from '@/components/task/TaskDetailSheet'
+import { ForceRankDialog } from '@/components/task/ForceRankDialog'
 import { OwnerFilterChips } from '@/components/calendar/OwnerFilterChips'
 import type { Task } from '@/types/domain'
 
-/** All household tasks — grouped Open → collapsed Done, filtered by owner chips. */
-export function TasksView() {
+interface TasksViewProps {
+  /** Opens the shared feature-013 schedule (date+owner) dialog for a someday task (feature 021). */
+  onScheduleSomeday?: (taskId: string) => void
+}
+
+/** All household tasks — grouped Open → collapsed Done → Someday, filtered by owner chips. */
+export function TasksView({ onScheduleSomeday }: TasksViewProps) {
   const { data: tasks, isPending, isError } = useTasks()
   const { timezone } = useSettings()
   const { visibleOwners, toggle } = useOwnerFilter()
   const [doneExpanded, setDoneExpanded] = useState(false)
   const [openExpanded, setOpenExpanded] = useState(true)
+  const [somedayExpanded, setSomedayExpanded] = useState(true)
   const [snoozeTask, setSnoozeTask] = useState<Task | null>(null)
   const [detailTask, setDetailTask] = useState<Task | null>(null)
   const [detailEdit, setDetailEdit] = useState(false)
+  const [forceRankOpen, setForceRankOpen] = useState(false)
 
   if (isPending) {
     return (
@@ -41,7 +49,7 @@ export function TasksView() {
   }
 
   const filtered = (tasks ?? []).filter((t) => visibleOwners.has(t.owner))
-  const { open, done } = groupTasks(filtered)
+  const { open, done, someday } = groupTasks(filtered)
 
   const noTasksAtAll = !tasks?.length
   const nothingAfterFilter = !!tasks?.length && !filtered.length
@@ -125,6 +133,53 @@ export function TasksView() {
             )}
           </div>
         )}
+
+        {/* Someday group — standalone undated tasks, collapsible, expanded by default (021) */}
+        <div className="mt-4">
+          <div className="mb-1 flex min-h-[44px] w-full items-center gap-1 px-1">
+            <button
+              type="button"
+              onClick={() => setSomedayExpanded((v) => !v)}
+              aria-expanded={somedayExpanded}
+              className="flex min-h-[44px] flex-1 items-center gap-1 text-left text-xs font-medium uppercase tracking-wide text-ink-faint hover:text-ink-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+            >
+              {somedayExpanded
+                ? <ChevronDown size={14} aria-hidden="true" />
+                : <ChevronRight size={14} aria-hidden="true" />
+              }
+              Someday ({someday.length})
+            </button>
+            {/* Force-rank is unavailable with fewer than 2 tasks — nothing to compare (FR-014) */}
+            {someday.length >= 2 && (
+              <button
+                type="button"
+                onClick={() => setForceRankOpen(true)}
+                className="flex min-h-[44px] shrink-0 items-center rounded-control px-2 text-xs font-medium text-ink-muted hover:text-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+              >
+                Force-rank
+              </button>
+            )}
+          </div>
+
+          {somedayExpanded && (
+            someday.length === 0 ? (
+              <p className="px-1 py-4 text-sm text-ink-muted">
+                Nothing parked for later — add a task without a due date to see it here.
+              </p>
+            ) : (
+              <div className="rounded-card bg-surface shadow-card">
+                {someday.map((task) => (
+                  <TaskRow
+                    key={task.id}
+                    task={task}
+                    timezone={timezone}
+                    onDetail={() => onScheduleSomeday?.(task.id)}
+                  />
+                ))}
+              </div>
+            )
+          )}
+        </div>
       </div>
 
       {snoozeTask && (
@@ -136,6 +191,9 @@ export function TasksView() {
           initialEdit={detailEdit}
           onClose={() => { setDetailTask(null); setDetailEdit(false) }}
         />
+      )}
+      {forceRankOpen && (
+        <ForceRankDialog somedayTasks={someday} onClose={() => setForceRankOpen(false)} />
       )}
     </div>
   )
