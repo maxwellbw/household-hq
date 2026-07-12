@@ -11,32 +11,18 @@ order confirmed by Jaz 2026-07-11, including 010/011 — definitely a go, slotte
 
 ## The queue — up next, in order
 
-**Next up: 019 — Task & event details + collaboration** (022 merged 2026-07-11; 019 is next in the confirmed order).
+**Next up: 020 — Settings editor under More** (019 merged 2026-07-12; 020 is next in the confirmed order).
 
 | Order | # | Feature | Stage | Spec folder | PR |
 |---|---|---|---|---|---|
-| 1 | 019 | Task & event details + collaboration | 🚧 implemented, pending Sheet migration + PR | [specs/019-details-collaboration](specs/019-details-collaboration/spec.md) | — |
-| 2 | 020 | Settings editor under More | ⬜ not started | — | — |
-| 3 | 021 | Someday force-rank + Tasks-tab Someday section | ⬜ not started | — | — |
-| 4 | 023 | Dog-care recurring seed rows | ⬜ not started | — | — |
-| 5 | 024 | Grocery & household lists | ⬜ not started | — | — |
-| 6 | 025 | Recurring events | ⬜ not started | — | — |
-| 7 | 026 | Inbound gcal import (personal calendars) | ⬜ not started | — | — |
-| 8 | 010 | PWA install + web push | ⬜ not started | — | — |
-| 9 | 011 | Weather-aware dog-walk window finder | ⬜ not started | — | — |
-
-**019 — Task & event details + collaboration** (scope extended 2026-07-11, Jaz's feedback
-round 3). (a) **Notes on tasks**: new Tasks sheet column (Events already have `notes`),
-editable wherever details open, URLs render as tappable links (air-filter buy link,
-reservation / Google Maps link). (b) **Acknowledge/commit** (clarified 2026-07-10): tasks
-assigned to the other person get an "I've got it" action; the assigner gets a **dismissible
-dashboard notification + instant ntfy ping** (009 plumbing reused); unacknowledged assigned
-tasks visibly read as "not yet committed". (c) **Event notes editing** (added 2026-07-11):
-the `notes` column exists and `EventDetailSheet` displays it, but no create/edit UI ever
-asks — add a notes field to event create + `EventEditSheet`, same tappable-link rendering
-as tasks. (d) **Event location** (added 2026-07-11): new Events sheet column + create/edit
-UI + display in the detail sheet, and `CalendarSync.js` maps it onto the mirrored gcal
-event's location so Google Maps/directions work from the synced calendar.
+| 1 | 020 | Settings editor under More | ⬜ not started | — | — |
+| 2 | 021 | Someday force-rank + Tasks-tab Someday section | ⬜ not started | — | — |
+| 3 | 023 | Dog-care recurring seed rows | ⬜ not started | — | — |
+| 4 | 024 | Grocery & household lists | ⬜ not started | — | — |
+| 5 | 025 | Recurring events | ⬜ not started | — | — |
+| 6 | 026 | Inbound gcal import (personal calendars) | ⬜ not started | — | — |
+| 7 | 010 | PWA install + web push | ⬜ not started | — | — |
+| 8 | 011 | Weather-aware dog-walk window finder | ⬜ not started | — | — |
 
 **020 — Settings editor under More.** Curated form (clarified: not a raw key–value
 editor): digest schedule (weekly/monthly day + hour), ntfy pings on/off, calendar reminder
@@ -137,6 +123,7 @@ prep template).
 | 017 | Calendar views & 7-day surfaces | [specs/017-calendar-views](specs/017-calendar-views/spec.md) | [#16](https://github.com/maxwellbw/household-hq/pull/16) |
 | 018 | Stay signed in (session persistence) | [specs/018-stay-signed-in](specs/018-stay-signed-in/spec.md) | [#17](https://github.com/maxwellbw/household-hq/pull/17) |
 | 022 | UX fix batch 2 (snooze on calendar, delete, collapsible Open) | [specs/022-ux-fix-batch-2](specs/022-ux-fix-batch-2/spec.md) | [#18](https://github.com/maxwellbw/household-hq/pull/18) |
+| 019 | Task & event details + collaboration | [specs/019-details-collaboration](specs/019-details-collaboration/spec.md) | [#19](https://github.com/maxwellbw/household-hq/pull/19) |
 
 **Planning history:** Phase 1 (001–007) + Phase 2 (008–009) per brief §10 · Phase 2.5
 (012–015) planned 2026-07-09, Jaz's feedback round 1 — the backend had outrun the UI ·
@@ -147,14 +134,34 @@ grocery lists + inbound gcal import from the parked list.
 
 ### Post-merge notes & open follow-ups
 
-**Open follow-ups first:** 009's live validation is still deferred (run `setupDatabase()` +
-`selfTest()`, pick topics, subscribe phones, quickstart A–F). 016, 017, 018, and **022** all
-shipped without a live browser pass (the sandboxed preview can't do real Google OAuth) —
-**a manual desktop + mobile quickstart pass is still recommended for all four; 018
-especially, since its core value (silent restore/refresh) is exactly what the sandbox
-can't exercise** — see `specs/018-stay-signed-in/quickstart.md`. 006's T057 live sign-in
-walkthrough was never formally run. 013's US3 (desktop drag-onto-day) is deferred until
-Schedule-X exposes stable `data-date` on month-grid cells.
+**Open follow-ups first:** **019's Sheet migration is still pending** — `setupDatabase()`
+(adds `Tasks.notes/ackBy/ackAt` + `Events.location`) and `selfTest()` need to be run from
+the Apps Script editor (no `clasp run` executable deployment configured for remote
+execution); until then the app fails closed with `SCHEMA_MISMATCH` on any request touching
+those fields. Backend code is pushed and the web-app deployment refreshed (@15) either way.
+009's live validation is still deferred (run `setupDatabase()` + `selfTest()`, pick topics,
+subscribe phones, quickstart A–F). 016, 017, 018, 019, and **022** all shipped without a
+live browser pass (the sandboxed preview can't do real Google OAuth) — **a manual desktop +
+mobile quickstart pass is still recommended for all five; 018 especially, since its core
+value (silent restore/refresh) is exactly what the sandbox can't exercise** — see
+`specs/018-stay-signed-in/quickstart.md`. 006's T057 live sign-in walkthrough was never
+formally run. 013's US3 (desktop drag-onto-day) is deferred until Schedule-X exposes stable
+`data-date` on month-grid cells.
+
+_019 (PR #19). Four slices, no new OAuth scope, one new backend action. **Notes**: new
+`Tasks.notes` column (Events' `notes` already existed) editable in create/edit everywhere;
+new pure `linkify()` + shared `NotesText` renders `http(s)://` URLs as tappable links via
+React children only (never `dangerouslySetInnerHTML`). **Acknowledge/commit**: new
+`tasks.acknowledge` action (`ackBy`/`ackAt` columns, idempotent, resets on reassignment) —
+"not yet committed" reads on task cards/dashboard/detail sheet (not calendar chips, Jaz's
+call); assigner gets an instant ntfy ping (009 reused) + a dismissible dashboard notice that
+persists until dismissed (per-device `localStorage`, mirrors 018's `session-store` pattern).
+**Event notes + location**: create/edit UI added for both; `location` maps onto the mirrored
+Google Calendar event via `setLocation()` in the existing 007 sync, including clearing it.
+269 tests green (40 new); `/impeccable audit` (code-level — sandbox blocks live OAuth) found
+and fixed one real WCAG AA gap (a new link/button color at 4.05:1, below the 4.5:1 floor).
+**Sheet migration (`setupDatabase()`) not yet run** — see the follow-up note above; merged
+with that and the live pass still pending._
 
 _018 (PR #17). Frontend-only, no backend/scope/clasp change. GIS `auto_select` + a silent
 `prompt()` restore on boot (`RestoringGate` while resolving; falls back to the sign-in wall
