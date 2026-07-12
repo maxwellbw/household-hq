@@ -105,6 +105,7 @@ var HANDLERS = {
   'tasks.reopen':    function (p, actor) { return reopenTask_(p, actor); },
   'tasks.snooze':    function (p, actor) { return snoozeTask_(p, actor); },
   'tasks.unsnooze':  function (p, actor) { return unsnoozeTask_(p, actor); },
+  'tasks.acknowledge': function (p, actor) { return acknowledgeTask_(p, actor); }, // feature 019 US2
   'tasks.delete':    function (p, actor) { return { id: deleteTask_(p, actor) }; }, // feature 007: mirror cleanup
 
   'templates.list':   function () { return { templates: listRecords_(TABS.TEMPLATES) }; },
@@ -333,12 +334,20 @@ function createTask_(payload, actor) {
       && String(payload.status).trim() !== 'open') {
     fail_('BAD_REQUEST', 'New tasks always start "open"; use tasks.complete afterwards.', 'status');
   }
+  // ackBy/ackAt are server-managed (feature 019 US2) — a new task is never pre-acknowledged.
+  ['ackBy', 'ackAt'].forEach(function (f) {
+    if (payload.hasOwnProperty(f) && String(payload[f]).trim() !== '') {
+      fail_('BAD_REQUEST', '"' + f + '" is generator-managed; use tasks.acknowledge.', f);
+    }
+  });
   validateFields_(TABS.TASKS, payload);
   var rec = fullRecord_(TABS.TASKS, payload);
   rec.status = 'open';
   // completedBy/completedAt are server-managed (FR-002): a client-supplied value is ignored.
   rec.completedBy = '';
   rec.completedAt = '';
+  rec.ackBy = '';
+  rec.ackAt = '';
   var created = createRecord_(TABS.TASKS, rec, actor);
   mirrorTaskToCalendar_(created, actor); // feature 007: best-effort calendar mirror
   return rereadTask_(created.id) || created;
@@ -350,15 +359,25 @@ function updateTask_(payload, actor) {
   // Lifecycle fields are not editable here — completion has exactly one path so the feed
   // never shows a completion as a generic "update" (feature 003 FR-015; supersedes 001's
   // status-via-update semantics, contracts/api-003.md). Use tasks.complete / tasks.reopen.
-  ['status', 'completedBy', 'completedAt'].forEach(function (f) {
+  // ackBy/ackAt are likewise server-managed (feature 019 US2) — use tasks.acknowledge.
+  ['status', 'completedBy', 'completedAt', 'ackBy', 'ackAt'].forEach(function (f) {
     if (payload.hasOwnProperty(f)) {
-      fail_('BAD_REQUEST', 'Use tasks.complete / tasks.reopen to change status; "' + f +
-        '" is not editable via tasks.update.', f);
+      fail_('BAD_REQUEST', 'Use tasks.complete / tasks.reopen / tasks.acknowledge to change ' +
+        'lifecycle fields; "' + f + '" is not editable via tasks.update.', f);
     }
   });
   validateFields_(TABS.TASKS, payload);
-  // Only title/owner/dueDate reach the patch; dueDate may be cleared (empty string) (FR-005).
+  // Only title/owner/dueDate/notes reach the patch; dueDate may be cleared (empty string)
+  // (FR-005). Reassigning to a different single owner resets acknowledgement (FR-011) —
+  // the new assignee's commitment is tracked fresh.
   var patch = mutablePatch_(TABS.TASKS, payload);
+  if (patch.hasOwnProperty('owner')) {
+    var existingForReset = listRecords_(TABS.TASKS).filter(function (t) { return t.id === String(payload.id).trim(); })[0];
+    if (existingForReset && existingForReset.owner !== patch.owner) {
+      patch.ackBy = '';
+      patch.ackAt = '';
+    }
+  }
   var merged = updateRecordById_(TABS.TASKS, String(payload.id).trim(), patch, actor);
   // feature 007: covers dueDate change/clear and owner change (moves/removes/recolors the mirror).
   mirrorTaskToCalendar_(merged, actor);
@@ -446,6 +465,32 @@ function unsnoozeTask_(payload, actor) {
   var result = setTaskUnsnooze_(String(payload.id).trim(), actor);
   if (result.changed) {
     mirrorTaskToCalendar_(result.task, actor); // re-create the calendar entry
+    result.task = rereadTask_(result.task.id) || result.task;
+  }
+  return result;
+}
+
+/**
+ * Acknowledge/commit to an assigned task (feature 019 US2, "I've got it"). Only the
+ * current owner may acknowledge, and only when the owner is a single person — `both` and
+ * self-assignment never need acknowledgement (spec Assumptions). Delegates to
+ * setTaskAcknowledge_ (idempotent), then best-effort pings the assigner on a real change.
+ * Returns { task, changed }.
+ */
+function acknowledgeTask_(payload, actor) {
+  requireFields_(payload, ['id']);
+  var id = String(payload.id).trim();
+  var existing = listRecords_(TABS.TASKS).filter(function (t) { return t.id === id; })[0];
+  if (!existing) fail_('NOT_FOUND', 'No ' + TABS.TASKS + ' record with id "' + id + '".');
+  if (existing.owner !== 'max' && existing.owner !== 'jaz') {
+    fail_('VALIDATION_FAILED', 'Only a task assigned to a single person can be acknowledged.', 'owner');
+  }
+  if (actor !== existing.owner) {
+    fail_('VALIDATION_FAILED', 'Only the assignee may acknowledge this task.', 'id');
+  }
+  var result = setTaskAcknowledge_(id, actor);
+  if (result.changed) {
+    pingAcknowledge_(result.task); // feature 009 plumbing reused, best-effort, never throws
     result.task = rereadTask_(result.task.id) || result.task;
   }
   return result;

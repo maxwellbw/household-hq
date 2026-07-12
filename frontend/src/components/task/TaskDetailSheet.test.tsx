@@ -6,15 +6,27 @@ import type { Task } from '@/types/domain'
 const unsnoozeMutate = vi.fn()
 const snoozeMutate = vi.fn()
 const deleteMutate = vi.fn((_id: string, opts?: { onSuccess?: () => void }) => opts?.onSuccess?.())
+const acknowledgeMutate = vi.fn((_id: string, opts?: { onSuccess?: () => void }) => opts?.onSuccess?.())
 vi.mock('@/hooks/useMutations', () => ({
   useUnsnoozeTask: () => ({ mutate: unsnoozeMutate, isPending: false }),
   useUpdateTask: () => ({ mutateAsync: vi.fn().mockResolvedValue({}), isPending: false }),
   useSnoozeTask: () => ({ mutate: snoozeMutate, isPending: false }),
   useDeleteTask: () => ({ mutate: deleteMutate, isPending: false }),
+  useAcknowledgeTask: () => ({ mutate: acknowledgeMutate, isPending: false }),
 }))
 
 vi.mock('@/hooks/useToast', () => ({
   useToast: () => ({ show: vi.fn() }),
+}))
+
+vi.mock('@/hooks/useAuth', () => ({
+  useAuth: () => ({
+    session: {
+      token: 'tok',
+      who: { identity: 'max', displayName: 'Max', email: 'max@test.com', needsActingPerson: false },
+      actingPerson: undefined,
+    },
+  }),
 }))
 
 const openTask: Task = {
@@ -41,6 +53,41 @@ const recurringTask: Task = {
   status: 'open',
   dueDate: '2026-07-15',
   recurringId: 'r1',
+} as Task
+
+// Viewer is 'max' (mocked useAuth session above).
+const uncommittedForViewer: Task = {
+  id: 't4',
+  title: 'Pick up the dog',
+  owner: 'max',
+  status: 'open',
+  dueDate: '2026-07-22',
+} as Task
+
+const uncommittedForOther: Task = {
+  id: 't5',
+  title: 'Book the vet',
+  owner: 'jaz',
+  status: 'open',
+  dueDate: '2026-07-22',
+} as Task
+
+const acknowledgedTask: Task = {
+  id: 't6',
+  title: 'Renew registration',
+  owner: 'max',
+  status: 'open',
+  dueDate: '2026-07-22',
+  ackBy: 'max',
+  ackAt: '2026-07-20T09:00',
+} as Task
+
+const taskWithNotes: Task = {
+  id: 't7',
+  title: 'Replace air filter',
+  owner: 'both',
+  status: 'open',
+  notes: 'Buy: https://example.com/filter',
 } as Task
 
 describe('TaskDetailSheet', () => {
@@ -130,5 +177,48 @@ describe('TaskDetailSheet', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
     expect(deleteMutate).not.toHaveBeenCalled()
     expect(screen.queryByRole('dialog', { name: 'Delete task?' })).not.toBeInTheDocument()
+  })
+
+  it('renders notes with a tappable link', () => {
+    render(<TaskDetailSheet task={taskWithNotes} onClose={vi.fn()} />)
+    expect(screen.getByText('Buy:', { exact: false })).toBeInTheDocument()
+    const link = screen.getByRole('link', { name: 'https://example.com/filter' })
+    expect(link).toHaveAttribute('href', 'https://example.com/filter')
+    expect(link).toHaveAttribute('target', '_blank')
+  })
+
+  it('shows no notes section when the task has no notes', () => {
+    render(<TaskDetailSheet task={openTask} onClose={vi.fn()} />)
+    expect(screen.queryByText('Notes')).not.toBeInTheDocument()
+  })
+
+  it('shows "Not yet committed" and "I\'ve got it" when the viewer is the uncommitted assignee', () => {
+    render(<TaskDetailSheet task={uncommittedForViewer} onClose={vi.fn()} />)
+    expect(screen.getByText('Not yet committed')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: "I've got it" })).toBeInTheDocument()
+  })
+
+  it('shows "Not yet committed" but no action when the viewer is the assigner, not the assignee', () => {
+    render(<TaskDetailSheet task={uncommittedForOther} onClose={vi.fn()} />)
+    expect(screen.getByText('Not yet committed')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: "I've got it" })).not.toBeInTheDocument()
+  })
+
+  it('tapping "I\'ve got it" calls the acknowledge mutation', () => {
+    render(<TaskDetailSheet task={uncommittedForViewer} onClose={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: "I've got it" }))
+    expect(acknowledgeMutate).toHaveBeenCalledWith('t4', expect.anything())
+  })
+
+  it('shows neither the badge nor the action once acknowledged', () => {
+    render(<TaskDetailSheet task={acknowledgedTask} onClose={vi.fn()} />)
+    expect(screen.queryByText('Not yet committed')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: "I've got it" })).not.toBeInTheDocument()
+  })
+
+  it('a "both"-owned task never shows the commitment badge or action', () => {
+    render(<TaskDetailSheet task={recurringTask} onClose={vi.fn()} />)
+    expect(screen.queryByText('Not yet committed')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: "I've got it" })).not.toBeInTheDocument()
   })
 })

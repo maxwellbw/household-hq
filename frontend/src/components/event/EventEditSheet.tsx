@@ -33,6 +33,8 @@ export function EventEditSheet({ event, onClose }: EventEditSheetProps) {
   const [endDate, setEndDate] = useState(initEndDate)
   const [endTime, setEndTime] = useState(initEndTime)
   const [owner, setOwner] = useState<Owner>(event.owner)
+  const [notes, setNotes] = useState(event.notes ?? '')
+  const [location, setLocation] = useState(event.location ?? '')
   const [fieldError, setFieldError] = useState<{ field?: string; message: string } | null>(null)
 
   async function handleSubmit(e: React.FormEvent) {
@@ -57,7 +59,15 @@ export function EventEditSheet({ event, onClose }: EventEditSheetProps) {
     }
 
     try {
-      await updateEvent.mutateAsync({ id: event.id, title: title.trim(), start, end, owner })
+      await updateEvent.mutateAsync({
+        id: event.id,
+        title: title.trim(),
+        start,
+        end,
+        owner,
+        notes,
+        location,
+      })
       onClose()
     } catch (err) {
       if (err instanceof ApiError) {
@@ -143,6 +153,27 @@ export function EventEditSheet({ event, onClose }: EventEditSheetProps) {
           </div>
           {fieldError?.field === 'end' && <p role="alert" className="mt-1 text-xs text-danger">{fieldError.message}</p>}
         </div>
+
+        <label className="mb-3 block">
+          <span className="mb-1 block text-xs font-medium text-ink-muted">Location (optional)</span>
+          <input
+            value={location}
+            onChange={(e) => setLocation(e.target.value)}
+            placeholder="Address or place"
+            className="min-h-[44px] w-full rounded-control border border-border bg-surface px-3 text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+          />
+        </label>
+
+        <label className="mb-3 block">
+          <span className="mb-1 block text-xs font-medium text-ink-muted">Notes (optional)</span>
+          <textarea
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder="Add a note — links are tappable"
+            rows={2}
+            className="w-full rounded-control border border-border bg-surface px-3 py-2 text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+          />
+        </label>
 
         <div className="mb-5">
           <span className="mb-1 block text-xs font-medium text-ink-muted">Who</span>

@@ -16,6 +16,7 @@ export interface Event {
   templateId?: string
   gcalEventId?: string
   prepGeneratedFor?: string
+  location?: string
 }
 
 export interface Task {
@@ -30,6 +31,9 @@ export interface Task {
   completedAt?: string // ISO datetime
   snoozeHistory?: string
   listItems?: string
+  notes?: string
+  ackBy?: Owner // feature 019: who committed to this assignment
+  ackAt?: string // ISO datetime
 }
 
 export interface Settings {

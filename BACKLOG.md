@@ -15,7 +15,7 @@ order confirmed by Jaz 2026-07-11, including 010/011 — definitely a go, slotte
 
 | Order | # | Feature | Stage | Spec folder | PR |
 |---|---|---|---|---|---|
-| 1 | 019 | Task & event details + collaboration | ⬜ not started | — | — |
+| 1 | 019 | Task & event details + collaboration | 🚧 implemented, pending Sheet migration + PR | [specs/019-details-collaboration](specs/019-details-collaboration/spec.md) | — |
 | 2 | 020 | Settings editor under More | ⬜ not started | — | — |
 | 3 | 021 | Someday force-rank + Tasks-tab Someday section | ⬜ not started | — | — |
 | 4 | 023 | Dog-care recurring seed rows | ⬜ not started | — | — |
