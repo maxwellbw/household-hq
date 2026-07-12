@@ -3,15 +3,18 @@ import { useTasks } from '@/hooks/useTasks'
 import { useEvents } from '@/hooks/useEvents'
 import { useRecurring } from '@/hooks/useRecurring'
 import { useSettings } from '@/hooks/useSettings'
+import { useListItems } from '@/hooks/useLists'
 import { useAuth } from '@/hooks/useAuth'
 import { highlights, loadBalance, resolveViewer, sevenDayTiles, smartViews } from '@/lib/dashboard'
 import { ackNotices } from '@/lib/ackNotices'
+import { shouldShowGroceryNudge } from '@/lib/lists'
 import { monthRange, weekRange } from '@/lib/datetime'
 import { SmartViews } from '@/components/dashboard/SmartViews'
 import { LoadBalance } from '@/components/dashboard/LoadBalance'
 import { Highlights } from '@/components/dashboard/Highlights'
 import { SevenDayStrip } from '@/components/dashboard/SevenDayStrip'
 import { AckNotices } from '@/components/dashboard/AckNotices'
+import { GroceryNudge } from '@/components/dashboard/GroceryNudge'
 
 interface DashboardHomeProps {
   onOpenDate: (dateKey: string) => void
@@ -21,7 +24,8 @@ export function DashboardHome({ onOpenDate }: DashboardHomeProps) {
   const tasksQuery = useTasks()
   const eventsQuery = useEvents()
   const recurringQuery = useRecurring()
-  const { timezone } = useSettings()
+  const { timezone, data: settingsData } = useSettings()
+  const listItemsQuery = useListItems()
   const { session } = useAuth()
 
   const isPending = tasksQuery.isPending || eventsQuery.isPending || recurringQuery.isPending
@@ -56,6 +60,11 @@ export function DashboardHome({ onOpenDate }: DashboardHomeProps) {
     [tasksQuery.data, eventsQuery.data, timezone],
   )
 
+  const showGroceryNudge = useMemo(
+    () => shouldShowGroceryNudge(listItemsQuery.data ?? [], settingsData?.settings.groceryStapleNudgeThreshold),
+    [listItemsQuery.data, settingsData],
+  )
+
   if (isPending) {
     return (
       <div className="flex flex-col gap-4 px-4 py-6" aria-busy="true" aria-label="Loading dashboard">
@@ -81,6 +90,7 @@ export function DashboardHome({ onOpenDate }: DashboardHomeProps) {
   return (
     <div className="flex flex-col py-2">
       <AckNotices notices={notices} />
+      <GroceryNudge show={showGroceryNudge} />
       <SevenDayStrip tiles={strip} onOpenDate={onOpenDate} />
       <SmartViews views={views} timezone={timezone} />
       <LoadBalance weekBalance={weekBal} monthBalance={monthBal} viewer={viewer} />

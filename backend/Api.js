@@ -121,6 +121,17 @@ var HANDLERS = {
   'settings.list':  function () { return { settings: readSettingsMap_() }; },
   'settings.update': function (p, actor) { return updateSettings_(p, actor); },
 
+  // Feature 024: grocery & household lists.
+  'lists.list':   function () { return listLists_(); },
+  'lists.create': function (p, actor) { return createList_(p, actor); },
+  'lists.delete': function (p, actor) { return deleteList_(p, actor); },
+
+  'listItems.list':   function (p) { return listListItems_(p); },
+  'listItems.create': function (p, actor) { return createListItem_(p, actor); },
+  'listItems.update': function (p, actor) { return updateListItem_(p, actor); },
+  'listItems.toggle': function (p, actor) { return toggleListItem_(p, actor); },
+  'listItems.delete': function (p, actor) { return deleteListItem_(p, actor); },
+
   // Feature 003: read the household activity feed (newest-first, bounded; read-only).
   'activity.list':  function (p) { return listActivity_(p); },
 
@@ -179,6 +190,11 @@ function validateSettingValue_(key, value) {
     case 'digestHour':
       if (!/^\d{1,2}$/.test(value) || +value > 23) {
         fail_('BAD_REQUEST', 'digestHour must be an integer 0-23.', key);
+      }
+      return;
+    case 'groceryStapleNudgeThreshold':
+      if (!isValidType_('posint', value)) {
+        fail_('BAD_REQUEST', 'groceryStapleNudgeThreshold must be a positive integer.', key);
       }
       return;
     case 'gcalEventReminderMin':

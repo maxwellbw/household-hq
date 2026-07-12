@@ -11,13 +11,14 @@ order confirmed by Jaz 2026-07-11, including 010/011 — definitely a go, slotte
 
 ## The queue — up next, in order
 
-**Next up: 024 — Grocery & household lists** (023 merged 2026-07-12; 024 is next in the confirmed order).
+**Next up: 024 — Grocery & household lists** (implemented + backend deployed 2026-07-12;
+needs your manual `setupDatabase()`/`selfTest()` run + live validation before PR).
 
 | Order | # | Feature | Stage | Spec folder | PR |
 |---|---|---|---|---|---|
 | 1 | 021 | Someday force-rank + Tasks-tab Someday section | ✅ merged | specs/021-someday-force-rank | [#21](https://github.com/maxwellbw/household-hq/pull/21) |
 | 2 | 023 | Dog-care recurring seed rows | ✅ merged | specs/023-dog-care-seed-rows | [#22](https://github.com/maxwellbw/household-hq/pull/22) |
-| 3 | 024 | Grocery & household lists | ⬜ not started | — | — |
+| 3 | 024 | Grocery & household lists | 🟡 implemented | specs/024-grocery-household-lists | — |
 | 4 | 025 | Recurring events | ⬜ not started | — | — |
 | 5 | 026 | Inbound gcal import (personal calendars) | ⬜ not started | — | — |
 | 6 | 010 | PWA install + web push | ⬜ not started | — | — |
@@ -52,6 +53,11 @@ staples out → dashboard nudge — automates the current "we're out of key thin
 **multiple lists** (groceries, Costco, hardware, pharmacy — same mechanics); **per-item
 note/quantity** ("2 bags", "the good brand"). Needs a new Sheet tab (hand-editable like
 everything else) and a Lists screen; must be EXTREMELY low-friction to add/flip items.
+**Clarified 2026-07-12:** sections fixed at Produce/Dairy/Frozen/Pantry/Household/Other;
+staple-nudge threshold lives in Settings (`groceryStapleNudgeThreshold`, default 3).
+**Planned 2026-07-12:** two new tabs, `Lists` + `ListItems` (no owner field — always
+shared); Lists **replaces the Feed tab** in the bottom nav (Feed moves into More) since
+this is meant to be checked multiple times a day. See specs/024-grocery-household-lists/.
 
 **025 — Recurring events.** The 004 engine materializes tasks only; birthdays,
 anniversaries, annual checkups have no home and get re-created by hand. Extend recurrence

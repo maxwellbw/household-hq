@@ -11,7 +11,7 @@ import { useOwnerFilter } from '@/hooks/useOwnerFilter'
 import { SomedayList } from '@/components/task/SomedayList'
 import { ScheduleTaskDialog } from '@/components/task/ScheduleTaskDialog'
 import { TasksView } from '@/components/task/TasksView'
-import { FeedView } from '@/components/feed/FeedView'
+import { ListsView } from '@/components/lists/ListsView'
 import { MoreView } from '@/components/more/MoreView'
 import { DashboardHome } from '@/components/dashboard/DashboardHome'
 import type { NavSection } from '@/components/shell/navItems'
@@ -74,7 +74,7 @@ function App() {
         </div>
       )}
       {active === 'tasks' && <TasksView onScheduleSomeday={openScheduleDialog} />}
-      {active === 'feed' && <FeedView />}
+      {active === 'lists' && <ListsView />}
       {active === 'more' && <MoreView />}
 
       {schedulingTaskId && (
