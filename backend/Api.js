@@ -118,6 +118,7 @@ var HANDLERS = {
   'recurring.update': function (p, actor) { return { recurring: updateRecurring_(p, actor) }; },
   'recurring.delete': function (p, actor) { return { id: deleteEntity_(TABS.RECURRING, p, actor) }; },
   'settings.list':  function () { return { settings: readSettingsMap_() }; },
+  'settings.update': function (p, actor) { return updateSettings_(p, actor); },
 
   // Feature 003: read the household activity feed (newest-first, bounded; read-only).
   'activity.list':  function (p) { return listActivity_(p); },
@@ -143,6 +144,97 @@ function fullRecord_(tabName, payload) {
 function deleteEntity_(tabName, payload, actor) {
   requireFields_(payload, ['id']);
   return deleteRecordById_(tabName, String(payload.id).trim(), actor);
+}
+
+// ---------------------------------------------------------------------------
+// Settings editor (feature 020) — curated write on top of the Sheet-only Settings tab.
+// Only EDITABLE_SETTINGS (Config.js) may be written here; everything else (emails, ntfy
+// topics, calendar/weather keys) stays Sheet-only for safety (FR-013).
+// ---------------------------------------------------------------------------
+
+/** Throws BAD_REQUEST if `value` isn't valid for `key`; every editable key is checked before
+ *  any write happens (FR-009), matching the accepted formats resolveWeekday_/
+ *  resolveMonthlyDay_/resolveHour_ (Digests.js) already treat as valid. */
+function validateSettingValue_(key, value) {
+  switch (key) {
+    case 'digestWeeklyEnabled':
+    case 'digestMonthlyEnabled':
+    case 'ntfyEnabled':
+      if (value !== 'TRUE' && value !== 'FALSE') {
+        fail_('BAD_REQUEST', key + ' must be TRUE or FALSE.', key);
+      }
+      return;
+    case 'digestWeeklyDay':
+      if (WEEKDAY_NAMES.indexOf(value.toLowerCase()) < 0) {
+        fail_('BAD_REQUEST', 'digestWeeklyDay must be a weekday name.', key);
+      }
+      return;
+    case 'digestMonthlyDay':
+      if (value.toLowerCase() !== 'last' &&
+          !(/^\d{1,2}$/.test(value) && +value >= 1 && +value <= 28)) {
+        fail_('BAD_REQUEST', 'digestMonthlyDay must be "last" or 1-28.', key);
+      }
+      return;
+    case 'digestHour':
+      if (!/^\d{1,2}$/.test(value) || +value > 23) {
+        fail_('BAD_REQUEST', 'digestHour must be an integer 0-23.', key);
+      }
+      return;
+    case 'gcalEventReminderMin':
+      if (!/^\d+$/.test(value)) {
+        fail_('BAD_REQUEST', 'gcalEventReminderMin must be a non-negative integer.', key);
+      }
+      return;
+    case 'timezone':
+      if (SETTINGS_TIMEZONES.indexOf(value) < 0) {
+        fail_('BAD_REQUEST', 'timezone must be one of the supported household timezones.', key);
+      }
+      return;
+  }
+}
+
+/** `settings.update` (contracts/settings-update.md): validate-all, diff, write only changed
+ *  whitelisted keys in one lock, re-install the digest trigger if its hour changed, and log
+ *  exactly one settings-update row. No-op saves (nothing changed) skip the write/log/trigger
+ *  entirely — idempotent, no log noise on repeat saves. */
+function updateSettings_(payload, actor) {
+  var keys = Object.keys(payload);
+  keys.forEach(function (key) {
+    if (EDITABLE_SETTINGS.indexOf(key) < 0) {
+      fail_('BAD_REQUEST', 'Unknown or non-editable setting: ' + key, key);
+    }
+  });
+
+  var normalized = {};
+  keys.forEach(function (key) {
+    var value = String(payload[key]).trim();
+    validateSettingValue_(key, value);
+    normalized[key] = key === 'digestWeeklyDay'
+      ? value.charAt(0).toUpperCase() + value.slice(1).toLowerCase()
+      : value;
+  });
+
+  var current = readSettingsMap_();
+  var changes = {};
+  keys.forEach(function (key) {
+    if (String(current[key] || '') !== normalized[key]) changes[key] = normalized[key];
+  });
+
+  var changedKeys = Object.keys(changes);
+  var digestTriggerReinstalled = false;
+  if (changedKeys.length > 0) {
+    setSettingValues_(changes, actor, 'updated ' + changedKeys.join(', '));
+    if (changes.hasOwnProperty('digestHour')) {
+      installDigestTrigger();
+      digestTriggerReinstalled = true;
+    }
+  }
+
+  return {
+    settings: readSettingsMap_(),
+    changed: changedKeys,
+    digestTriggerReinstalled: digestTriggerReinstalled
+  };
 }
 
 // ---------------------------------------------------------------------------

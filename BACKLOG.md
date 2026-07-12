@@ -15,7 +15,7 @@ order confirmed by Jaz 2026-07-11, including 010/011 — definitely a go, slotte
 
 | Order | # | Feature | Stage | Spec folder | PR |
 |---|---|---|---|---|---|
-| 1 | 020 | Settings editor under More | ⬜ not started | — | — |
+| 1 | 020 | Settings editor under More | 🚧 implemented, pending live validation | `specs/020-settings-editor/` | — |
 | 2 | 021 | Someday force-rank + Tasks-tab Someday section | ⬜ not started | — | — |
 | 3 | 023 | Dog-care recurring seed rows | ⬜ not started | — | — |
 | 4 | 024 | Grocery & household lists | ⬜ not started | — | — |
