@@ -3,6 +3,7 @@
 // over Event[] + Task[] — no backend change, client-side derivation only.
 
 import type { Event, Task, Owner } from '@/types/domain'
+import { somedaySort } from '@/lib/tasks'
 
 export interface EventWithTasks extends Event {
   tasks: Task[]
@@ -22,14 +23,15 @@ export interface CalendarModel {
  * dropped or crashing (FR-013 — no dangling tether).
  */
 /**
- * Returns open, standalone, undated tasks matching the given owner filter,
- * sorted by title. These are the exact complement of CalendarHome's dated
- * standalone tasks — a task is in Someday OR on the calendar, never both.
+ * Returns open, standalone, undated tasks matching the given owner filter, in the shared
+ * household rank order (feature 021 — ranked ascending by somedayRank, then unranked by
+ * title). These are the exact complement of CalendarHome's dated standalone tasks — a task
+ * is in Someday OR on the calendar, never both. Matches the Tasks tab's order (SC-003).
  */
 export function somedayTasks(model: CalendarModel, visibleOwners: Set<Owner>): Task[] {
   return model.standaloneTasks
     .filter((t) => t.status === 'open' && !t.dueDate && visibleOwners.has(t.owner))
-    .sort((a, b) => a.title.localeCompare(b.title))
+    .sort(somedaySort)
 }
 
 export function buildCalendarModel(events: Event[], tasks: Task[]): CalendarModel {

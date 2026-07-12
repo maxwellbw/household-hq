@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { groupTasks, parseSnoozeHistory, formatSnoozeHistory, isUncommitted, canAcknowledge } from './tasks'
+import { groupTasks, somedaySort, parseSnoozeHistory, formatSnoozeHistory, isUncommitted, canAcknowledge } from './tasks'
 import type { Task } from '@/types/domain'
 
 function task(overrides: Partial<Task> & { id: string }): Task {
@@ -32,15 +32,26 @@ describe('groupTasks', () => {
     expect(open.map((t) => t.id)).toEqual(['overdue', 'future'])
   })
 
-  it('undated tasks come last in the open group', () => {
+  it('standalone undated tasks are routed to someday, not open', () => {
     const tasks = [
       task({ id: 'undated' }),
       task({ id: 'dated', dueDate: '2026-07-15' }),
       task({ id: 'overdue', dueDate: '2026-07-01' }),
     ]
-    const { open } = groupTasks(tasks)
-    expect(open[open.length - 1].id).toBe('undated')
-    expect(open[0].id).toBe('overdue')
+    const { open, someday } = groupTasks(tasks)
+    expect(open.map((t) => t.id)).toEqual(['overdue', 'dated'])
+    expect(someday.map((t) => t.id)).toEqual(['undated'])
+  })
+
+  it('an undated task still attached to an event stays in open, sunk to the bottom', () => {
+    const tasks = [
+      task({ id: 'event-undated', eventId: 'evt-1' }),
+      task({ id: 'dated', dueDate: '2026-07-15' }),
+      task({ id: 'overdue', dueDate: '2026-07-01' }),
+    ]
+    const { open, someday } = groupTasks(tasks)
+    expect(open.map((t) => t.id)).toEqual(['overdue', 'dated', 'event-undated'])
+    expect(someday).toHaveLength(0)
   })
 
   it('snoozed task stays in the open group (status !== "done")', () => {
@@ -74,29 +85,128 @@ describe('groupTasks', () => {
     expect(done[0].id).toBe('dated')
   })
 
-  it('multiple undated open tasks are all placed at the end', () => {
+  it('multiple standalone undated tasks all land in someday', () => {
     const tasks = [
       task({ id: 'u1' }),
       task({ id: 'dated', dueDate: '2026-07-10' }),
       task({ id: 'u2' }),
     ]
-    const { open } = groupTasks(tasks)
-    expect(open[0].id).toBe('dated')
-    const tail = open.slice(1).map((t) => t.id)
-    expect(tail).toContain('u1')
-    expect(tail).toContain('u2')
+    const { open, someday } = groupTasks(tasks)
+    expect(open.map((t) => t.id)).toEqual(['dated'])
+    expect(someday.map((t) => t.id).sort()).toEqual(['u1', 'u2'])
   })
 
-  it('partitions open and done correctly in a mixed list', () => {
-
+  it('partitions open, done, and someday correctly in a mixed list', () => {
     const tasks = [
       task({ id: 'open1', status: 'open', dueDate: '2026-07-15' }),
       task({ id: 'done1', status: 'done', completedAt: '2026-07-09T10:00' }),
       task({ id: 'snoozed1', status: 'snoozed', dueDate: '2026-07-20' }),
+      task({ id: 'someday1', status: 'open' }),
     ]
-    const { open, done } = groupTasks(tasks)
+    const { open, done, someday } = groupTasks(tasks)
     expect(open.map((t) => t.id)).toEqual(['open1', 'snoozed1'])
     expect(done.map((t) => t.id)).toEqual(['done1'])
+    expect(someday.map((t) => t.id)).toEqual(['someday1'])
+  })
+
+  it('a snoozed standalone task with a future dueDate is not someday (has a date)', () => {
+    const tasks = [task({ id: 'snoozed', status: 'snoozed', dueDate: '2026-08-01' })]
+    const { open, someday } = groupTasks(tasks)
+    expect(open.map((t) => t.id)).toEqual(['snoozed'])
+    expect(someday).toHaveLength(0)
+  })
+
+  it('someday tasks sort by somedayRank ascending, unranked tasks after ranked ones by title', () => {
+    const tasks = [
+      task({ id: 'unranked-b', title: 'Zebra' }),
+      task({ id: 'rank-2', title: 'Second', somedayRank: '2' }),
+      task({ id: 'unranked-a', title: 'Alpha' }),
+      task({ id: 'rank-1', title: 'First', somedayRank: '1' }),
+    ]
+    const { someday } = groupTasks(tasks)
+    expect(someday.map((t) => t.id)).toEqual(['rank-1', 'rank-2', 'unranked-a', 'unranked-b'])
+  })
+
+  describe('change resilience (feature 021 US3)', () => {
+    it('a newly-added blank-rank task appends at the bottom without reordering ranked tasks (FR-017/018)', () => {
+      const before = [
+        task({ id: 'r1', title: 'First', somedayRank: '1' }),
+        task({ id: 'r2', title: 'Second', somedayRank: '2' }),
+      ]
+      const beforeOrder = groupTasks(before).someday.map((t) => t.id)
+
+      const after = [...before, task({ id: 'new', title: 'Brand new' })]
+      const afterOrder = groupTasks(after).someday.map((t) => t.id)
+
+      expect(beforeOrder).toEqual(['r1', 'r2'])
+      expect(afterOrder).toEqual(['r1', 'r2', 'new'])
+    })
+
+    it('removing a ranked task (scheduled/completed away) leaves the survivors relative order unchanged (FR-019)', () => {
+      const full = [
+        task({ id: 'r1', title: 'First', somedayRank: '1' }),
+        task({ id: 'r2', title: 'Second', somedayRank: '2' }),
+        task({ id: 'r3', title: 'Third', somedayRank: '3' }),
+      ]
+      // 'r2' scheduled away: it now has a dueDate, so it drops out of someday entirely,
+      // regardless of its stale somedayRank still being '2' on the row.
+      const withR2Scheduled = [
+        task({ id: 'r1', title: 'First', somedayRank: '1' }),
+        task({ id: 'r2', title: 'Second', somedayRank: '2', dueDate: '2026-08-01' }),
+        task({ id: 'r3', title: 'Third', somedayRank: '3' }),
+      ]
+      expect(groupTasks(full).someday.map((t) => t.id)).toEqual(['r1', 'r2', 'r3'])
+      expect(groupTasks(withR2Scheduled).someday.map((t) => t.id)).toEqual(['r1', 'r3'])
+    })
+
+    it('a task returning to someday reappears at its preserved somedayRank, not lost or appended (FR-020)', () => {
+      // 'r2' comes back (dueDate cleared) with its old somedayRank intact — it should
+      // slot back between rank 1 and rank 3, not fall to the unranked bottom.
+      const returned = [
+        task({ id: 'r1', title: 'First', somedayRank: '1' }),
+        task({ id: 'r3', title: 'Third', somedayRank: '3' }),
+        task({ id: 'r2', title: 'Second', somedayRank: '2' }),
+      ]
+      expect(groupTasks(returned).someday.map((t) => t.id)).toEqual(['r1', 'r2', 'r3'])
+    })
+
+    it('completing a ranked task drops it from someday without touching the other ranks', () => {
+      const tasks = [
+        task({ id: 'r1', title: 'First', somedayRank: '1' }),
+        task({ id: 'r2', title: 'Second', somedayRank: '2', status: 'done', completedAt: '2026-07-10T09:00' }),
+        task({ id: 'r3', title: 'Third', somedayRank: '3' }),
+      ]
+      const { someday, done } = groupTasks(tasks)
+      expect(someday.map((t) => t.id)).toEqual(['r1', 'r3'])
+      expect(done.map((t) => t.id)).toEqual(['r2'])
+    })
+  })
+})
+
+describe('somedaySort', () => {
+  it('orders ranked tasks numerically ascending', () => {
+    const a = task({ id: 'a', somedayRank: '3' })
+    const b = task({ id: 'b', somedayRank: '1' })
+    expect(somedaySort(a, b)).toBeGreaterThan(0)
+    expect(somedaySort(b, a)).toBeLessThan(0)
+  })
+
+  it('ranked tasks always sort before unranked tasks', () => {
+    const ranked = task({ id: 'r', title: 'Zzz', somedayRank: '1' })
+    const unranked = task({ id: 'u', title: 'Aaa' })
+    expect(somedaySort(ranked, unranked)).toBeLessThan(0)
+  })
+
+  it('unranked tasks fall back to title comparison', () => {
+    const a = task({ id: 'a', title: 'Beta' })
+    const b = task({ id: 'b', title: 'Alpha' })
+    expect(somedaySort(a, b)).toBeGreaterThan(0)
+  })
+
+  it('treats a blank somedayRank the same as absent', () => {
+    const a = task({ id: 'a', title: 'Beta', somedayRank: '' })
+    const b = task({ id: 'b', title: 'Alpha' })
+    expect(somedaySort(a, b)).toBeGreaterThan(0)
   })
 })
 

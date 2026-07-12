@@ -59,7 +59,7 @@ var HEADERS = {
            'prepGeneratedFor', 'location'],
   Tasks: ['id', 'title', 'dueDate', 'owner', 'status', 'eventId', 'recurringId',
           'completedBy', 'completedAt', 'snoozeHistory', 'listItems', 'gcalEventId',
-          'notes', 'ackBy', 'ackAt'],
+          'notes', 'ackBy', 'ackAt', 'somedayRank'],
   TaskTemplates: ['id', 'eventType', 'taskTitle', 'offsetDays', 'defaultOwner'],
   Recurring: ['id', 'title', 'cadence', 'anchorDate', 'defaultOwner', 'lastGenerated',
               'seasonStart', 'seasonEnd', 'seedKey'],
@@ -101,7 +101,7 @@ var ACTION_VERBS = {
   'gcal-sync': 'synced to calendar', 'digest-weekly': 'emailed the week ahead',
   'digest-monthly': 'emailed the month ahead', 'ntfy-ping': 'sent a completion ping',
   snooze: 'snoozed', unsnooze: 'un-snoozed', acknowledge: 'committed to',
-  'settings-update': 'updated settings'
+  'settings-update': 'updated settings', 'rank-someday': 'ranked'
 };
 
 /** feature 009 — free, keyless push-notification host; a platform choice, not household data. */
@@ -113,17 +113,18 @@ var NTFY_BASE_URL = 'https://ntfy.sh';
  * `*.update`, or `*.delete` counts.
  */
 function isWriteAction_(action) {
-  return /\.(create|update|delete|complete|reopen|snooze|unsnooze|acknowledge)$/.test(String(action));
+  return /\.(create|update|delete|complete|reopen|snooze|unsnooze|acknowledge|rank)$/.test(String(action));
 }
 
 /**
  * Typed fields per tab, driving both write validation (reject) and read warnings
  * (surface, don't drop — FR-020). Types: text | date | datetime | owner | status |
- * cadence | int | month. Untyped columns are free text.
+ * cadence | int | posint | month. Untyped columns are free text.
  */
 var FIELD_TYPES = {
   Events: { start: 'datetime', end: 'datetime', owner: 'owner' },
-  Tasks: { dueDate: 'date', owner: 'owner', status: 'status', completedAt: 'datetime' },
+  Tasks: { dueDate: 'date', owner: 'owner', status: 'status', completedAt: 'datetime',
+           somedayRank: 'posint' },
   TaskTemplates: { offsetDays: 'int', defaultOwner: 'owner' },
   Recurring: { cadence: 'cadence', anchorDate: 'date', defaultOwner: 'owner',
                lastGenerated: 'date', seasonStart: 'month', seasonEnd: 'month' }

@@ -40,6 +40,7 @@ function selfTest() {
   liveTaskNotes_();
   liveAcknowledge_();
   liveCalendarLocationSync_();
+  liveTasksRank_();
   Logger.log('ALL PASS');
 }
 
@@ -1491,4 +1492,62 @@ function unitNtfy_() {
   setSettingValue_('ntfyTopicJaz', savedJazTopic || '');
 
   Logger.log('unit ntfy: pass');
+}
+
+// ---------------------------------------------------------------------------
+// Live: someday force-rank (feature 021, contracts/api-021.md)
+// ---------------------------------------------------------------------------
+
+function liveTasksRank_() {
+  var pfx = SELFTEST_PREFIX + 'rank-';
+  var actor = 'selftest';
+  var a = createTask_({ title: pfx + 'a', owner: 'both' }, actor).id;
+  var b = createTask_({ title: pfx + 'b', owner: 'both' }, actor).id;
+  var c = createTask_({ title: pfx + 'c', owner: 'both' }, actor).id;
+
+  function rankOf(id) {
+    return listRecords_(TABS.TASKS).filter(function (t) { return t.id === id; })[0].somedayRank;
+  }
+
+  var logsBefore = countLogRows_('someday-rank', 'rank-someday');
+
+  var result = rankTasks_({ order: [c, a, b] }, actor);
+  assert_(result.ranked === 3, 'rankTasks_ ranks all 3 submitted ids');
+  assert_(rankOf(c) === '1' && rankOf(a) === '2' && rankOf(b) === '3',
+    'dense 1-based ranks assigned in submitted order');
+  assert_(countLogRows_('someday-rank', 'rank-someday') === logsBefore + 1,
+    'rank appends exactly one rank-someday log row, regardless of rows changed');
+
+  // Idempotent replay: same order in, same ranks out, no data drift — but still logs the
+  // explicit re-rank action (contracts/api-021.md: "no partial/corrupt order… safe to re-run").
+  var replay = rankTasks_({ order: [c, a, b] }, actor);
+  assert_(replay.ranked === 3 && rankOf(a) === '2',
+    'idempotent replay: same ranked count, ranks unchanged');
+  assert_(countLogRows_('someday-rank', 'rank-someday') === logsBefore + 2,
+    'idempotent replay still logs the explicit re-rank (not a silent no-op)');
+
+  // Re-rank with 'b' dropped (e.g. scheduled away): 'a'/'c' get fresh dense positions and
+  // 'b's stale rank is cleared rather than left phantom (FR-021).
+  rankTasks_({ order: [a, c] }, actor);
+  assert_(rankOf(a) === '1' && rankOf(c) === '2', 'new order re-ranked densely');
+  assert_(rankOf(b) === '', 'a rank absent from the new order is cleared, not left stale');
+
+  // Unknown ids in the submitted order are skipped, not an error (list may have drifted).
+  var withUnknown = rankTasks_({ order: [a, 'not-a-real-id-' + Utilities.getUuid(), c] }, actor);
+  assert_(withUnknown.ranked === 2, 'unknown ids in order are skipped, not counted');
+
+  // Empty order clears every rank in one call.
+  var cleared = rankTasks_({ order: [] }, actor);
+  assert_(cleared.ranked === 0 && rankOf(a) === '' && rankOf(c) === '',
+    'empty order clears all ranks (ranked: 0)');
+
+  assertFails_('VALIDATION_FAILED', function () { rankTasks_({}, actor); },
+    'missing order is rejected');
+  assertFails_('VALIDATION_FAILED', function () { rankTasks_({ order: 'not-an-array' }, actor); },
+    'non-array order is rejected');
+
+  assert_(isWriteAction_('tasks.rank'), 'tasks.rank is classified as a write action (shared-account acting-person gate)');
+
+  [a, b, c].forEach(function (id) { deleteRecordById_(TABS.TASKS, id, actor); });
+  Logger.log('live tasks.rank: pass');
 }
