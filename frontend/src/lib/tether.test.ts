@@ -89,13 +89,23 @@ describe('buildCalendarModel', () => {
 describe('somedayTasks', () => {
   const all = new Set<'max' | 'jaz' | 'both'>(['max', 'jaz', 'both'])
 
-  it('returns open undated standalone tasks sorted by title', () => {
+  it('returns open undated standalone tasks sorted by title when unranked', () => {
     const model = buildCalendarModel([], [
       task('t1', { title: 'Zebra', owner: 'max' }),
       task('t2', { title: 'Apple', owner: 'jaz' }),
     ])
     const result = somedayTasks(model, all)
     expect(result.map((t) => t.title)).toEqual(['Apple', 'Zebra'])
+  })
+
+  it('sorts ranked tasks by somedayRank ascending, ahead of unranked tasks (feature 021)', () => {
+    const model = buildCalendarModel([], [
+      task('t1', { title: 'Zebra', owner: 'max', somedayRank: '2' }),
+      task('t2', { title: 'Apple', owner: 'jaz' }),
+      task('t3', { title: 'Mango', owner: 'max', somedayRank: '1' }),
+    ])
+    const result = somedayTasks(model, all)
+    expect(result.map((t) => t.id)).toEqual(['t3', 't1', 't2'])
   })
 
   it('excludes tasks that have a dueDate (dated tasks belong on the calendar)', () => {

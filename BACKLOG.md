@@ -15,7 +15,7 @@ order confirmed by Jaz 2026-07-11, including 010/011 — definitely a go, slotte
 
 | Order | # | Feature | Stage | Spec folder | PR |
 |---|---|---|---|---|---|
-| 1 | 021 | Someday force-rank + Tasks-tab Someday section | ⬜ not started | — | — |
+| 1 | 021 | Someday force-rank + Tasks-tab Someday section | 🟦 deployed (pending validation) | specs/021-someday-force-rank | [#21](https://github.com/maxwellbw/household-hq/pull/21) |
 | 2 | 023 | Dog-care recurring seed rows | ⬜ not started | — | — |
 | 3 | 024 | Grocery & household lists | ⬜ not started | — | — |
 | 4 | 025 | Recurring events | ⬜ not started | — | — |

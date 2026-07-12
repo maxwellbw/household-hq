@@ -24,6 +24,7 @@ function isValidType_(type, value) {
     case 'date': return isIsoDate_(value);
     case 'datetime': return isIsoDateTime_(value);
     case 'int': return /^-?\d+$/.test(value);
+    case 'posint': return /^\d+$/.test(value) && Number(value) >= 1;
     case 'month': return /^\d+$/.test(value) && Number(value) >= 1 && Number(value) <= 12;
     case 'text': return true;
     default: return true;

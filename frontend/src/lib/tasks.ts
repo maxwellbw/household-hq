@@ -3,6 +3,7 @@ import type { Owner, Task } from '@/types/domain'
 export interface GroupedTasks {
   open: Task[]
   done: Task[]
+  someday: Task[]
 }
 
 export interface SnoozeHistoryRow {
@@ -38,18 +39,43 @@ export function formatSnoozeHistory(rows: SnoozeHistoryRow[]): string {
   return rows.map((r) => `${r.fromDue ?? '∅'}→${r.newDue} @ ${r.at}`).join(' | ')
 }
 
-// Sentinel that sorts undated tasks after all real ISO dates (YYYY-MM-DD)
+// Sentinel that sorts undated tasks after all real ISO dates (YYYY-MM-DD). Only reachable
+// now by an undated task still attached to an event (rare) — standalone undated tasks are
+// routed to `someday` instead (feature 021).
 const UNDATED_SENTINEL = '9999-99-99'
 
+/** A "someday" task (feature 013/021): open, standalone (no event), no due date. */
+function isSomedayTask(t: Task): boolean {
+  return !t.eventId && !t.dueDate
+}
+
 /**
- * Partition tasks into Open (status !== 'done') and Done (status === 'done').
- * Open: sorted by dueDate ascending — overdue dates naturally precede future
- * ones, undated tasks go last. Done: sorted by completedAt descending.
- * Pure function — no side effects.
+ * Shared household order for the Someday list/section (feature 021): ranked tasks
+ * ascending by `somedayRank` (blank = unranked), unranked tasks below sorted by title.
+ * Pure — used identically by the Tasks tab and the home dashboard so both agree (SC-003).
+ */
+export function somedaySort(a: Task, b: Task): number {
+  const ar = a.somedayRank ? Number(a.somedayRank) : NaN
+  const br = b.somedayRank ? Number(b.somedayRank) : NaN
+  const ak = Number.isFinite(ar) ? ar : Number.POSITIVE_INFINITY
+  const bk = Number.isFinite(br) ? br : Number.POSITIVE_INFINITY
+  return ak !== bk ? ak - bk : a.title.localeCompare(b.title)
+}
+
+/**
+ * Partition tasks into Open (dated, status !== 'done'), Done (status === 'done'), and
+ * Someday (standalone, undated, open — feature 021). Open: sorted by dueDate ascending;
+ * an undated-but-event-attached task (edge case) still sinks to the bottom via the
+ * sentinel rather than disappearing. Done: sorted by completedAt descending. Someday:
+ * shared-rank order via `somedaySort`. Pure function — no side effects.
  */
 export function groupTasks(tasks: Task[]): GroupedTasks {
-  const open = tasks
-    .filter((t) => t.status !== 'done')
+  const openAll = tasks.filter((t) => t.status !== 'done')
+
+  const someday = openAll.filter(isSomedayTask).sort(somedaySort)
+
+  const open = openAll
+    .filter((t) => !isSomedayTask(t))
     .sort((a, b) => {
       const ak = a.dueDate ?? UNDATED_SENTINEL
       const bk = b.dueDate ?? UNDATED_SENTINEL
@@ -64,7 +90,7 @@ export function groupTasks(tasks: Task[]): GroupedTasks {
       return bk < ak ? -1 : bk > ak ? 1 : 0
     })
 
-  return { open, done }
+  return { open, done, someday }
 }
 
 /**

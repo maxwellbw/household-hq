@@ -34,6 +34,7 @@ export interface Task {
   notes?: string
   ackBy?: Owner // feature 019: who committed to this assignment
   ackAt?: string // ISO datetime
+  somedayRank?: string // feature 021: shared household priority order; blank = unranked
 }
 
 export interface Settings {

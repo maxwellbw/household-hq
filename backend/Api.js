@@ -107,6 +107,7 @@ var HANDLERS = {
   'tasks.unsnooze':  function (p, actor) { return unsnoozeTask_(p, actor); },
   'tasks.acknowledge': function (p, actor) { return acknowledgeTask_(p, actor); }, // feature 019 US2
   'tasks.delete':    function (p, actor) { return { id: deleteTask_(p, actor) }; }, // feature 007: mirror cleanup
+  'tasks.rank':      function (p, actor) { return rankTasks_(p, actor); }, // feature 021: someday force-rank
 
   'templates.list':   function () { return { templates: listRecords_(TABS.TEMPLATES) }; },
   'templates.create': function (p, actor) { return { template: createTemplate_(p, actor) }; },
@@ -481,6 +482,52 @@ function updateTask_(payload, actor) {
 function rereadTask_(id) {
   var found = listRecords_(TABS.TASKS).filter(function (t) { return t.id === id; });
   return found.length ? found[0] : null;
+}
+
+/**
+ * Persist the shared household Someday ranking (feature 021, contracts/api-021.md).
+ * `order` is an array of Task IDs, highest priority first; IDs no longer in the Tasks tab
+ * are skipped rather than failing (the list may have drifted since the client's session
+ * started). Assigns dense 1-based `somedayRank` values over the resolved IDs and clears
+ * `somedayRank` on any other Task that currently carries one but is absent from `order`
+ * (no phantom ranks — FR-021). One read, one batch of row writes, all under the lock; one
+ * ActivityLog row regardless of how many rows changed (FR-022). Idempotent — resubmitting
+ * the same order leaves the Sheet in the same state (still logs the explicit re-rank).
+ */
+function rankTasks_(payload, actor) {
+  if (!Array.isArray(payload.order)) {
+    fail_('VALIDATION_FAILED', 'Field "order" must be an array of task ids.', 'order');
+  }
+  var order = payload.order
+    .map(function (id) { return String(id).trim(); })
+    .filter(function (id) { return id; });
+
+  return withLock_(function () {
+    var t = readTableForWrite_(TABS.TASKS);
+    var byId = {};
+    t.records.forEach(function (rec) { byId[rec.id] = true; });
+
+    var rankOf = {};
+    var ranked = 0;
+    order.forEach(function (id) {
+      if (!byId[id]) return; // unknown/drifted id — skip, not an error
+      ranked += 1;
+      rankOf[id] = String(ranked);
+    });
+
+    t.records.forEach(function (rec) {
+      var nextRank = rankOf.hasOwnProperty(rec.id) ? rankOf[rec.id] : '';
+      var currentRank = String(rec.somedayRank || '');
+      if (currentRank === nextRank) return; // already correct — skip the write
+      var merged = stripInternal_(rec);
+      merged.somedayRank = nextRank;
+      writeRowAsText_(t.sheet, rec._row, buildRowArray_(t, merged, t.values[rec._row - 1]));
+    });
+
+    appendLog_(actor, 'rank-someday', 'someday-rank',
+      ranked + ' someday task' + (ranked === 1 ? '' : 's'));
+    return { ranked: ranked };
+  });
 }
 
 /** Delete a Task and remove its calendar mirror if any (feature 007). */

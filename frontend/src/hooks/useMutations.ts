@@ -179,6 +179,25 @@ export function useUpdateTask() {
   })
 }
 
+/** Persist a completed force-rank session as the shared household Someday order (021 US2) —
+ *  `order` is task IDs best-to-worst; the backend writes dense ranks in one batch and clears
+ *  any rank no longer in the list. Invalidates tasks so the Someday order updates everywhere. */
+export function useRankTasks() {
+  const { authedCall, handleAuthError } = useAuth()
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (order: string[]) => {
+      try {
+        return await authedCall<{ ranked: number }>('tasks.rank', { order })
+      } catch (err) {
+        handleAuthError(err)
+        throw err
+      }
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tasks'] }),
+  })
+}
+
 /** Delete a task (022 US2) — server hard-deletes + mirror cleanup; instance-only for
  *  recurring-generated tasks (rule untouched). No optimistic removal: rare/destructive. */
 export function useDeleteTask() {
