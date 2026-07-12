@@ -470,23 +470,47 @@ function setSettingValue_(key, value) {
     var sheet = getSheet_(TABS.SETTINGS);
     var headerRow = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
     var map = buildHeaderMap_(TABS.SETTINGS, headerRow);
-    var last = sheet.getLastRow();
-    var keyCol = map['key'];
-    var valueCol = map['value'];
-    for (var r = 2; r <= last; r++) {
-      var rowKey = String(sheet.getRange(r, keyCol + 1).getValue()).trim();
-      if (rowKey === key) {
-        var cell = sheet.getRange(r, valueCol + 1);
-        cell.setNumberFormat('@');
-        cell.setValue(String(value));
-        return;
-      }
+    upsertSettingRow_(sheet, headerRow, map, key, value);
+  });
+}
+
+/** Overwrite the value cell if `key` already has a row, else append `[key, value, '']`.
+ *  Assumes the caller holds the Settings lock and has already fetched `sheet`/`headerRow`/`map`. */
+function upsertSettingRow_(sheet, headerRow, map, key, value) {
+  var last = sheet.getLastRow();
+  var keyCol = map['key'];
+  var valueCol = map['value'];
+  for (var r = 2; r <= last; r++) {
+    var rowKey = String(sheet.getRange(r, keyCol + 1).getValue()).trim();
+    if (rowKey === key) {
+      var cell = sheet.getRange(r, valueCol + 1);
+      cell.setNumberFormat('@');
+      cell.setValue(String(value));
+      return;
     }
-    var arr = [];
-    for (var i = 0; i < headerRow.length; i++) arr[i] = '';
-    arr[keyCol] = key;
-    arr[valueCol] = value;
-    writeRowAsText_(sheet, sheet.getLastRow() + 1, arr);
+  }
+  var arr = [];
+  for (var i = 0; i < headerRow.length; i++) arr[i] = '';
+  arr[keyCol] = key;
+  arr[valueCol] = value;
+  writeRowAsText_(sheet, sheet.getLastRow() + 1, arr);
+}
+
+/**
+ * Upsert multiple Settings rows and append one ActivityLog row, atomically under one lock
+ * (feature 020, FR-010/FR-012). `changes` is `{key: value}`; used by settings.update so the
+ * whole save is atomic relative to other writers, mirroring the create/update record pattern
+ * (appendLog_ runs inside the same lock as the write, per ActivityLog.js's contract).
+ */
+function setSettingValues_(changes, actor, detail) {
+  withLock_(function () {
+    var sheet = getSheet_(TABS.SETTINGS);
+    var headerRow = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    var map = buildHeaderMap_(TABS.SETTINGS, headerRow);
+    Object.keys(changes).forEach(function (key) {
+      upsertSettingRow_(sheet, headerRow, map, key, changes[key]);
+    });
+    appendLog_(actor, 'settings-update', 'settings', detail);
   });
 }
 
