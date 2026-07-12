@@ -212,7 +212,7 @@ needed (reuses `isAllDay`).
   step.
 - [X] T020 Run `cd frontend && npm run build` (no type errors) and an `/impeccable audit` on
   the new Recurring Events UI; fix findings before PR.
-- [ ] T021 Deploy (`clasp push && clasp deploy`), run `setupDatabase()`, `selfTest()`,
+- [X] T021 Deploy (`clasp push && clasp deploy`), run `setupDatabase()`, `selfTest()`,
   `installRecurringEventsTrigger()`, then walk `quickstart.md` Scenarios A–E live; capture
   results for the validation pause.
 
