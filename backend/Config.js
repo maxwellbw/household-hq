@@ -56,9 +56,10 @@ var TABS = {
  */
 var HEADERS = {
   Events: ['id', 'title', 'start', 'end', 'owner', 'type', 'templateId', 'notes', 'gcalEventId',
-           'prepGeneratedFor'],
+           'prepGeneratedFor', 'location'],
   Tasks: ['id', 'title', 'dueDate', 'owner', 'status', 'eventId', 'recurringId',
-          'completedBy', 'completedAt', 'snoozeHistory', 'listItems', 'gcalEventId'],
+          'completedBy', 'completedAt', 'snoozeHistory', 'listItems', 'gcalEventId',
+          'notes', 'ackBy', 'ackAt'],
   TaskTemplates: ['id', 'eventType', 'taskTitle', 'offsetDays', 'defaultOwner'],
   Recurring: ['id', 'title', 'cadence', 'anchorDate', 'defaultOwner', 'lastGenerated',
               'seasonStart', 'seasonEnd', 'seedKey'],
@@ -99,7 +100,7 @@ var ACTION_VERBS = {
   delete: 'deleted', 'adopt-id': 'assigned an id to', provision: 'set up',
   'gcal-sync': 'synced to calendar', 'digest-weekly': 'emailed the week ahead',
   'digest-monthly': 'emailed the month ahead', 'ntfy-ping': 'sent a completion ping',
-  snooze: 'snoozed', unsnooze: 'un-snoozed'
+  snooze: 'snoozed', unsnooze: 'un-snoozed', acknowledge: 'committed to'
 };
 
 /** feature 009 — free, keyless push-notification host; a platform choice, not household data. */
@@ -111,7 +112,7 @@ var NTFY_BASE_URL = 'https://ntfy.sh';
  * `*.update`, or `*.delete` counts.
  */
 function isWriteAction_(action) {
-  return /\.(create|update|delete|complete|reopen|snooze|unsnooze)$/.test(String(action));
+  return /\.(create|update|delete|complete|reopen|snooze|unsnooze|acknowledge)$/.test(String(action));
 }
 
 /**

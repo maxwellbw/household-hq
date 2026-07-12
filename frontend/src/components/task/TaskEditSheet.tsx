@@ -20,6 +20,7 @@ export function TaskEditSheet({ task, onClose }: TaskEditSheetProps) {
   const [title, setTitle] = useState(task.title)
   const [owner, setOwner] = useState<Owner>(task.owner)
   const [dueDate, setDueDate] = useState(task.dueDate ?? '')
+  const [notes, setNotes] = useState(task.notes ?? '')
   const [fieldError, setFieldError] = useState<{ field?: string; message: string } | null>(null)
 
   async function handleSubmit(e: React.FormEvent) {
@@ -32,7 +33,7 @@ export function TaskEditSheet({ task, onClose }: TaskEditSheetProps) {
     }
 
     try {
-      await updateTask.mutateAsync({ id: task.id, title: title.trim(), owner, dueDate })
+      await updateTask.mutateAsync({ id: task.id, title: title.trim(), owner, dueDate, notes })
       onClose()
     } catch (err) {
       if (err instanceof ApiError) {
@@ -101,6 +102,17 @@ export function TaskEditSheet({ task, onClose }: TaskEditSheetProps) {
           {fieldError?.field === 'dueDate' && <p role="alert" className="mt-1 text-xs text-danger">{fieldError.message}</p>}
           {!dueDate && <p className="mt-1 text-xs text-ink-muted">No date — this task will be in Someday.</p>}
         </div>
+
+        <label className="mb-3 block">
+          <span className="mb-1 block text-xs font-medium text-ink-muted">Notes (optional)</span>
+          <textarea
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder="Add a note — links are tappable"
+            rows={2}
+            className="w-full rounded-control border border-border bg-surface px-3 py-2 text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+          />
+        </label>
 
         <div className="mb-5">
           <span className="mb-1 block text-xs font-medium text-ink-muted">Who</span>

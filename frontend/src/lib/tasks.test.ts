@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { groupTasks, parseSnoozeHistory, formatSnoozeHistory } from './tasks'
+import { groupTasks, parseSnoozeHistory, formatSnoozeHistory, isUncommitted, canAcknowledge } from './tasks'
 import type { Task } from '@/types/domain'
 
 function task(overrides: Partial<Task> & { id: string }): Task {
@@ -157,5 +157,53 @@ describe('formatSnoozeHistory', () => {
 
   it('returns empty string for empty array', () => {
     expect(formatSnoozeHistory([])).toBe('')
+  })
+})
+
+describe('isUncommitted', () => {
+  it('true for an open task assigned to a single person with no matching ackBy', () => {
+    expect(isUncommitted(task({ id: 't', owner: 'max', status: 'open' }))).toBe(true)
+  })
+
+  it('true for a snoozed task assigned to a single person with no matching ackBy', () => {
+    expect(isUncommitted(task({ id: 't', owner: 'jaz', status: 'snoozed' }))).toBe(true)
+  })
+
+  it('false once ackBy matches the owner', () => {
+    expect(isUncommitted(task({ id: 't', owner: 'max', status: 'open', ackBy: 'max' }))).toBe(false)
+  })
+
+  it('false for owner "both" regardless of status', () => {
+    expect(isUncommitted(task({ id: 't', owner: 'both', status: 'open' }))).toBe(false)
+  })
+
+  it('false for a done task even without acknowledgement', () => {
+    expect(isUncommitted(task({ id: 't', owner: 'max', status: 'done' }))).toBe(false)
+  })
+
+  it('false when ackBy is stale (belongs to the previous, different owner)', () => {
+    expect(isUncommitted(task({ id: 't', owner: 'jaz', status: 'open', ackBy: 'max' }))).toBe(true)
+  })
+})
+
+describe('canAcknowledge', () => {
+  it('true when the viewer is the uncommitted task\'s owner', () => {
+    expect(canAcknowledge(task({ id: 't', owner: 'max', status: 'open' }), 'max')).toBe(true)
+  })
+
+  it('false when the viewer is not the owner (they are the assigner)', () => {
+    expect(canAcknowledge(task({ id: 't', owner: 'max', status: 'open' }), 'jaz')).toBe(false)
+  })
+
+  it('false when already acknowledged', () => {
+    expect(canAcknowledge(task({ id: 't', owner: 'max', status: 'open', ackBy: 'max' }), 'max')).toBe(false)
+  })
+
+  it('false for owner "both" even if viewer matches nothing meaningful', () => {
+    expect(canAcknowledge(task({ id: 't', owner: 'both', status: 'open' }), 'max')).toBe(false)
+  })
+
+  it('false when viewer is undefined', () => {
+    expect(canAcknowledge(task({ id: 't', owner: 'max', status: 'open' }), undefined)).toBe(false)
   })
 })

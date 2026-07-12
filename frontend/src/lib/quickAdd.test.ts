@@ -27,6 +27,24 @@ describe('buildEventPayload', () => {
     const payload = buildEventPayload({ title: 'Late one', start: '2026-07-20T23:30', owner: 'max' })
     expect(payload.end).toBe('2026-07-20T00:30')
   })
+
+  it('includes notes and location when provided', () => {
+    const payload = buildEventPayload({
+      title: 'Dinner',
+      start: '2026-07-20T18:00',
+      owner: 'both',
+      notes: 'Reservation: https://example.com/res',
+      location: '123 Main St',
+    })
+    expect(payload.notes).toBe('Reservation: https://example.com/res')
+    expect(payload.location).toBe('123 Main St')
+  })
+
+  it('omits notes and location when not provided', () => {
+    const payload = buildEventPayload({ title: 'Dentist', start: '2026-07-20T14:30', owner: 'jaz' })
+    expect('notes' in payload).toBe(false)
+    expect('location' in payload).toBe(false)
+  })
 })
 
 describe('buildRecurringPayload', () => {
@@ -63,5 +81,12 @@ describe('buildOneTimeTaskPayload', () => {
   it('passes a provided dueDate through unchanged', () => {
     const payload = buildOneTimeTaskPayload({ title: 'Buy milk', owner: 'max', dueDate: '2026-07-22' }, TZ)
     expect(payload.dueDate).toBe('2026-07-22')
+  })
+
+  it('includes notes when provided, omits when not', () => {
+    const withNotes = buildOneTimeTaskPayload({ title: 'Buy filter', owner: 'max', notes: 'https://ex.com' }, TZ)
+    expect(withNotes.notes).toBe('https://ex.com')
+    const withoutNotes = buildOneTimeTaskPayload({ title: 'Buy filter', owner: 'max' }, TZ)
+    expect('notes' in withoutNotes).toBe(false)
   })
 })

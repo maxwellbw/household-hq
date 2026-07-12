@@ -1,13 +1,16 @@
 import { useRef, useState } from 'react'
 import { ownerStyle } from '@/lib/owners'
 import { useDialogA11y } from '@/hooks/useDialogA11y'
-import { useUnsnoozeTask, useDeleteTask } from '@/hooks/useMutations'
+import { useAuth } from '@/hooks/useAuth'
+import { useUnsnoozeTask, useDeleteTask, useAcknowledgeTask } from '@/hooks/useMutations'
 import { useToast } from '@/hooks/useToast'
-import { parseSnoozeHistory } from '@/lib/tasks'
+import { parseSnoozeHistory, canAcknowledge, isUncommitted } from '@/lib/tasks'
+import { resolveViewer } from '@/lib/dashboard'
 import { cn } from '@/lib/utils'
 import { TaskEditSheet } from '@/components/task/TaskEditSheet'
 import { SnoozeDialog } from '@/components/task/SnoozeDialog'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
+import { NotesText } from '@/components/ui/NotesText'
 import type { Task } from '@/types/domain'
 
 interface TaskDetailSheetProps {
@@ -24,7 +27,10 @@ export function TaskDetailSheet({ task, onClose, initialEdit = false }: TaskDeta
 
   const unsnooze = useUnsnoozeTask()
   const deleteTask = useDeleteTask()
+  const acknowledge = useAcknowledgeTask()
   const toast = useToast()
+  const { session } = useAuth()
+  const viewer = resolveViewer(session)
   const [showEdit, setShowEdit] = useState(initialEdit)
   const [showSnooze, setShowSnooze] = useState(false)
   const [showDelete, setShowDelete] = useState(false)
@@ -32,6 +38,8 @@ export function TaskDetailSheet({ task, onClose, initialEdit = false }: TaskDeta
   const isSnoozed = task.status === 'snoozed'
   const isRecurring = !!task.recurringId
   const historyRows = parseSnoozeHistory(task.snoozeHistory)
+  const uncommitted = isUncommitted(task)
+  const canCommit = canAcknowledge(task, viewer ?? undefined)
 
   function handleUnsnooze() {
     unsnooze.mutate(task.id, {
@@ -39,6 +47,12 @@ export function TaskDetailSheet({ task, onClose, initialEdit = false }: TaskDeta
         toast.show(`${task.title} unsnoozed`)
         onClose()
       },
+    })
+  }
+
+  function handleAcknowledge() {
+    acknowledge.mutate(task.id, {
+      onSuccess: () => toast.show("Got it — you're on it"),
     })
   }
 
@@ -99,6 +113,13 @@ export function TaskDetailSheet({ task, onClose, initialEdit = false }: TaskDeta
                 </>
               )}
             </p>
+            {uncommitted && (
+              <p className="mt-2">
+                <span className="inline-flex items-center rounded-full bg-danger px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-surface">
+                  Not yet committed
+                </span>
+              </p>
+            )}
           </div>
           <div className="flex shrink-0 items-center gap-1">
             <button
@@ -127,6 +148,28 @@ export function TaskDetailSheet({ task, onClose, initialEdit = false }: TaskDeta
             </button>
           </div>
         </div>
+
+        {/* Notes */}
+        {task.notes && (
+          <div className="mb-5">
+            <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-ink-faint">Notes</h3>
+            <NotesText text={task.notes} />
+          </div>
+        )}
+
+        {/* Acknowledge / commit */}
+        {canCommit && (
+          <div className="mb-5">
+            <button
+              type="button"
+              onClick={handleAcknowledge}
+              disabled={acknowledge.isPending}
+              className="min-h-[44px] w-full rounded-control bg-accent px-4 text-sm font-medium text-surface hover:bg-accent-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:opacity-50"
+            >
+              {acknowledge.isPending ? 'Committing…' : "I've got it"}
+            </button>
+          </div>
+        )}
 
         {/* Snooze history */}
         <div className="mb-5">

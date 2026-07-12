@@ -3,8 +3,11 @@ import { MoreVertical } from 'lucide-react'
 import { ownerStyle } from '@/lib/owners'
 import { relativeDue } from '@/lib/datetime'
 import { cn } from '@/lib/utils'
-import { useCompleteTask, useReopenTask } from '@/hooks/useMutations'
+import { useAuth } from '@/hooks/useAuth'
+import { useCompleteTask, useReopenTask, useAcknowledgeTask } from '@/hooks/useMutations'
 import { useToast } from '@/hooks/useToast'
+import { canAcknowledge, isUncommitted } from '@/lib/tasks'
+import { resolveViewer } from '@/lib/dashboard'
 import type { Task } from '@/types/domain'
 
 interface TaskRowProps {
@@ -28,7 +31,12 @@ export function TaskRow({ task, timezone, eventStartKey, onSnooze, onEditDue, on
   const isSnoozed = task.status === 'snoozed'
   const complete = useCompleteTask()
   const reopen = useReopenTask()
+  const acknowledge = useAcknowledgeTask()
   const toast = useToast()
+  const { session } = useAuth()
+  const viewer = resolveViewer(session)
+  const uncommitted = isUncommitted(task)
+  const canCommit = canAcknowledge(task, viewer ?? undefined)
 
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
@@ -125,7 +133,23 @@ export function TaskRow({ task, timezone, eventStartKey, onSnooze, onEditDue, on
         {isSnoozed && task.dueDate && (
           <span className="ml-2 text-xs text-ink-muted">snoozed until {task.dueDate}</span>
         )}
+        {uncommitted && (
+          <span className="ml-2 inline-flex items-center rounded-full bg-danger px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-surface">
+            Not yet committed
+          </span>
+        )}
       </button>
+
+      {canCommit && (
+        <button
+          type="button"
+          onClick={() => acknowledge.mutate(task.id, { onSuccess: () => toast.show("Got it — you're on it") })}
+          disabled={acknowledge.isPending}
+          className="min-h-[44px] shrink-0 rounded-control bg-accent px-2 text-xs font-medium text-surface hover:bg-accent-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:opacity-50"
+        >
+          {acknowledge.isPending ? 'Committing…' : "I've got it"}
+        </button>
+      )}
 
       <span
         className={cn(

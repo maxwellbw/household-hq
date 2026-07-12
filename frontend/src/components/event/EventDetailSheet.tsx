@@ -1,9 +1,11 @@
 import { useRef, useState } from 'react'
+import { MapPin } from 'lucide-react'
 import { formatDate, formatTime, isAllDay, dayKey } from '@/lib/datetime'
 import { ownerStyle } from '@/lib/owners'
 import { TaskRow } from '@/components/task/TaskRow'
 import { EventEditSheet } from '@/components/event/EventEditSheet'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
+import { NotesText } from '@/components/ui/NotesText'
 import { useDialogA11y } from '@/hooks/useDialogA11y'
 import { useDeleteEvent } from '@/hooks/useMutations'
 import { useToast } from '@/hooks/useToast'
@@ -75,6 +77,12 @@ export function EventDetailSheet({ event, timezone, onClose }: EventDetailSheetP
               <span aria-hidden="true">·</span>
               {formatDate(event.start, timezone)}
             </p>
+            {event.location && (
+              <p className="mt-1 flex items-center gap-1 text-sm text-ink-muted">
+                <MapPin size={14} aria-hidden="true" className="shrink-0" />
+                {event.location}
+              </p>
+            )}
           </div>
           <div className="flex items-center gap-1">
             <button
@@ -104,7 +112,7 @@ export function EventDetailSheet({ event, timezone, onClose }: EventDetailSheetP
           </div>
         </div>
 
-        {event.notes && <p className="mb-4 text-sm text-ink">{event.notes}</p>}
+        {event.notes && <NotesText text={event.notes} className="mb-4 whitespace-pre-wrap break-words text-sm text-ink" />}
 
         {event.tasks.length > 0 ? (
           <div>

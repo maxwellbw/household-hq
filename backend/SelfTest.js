@@ -36,6 +36,9 @@ function selfTest() {
   unitDigests_();
   unitNtfy_();
   liveSnooze_();
+  liveTaskNotes_();
+  liveAcknowledge_();
+  liveCalendarLocationSync_();
   Logger.log('ALL PASS');
 }
 
@@ -949,6 +952,42 @@ function liveCalendarEventSync_() {
 }
 
 // ---------------------------------------------------------------------------
+// Live: event location → calendar mapping (feature 019 US4). Guarded + self-cleaning.
+// ---------------------------------------------------------------------------
+
+function liveCalendarLocationSync_() {
+  if (!calendarConfigured_()) {
+    Logger.log('live calendar location sync: SKIPPED (householdCalendarId not set)');
+    return;
+  }
+  var calendar = getHouseholdCalendar_();
+  var eventId = null;
+  try {
+    var day = addDays_(todayYmd_(), 2);
+    var event = createEvent_({
+      id: SELFTEST_PREFIX + Utilities.getUuid(), title: SELFTEST_PREFIX + 'location probe',
+      start: day + 'T09:00', end: day + 'T09:30', owner: 'max', location: '123 Main St'
+    }, 'selftest');
+    eventId = event.id;
+    var entry = calendar.getEventById(event.gcalEventId);
+    assert_(entry.getLocation() === '123 Main St', 'creating an event with a location mirrors it to the calendar entry');
+
+    var moved = updateEvent_({ id: event.id, location: '456 Oak Ave' }, 'selftest');
+    assert_(calendar.getEventById(moved.gcalEventId).getLocation() === '456 Oak Ave',
+      'updating the location re-syncs the same calendar entry (no duplicate)');
+
+    var cleared = updateEvent_({ id: event.id, location: '' }, 'selftest');
+    assert_(calendar.getEventById(cleared.gcalEventId).getLocation() === '',
+      'clearing the location empties it on the mirrored calendar entry');
+  } finally {
+    if (eventId) {
+      try { deleteEvent_({ id: eventId }, 'selftest'); } catch (e) { /* best-effort cleanup */ }
+    }
+  }
+  Logger.log('live calendar location sync: pass');
+}
+
+// ---------------------------------------------------------------------------
 // Live: Task calendar mirror — dated/undated, move, complete, reopen, delete (US2;
 // FR-005/006/009). Guarded + self-cleaning.
 // ---------------------------------------------------------------------------
@@ -1234,6 +1273,91 @@ function liveSnooze_() {
 
   deleteRecordById_(TABS.TASKS, id, 'selftest');
   Logger.log('live snooze: pass');
+}
+
+// ---------------------------------------------------------------------------
+// Live: task notes (feature 019 US1) — round-trip through create + update, hand-editable.
+// ---------------------------------------------------------------------------
+
+function liveTaskNotes_() {
+  var id = SELFTEST_PREFIX + Utilities.getUuid();
+  var created = createTask_({
+    id: id, title: SELFTEST_PREFIX + 'notes probe', owner: 'max',
+    notes: 'Buy: https://example.com/filter'
+  }, 'selftest');
+  assert_(created.notes === 'Buy: https://example.com/filter', 'tasks.create stores notes');
+
+  var updated = updateTask_({ id: id, notes: 'Buy: https://example.com/filter — 20x25x1' }, 'selftest');
+  assert_(updated.notes === 'Buy: https://example.com/filter — 20x25x1', 'tasks.update edits notes');
+  assert_(countLogRows_(id, 'update') === 1, 'notes edit appends exactly one ActivityLog update row');
+
+  // A task created with no notes stores/returns a blank string, not undefined (hand-editable Sheet).
+  var noNotesId = SELFTEST_PREFIX + Utilities.getUuid();
+  var noNotes = createTask_({ id: noNotesId, title: SELFTEST_PREFIX + 'no notes probe', owner: 'jaz' }, 'selftest');
+  assert_(noNotes.notes === '', 'a task created without notes stores a blank notes cell');
+
+  deleteRecordById_(TABS.TASKS, id, 'selftest');
+  deleteRecordById_(TABS.TASKS, noNotesId, 'selftest');
+  Logger.log('live task notes: pass');
+}
+
+// ---------------------------------------------------------------------------
+// Live: acknowledge/commit (feature 019 US2) — transition, idempotency, reassign reset,
+// authorization, and the create/update guard against client-supplied ackBy/ackAt.
+// ---------------------------------------------------------------------------
+
+function liveAcknowledge_() {
+  var id = SELFTEST_PREFIX + Utilities.getUuid();
+  var task = createTask_({ id: id, title: SELFTEST_PREFIX + 'ack probe', owner: 'max' }, 'selftest');
+  assert_(task.ackBy === '', 'a newly created task starts unacknowledged');
+
+  // 1. The assignee (max) acknowledges → changed:true, ackBy/ackAt set, one log row.
+  var r1 = acknowledgeTask_({ id: id }, 'max');
+  assert_(r1.changed === true, 'acknowledge by the owner returns changed:true');
+  assert_(r1.task.ackBy === 'max', 'acknowledge stamps ackBy with the actor');
+  assert_(r1.task.ackAt !== '', 'acknowledge stamps ackAt');
+  assert_(countLogRows_(id, 'acknowledge') === 1, 'acknowledge appends exactly one ActivityLog row');
+
+  // 2. Idempotent replay by the same actor → changed:false, no new log row.
+  var r2 = acknowledgeTask_({ id: id }, 'max');
+  assert_(r2.changed === false, 're-acknowledging is a no-change (idempotent)');
+  assert_(countLogRows_(id, 'acknowledge') === 1, 'idempotent replay adds no ActivityLog row');
+
+  // 3. Only the assignee may acknowledge — the assigner (jaz) is rejected.
+  assertFails_('VALIDATION_FAILED', function () {
+    acknowledgeTask_({ id: id }, 'jaz');
+  }, 'acknowledge by a non-owner → VALIDATION_FAILED');
+
+  // 4. Reassigning to a different owner resets acknowledgement (FR-011).
+  var reassigned = updateTask_({ id: id, owner: 'jaz' }, 'selftest');
+  assert_(reassigned.ackBy === '' && reassigned.ackAt === '', 'reassigning owner clears ackBy/ackAt');
+
+  // 5. The new assignee (jaz) can now acknowledge fresh.
+  var r5 = acknowledgeTask_({ id: id }, 'jaz');
+  assert_(r5.changed === true, 'the new assignee can acknowledge after reassignment');
+  assert_(r5.task.ackBy === 'jaz', 'acknowledge after reassignment stamps the new owner');
+
+  // 6. `both`-owned and self-view tasks can never be acknowledged.
+  var bothId = SELFTEST_PREFIX + Utilities.getUuid();
+  createTask_({ id: bothId, title: SELFTEST_PREFIX + 'ack both probe', owner: 'both' }, 'selftest');
+  assertFails_('VALIDATION_FAILED', function () {
+    acknowledgeTask_({ id: bothId }, 'max');
+  }, 'acknowledge on a "both"-owned task → VALIDATION_FAILED');
+
+  // 7. ackBy/ackAt are server-managed — rejected on both create and update.
+  assertFails_('BAD_REQUEST', function () {
+    createTask_({ id: SELFTEST_PREFIX + Utilities.getUuid(), title: 'x', owner: 'max', ackBy: 'max' }, 'selftest');
+  }, 'creating a task with client-supplied ackBy → BAD_REQUEST');
+  assertFails_('BAD_REQUEST', function () {
+    updateTask_({ id: id, ackBy: 'jaz' }, 'selftest');
+  }, 'updating ackBy directly → BAD_REQUEST');
+  assertFails_('BAD_REQUEST', function () {
+    updateTask_({ id: id, ackAt: nowIso_() }, 'selftest');
+  }, 'updating ackAt directly → BAD_REQUEST');
+
+  deleteRecordById_(TABS.TASKS, id, 'selftest');
+  deleteRecordById_(TABS.TASKS, bothId, 'selftest');
+  Logger.log('live acknowledge: pass');
 }
 
 /** Test-only: hand-edit a single Settings row's value by key (Settings has no write API). */
