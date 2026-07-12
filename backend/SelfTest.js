@@ -21,6 +21,10 @@ function selfTest() {
   liveRecurringGeneration_();
   liveRecurringCrud_();
   liveRecurringCatchUp_();
+  unitRecurringEventMath_();
+  liveRecurringEventGeneration_();
+  liveRecurringEventPrep_();
+  liveRecurringEventCrud_();
   unitSeedPack_();
   liveSeedPack_();
   unitAlternatingBins_();
@@ -548,6 +552,298 @@ function liveRecurringCatchUp_() {
   tasks.forEach(function (t) { deleteRecordById_(TABS.TASKS, t.id, 'selftest'); });
   deleteRecordById_(TABS.RECURRING, ruleId, 'selftest');
   Logger.log('live recurring catch-up: pass');
+}
+
+// ---------------------------------------------------------------------------
+// Unit: recurring-event occurrence id + timing math (feature 025 research D2/D4)
+// ---------------------------------------------------------------------------
+
+function unitRecurringEventMath_() {
+  var id1 = recurringEventOccurrenceId_('rule-a', '2026-07-15');
+  var id2 = recurringEventOccurrenceId_('rule-a', '2026-07-15');
+  var id3 = recurringEventOccurrenceId_('rule-a', '2026-08-15');
+  assert_(id1 === id2, 'recurringEventOccurrenceId_ deterministic for same rule+date');
+  assert_(id1 !== id3, 'recurringEventOccurrenceId_ differs across dates');
+  assert_(id1.indexOf('v') === 0, 'recurringEventOccurrenceId_ starts with "v"');
+  assert_(isRecurringEventId_(id1), 'isRecurringEventId_ accepts a generated occurrence id');
+  assert_(!isRecurringEventId_(Utilities.getUuid()), 'isRecurringEventId_ rejects a plain UUID');
+  assert_(!isRecurringEventId_(recurringTaskId_('x', '2026-07-15')), 'isRecurringEventId_ rejects a recurring-task id');
+
+  var allDay = occurrenceStartEnd_('2026-07-15', '', '');
+  assert_(allDay.start === '2026-07-15' && allDay.end === '2026-07-15',
+    'blank startTime produces an all-day (date-only) occurrence');
+
+  var timed = occurrenceStartEnd_('2026-07-15', '09:30', '60');
+  assert_(timed.start === '2026-07-15T09:30' && timed.end === '2026-07-15T10:30',
+    'startTime + durationMinutes produces a timed occurrence');
+
+  var defaulted = occurrenceStartEnd_('2026-07-15', '09:30', '');
+  assert_(defaulted.end === '2026-07-15T10:30', 'blank durationMinutes with a startTime defaults to 60 minutes');
+
+  var spansMidnight = occurrenceStartEnd_('2026-07-15', '23:30', '90');
+  assert_(spansMidnight.end === '2026-07-16T01:00', 'a duration spanning midnight rolls into the next day');
+
+  Logger.log('unit recurring-event math: pass');
+}
+
+// ---------------------------------------------------------------------------
+// Live: recurring-event generation — all-day/timed, idempotency, never-resurrect, season
+// (feature 025 US1, FR-002/003/004/005/006/013/016/018)
+// ---------------------------------------------------------------------------
+
+function liveRecurringEventGeneration_() {
+  var tz = getTimezone_();
+  var today = Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd');
+  var windowEnd = addDays_(today, 60);
+
+  // An all-day yearly rule anchored ~15 days ago, so one occurrence falls inside the window.
+  var ruleId = SELFTEST_PREFIX + Utilities.getUuid();
+  var anchor = addDays_(today, -15);
+  createRecord_(TABS.RECURRING_EVENTS, {
+    id: ruleId, title: SELFTEST_PREFIX + 'birthday', cadence: 'annually',
+    anchorDate: anchor, startTime: '', durationMinutes: '', defaultOwner: 'both',
+    templateId: '', location: '', notes: '', lastGenerated: '', seasonStart: '', seasonEnd: ''
+  }, 'selftest');
+
+  generateForEventRule_(readEventRuleById_(ruleId), today, windowEnd);
+  var occurrencesForRule = function () {
+    return listRecords_(TABS.EVENTS).filter(function (e) { return e.recurringEventId === ruleId; });
+  };
+  var first = occurrencesForRule();
+  assert_(first.length >= 1, 'generation produces at least one occurrence');
+  first.forEach(function (e) {
+    assert_(e.owner === 'both' && isRecurringEventId_(e.id) && e.start === e.end,
+      'generated occurrence carries rule owner, a deterministic id, and is all-day (date-only start===end)');
+  });
+  assert_(readEventRuleById_(ruleId).lastGenerated !== '', 'lastGenerated advances after generation');
+
+  // Re-run: idempotent, no duplicates (SC-002).
+  generateForEventRule_(readEventRuleById_(ruleId), today, windowEnd);
+  assert_(occurrencesForRule().length === first.length, 're-run creates no duplicate occurrences');
+
+  // Delete one occurrence, re-run: not resurrected (FR-006).
+  var deletedId = first[0].id;
+  deleteEvent_({ id: deletedId }, 'selftest');
+  generateForEventRule_(readEventRuleById_(ruleId), today, windowEnd);
+  var afterDelete = occurrencesForRule();
+  assert_(afterDelete.filter(function (e) { return e.id === deletedId; }).length === 0,
+    'deleted occurrence is not resurrected on re-run');
+
+  // A timed rule: occurrence carries the derived start/end.
+  var timedId = SELFTEST_PREFIX + Utilities.getUuid();
+  createRecord_(TABS.RECURRING_EVENTS, {
+    id: timedId, title: SELFTEST_PREFIX + 'checkup', cadence: 'quarterly',
+    anchorDate: addDays_(today, -5), startTime: '09:30', durationMinutes: '60',
+    defaultOwner: 'max', templateId: '', location: '', notes: '', lastGenerated: '',
+    seasonStart: '', seasonEnd: ''
+  }, 'selftest');
+  generateForEventRule_(readEventRuleById_(timedId), today, windowEnd);
+  var timedOccurrences = listRecords_(TABS.EVENTS).filter(function (e) { return e.recurringEventId === timedId; });
+  assert_(timedOccurrences.length >= 1, 'timed rule generates occurrences');
+  timedOccurrences.forEach(function (e) {
+    assert_(/T09:30$/.test(e.start) && /T10:30$/.test(e.end), 'timed occurrence carries the rule\'s time + duration');
+  });
+
+  // Out-of-season rule: generates nothing for the current window (mirrors 004's season test).
+  var currentMonth = new Date().getMonth() + 1;
+  var offMonth = ((currentMonth + 5) % 12) + 1;
+  var seasonId = SELFTEST_PREFIX + Utilities.getUuid();
+  createRecord_(TABS.RECURRING_EVENTS, {
+    id: seasonId, title: SELFTEST_PREFIX + 'off season event', cadence: 'weekly',
+    anchorDate: addDays_(today, -3), startTime: '', durationMinutes: '', defaultOwner: 'jaz',
+    templateId: '', location: '', notes: '', lastGenerated: '',
+    seasonStart: String(offMonth), seasonEnd: String(offMonth)
+  }, 'selftest');
+  generateForEventRule_(readEventRuleById_(seasonId), today, windowEnd);
+  var seasonOccurrences = listRecords_(TABS.EVENTS).filter(function (e) { return e.recurringEventId === seasonId; });
+  assert_(seasonOccurrences.length === 0, 'out-of-season rule generates no occurrences');
+
+  // Cleanup.
+  occurrencesForRule().concat(afterDelete).forEach(function (e) { deleteEvent_({ id: e.id }, 'selftest'); });
+  timedOccurrences.forEach(function (e) { deleteEvent_({ id: e.id }, 'selftest'); });
+  deleteRecordById_(TABS.RECURRING_EVENTS, ruleId, 'selftest');
+  deleteRecordById_(TABS.RECURRING_EVENTS, timedId, 'selftest');
+  deleteRecordById_(TABS.RECURRING_EVENTS, seasonId, 'selftest');
+  Logger.log('live recurring-event generation: pass');
+}
+
+function readEventRuleById_(id) {
+  return listRecords_(TABS.RECURRING_EVENTS).filter(function (r) { return r.id === id; })[0];
+}
+
+// ---------------------------------------------------------------------------
+// Live: recurring-event prep — inline generation, idempotency, independence, no-template
+// (feature 025 US2, FR-009/010/011/012)
+// ---------------------------------------------------------------------------
+
+function liveRecurringEventPrep_() {
+  var tz = getTimezone_();
+  var today = Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd');
+  var windowEnd = addDays_(today, 60);
+
+  var eventType = SELFTEST_PREFIX + 'birthday-prep';
+  var giftStep = createRecord_(TABS.TEMPLATES, {
+    eventType: eventType, taskTitle: SELFTEST_PREFIX + 'Buy gift', offsetDays: '-14', defaultOwner: 'both'
+  }, 'selftest');
+  var dinnerStep = createRecord_(TABS.TEMPLATES, {
+    eventType: eventType, taskTitle: SELFTEST_PREFIX + 'Plan dinner', offsetDays: '-3', defaultOwner: 'both'
+  }, 'selftest');
+
+  var ruleId = SELFTEST_PREFIX + Utilities.getUuid();
+  createRecord_(TABS.RECURRING_EVENTS, {
+    id: ruleId, title: SELFTEST_PREFIX + 'birthday with prep', cadence: 'annually',
+    anchorDate: addDays_(today, -10), startTime: '', durationMinutes: '', defaultOwner: 'both',
+    templateId: eventType, location: '', notes: '', lastGenerated: '', seasonStart: '', seasonEnd: ''
+  }, 'selftest');
+
+  generateForEventRule_(readEventRuleById_(ruleId), today, windowEnd);
+  var occurrences = listRecords_(TABS.EVENTS).filter(function (e) { return e.recurringEventId === ruleId; });
+  assert_(occurrences.length >= 1, 'rule with a template generates occurrences');
+  var occ = occurrences[0];
+  var prepFor = function (eventId) {
+    return listRecords_(TABS.TASKS).filter(function (t) { return t.eventId === eventId; });
+  };
+  var prep = prepFor(occ.id);
+  assert_(prep.length === 2, 'each occurrence gets one prep task per checklist step');
+  var gift = prep.filter(function (t) { return t.title === SELFTEST_PREFIX + 'Buy gift'; })[0];
+  assert_(gift && gift.dueDate === addDays_(occ.start.substring(0, 10), -14),
+    'prep is dated by its offset relative to the occurrence date');
+
+  // Re-run: idempotent, no duplicate prep (FR-011).
+  generateForEventRule_(readEventRuleById_(ruleId), today, windowEnd);
+  assert_(prepFor(occ.id).length === 2, 're-running the generator creates no duplicate prep');
+
+  // A second occurrence's prep is independent — completing one occurrence's prep does not
+  // affect the other's.
+  if (occurrences.length > 1) {
+    var occ2 = occurrences[1];
+    completeTask_({ id: prep[0].id }, 'selftest');
+    assert_(prepFor(occ2.id).filter(function (t) { return t.status === 'done'; }).length === 0,
+      'completing one occurrence\'s prep does not affect another occurrence\'s prep');
+  }
+
+  // No template ⇒ plain occurrence, no prep, no error.
+  var plainId = SELFTEST_PREFIX + Utilities.getUuid();
+  createRecord_(TABS.RECURRING_EVENTS, {
+    id: plainId, title: SELFTEST_PREFIX + 'plain', cadence: 'annually',
+    anchorDate: addDays_(today, -8), startTime: '', durationMinutes: '', defaultOwner: 'max',
+    templateId: '', location: '', notes: '', lastGenerated: '', seasonStart: '', seasonEnd: ''
+  }, 'selftest');
+  generateForEventRule_(readEventRuleById_(plainId), today, windowEnd);
+  var plainOccurrences = listRecords_(TABS.EVENTS).filter(function (e) { return e.recurringEventId === plainId; });
+  assert_(plainOccurrences.length >= 1 && prepFor(plainOccurrences[0].id).length === 0,
+    'rule with no template generates plain occurrences with no prep');
+
+  // Deleted/unknown template ⇒ same — no prep, no error (FR-012).
+  var ghostId = SELFTEST_PREFIX + Utilities.getUuid();
+  createRecord_(TABS.RECURRING_EVENTS, {
+    id: ghostId, title: SELFTEST_PREFIX + 'ghost template', cadence: 'annually',
+    anchorDate: addDays_(today, -6), startTime: '', durationMinutes: '', defaultOwner: 'max',
+    templateId: SELFTEST_PREFIX + 'does-not-exist', location: '', notes: '', lastGenerated: '',
+    seasonStart: '', seasonEnd: ''
+  }, 'selftest');
+  generateForEventRule_(readEventRuleById_(ghostId), today, windowEnd);
+  var ghostOccurrences = listRecords_(TABS.EVENTS).filter(function (e) { return e.recurringEventId === ghostId; });
+  assert_(ghostOccurrences.length >= 1 && prepFor(ghostOccurrences[0].id).length === 0,
+    'rule with a deleted/unknown template generates plain occurrences with no prep or error');
+
+  // Cleanup.
+  occurrences.forEach(function (e) { deleteEvent_({ id: e.id }, 'selftest'); }); // cascades its own prep
+  plainOccurrences.forEach(function (e) { deleteEvent_({ id: e.id }, 'selftest'); });
+  ghostOccurrences.forEach(function (e) { deleteEvent_({ id: e.id }, 'selftest'); });
+  deleteRecordById_(TABS.RECURRING_EVENTS, ruleId, 'selftest');
+  deleteRecordById_(TABS.RECURRING_EVENTS, plainId, 'selftest');
+  deleteRecordById_(TABS.RECURRING_EVENTS, ghostId, 'selftest');
+  deleteRecordById_(TABS.TEMPLATES, giftStep.id, 'selftest');
+  deleteRecordById_(TABS.TEMPLATES, dinnerStep.id, 'selftest');
+  Logger.log('live recurring-event prep: pass');
+}
+
+// ---------------------------------------------------------------------------
+// Live: recurring-event rule CRUD + edit/delete scope + cascade-delete confirmation
+// (feature 025 US3, FR-001/007/008/014/017)
+// ---------------------------------------------------------------------------
+
+function liveRecurringEventCrud_() {
+  var created = createRecurringEvent_({
+    title: SELFTEST_PREFIX + 'anniversary', cadence: 'annually', anchorDate: '2026-06-01', defaultOwner: 'both'
+  }, 'selftest');
+  assert_(created.lastGenerated === '', 'create leaves lastGenerated blank');
+
+  var updated = updateRecurringEvent_({
+    id: created.id, title: SELFTEST_PREFIX + 'anniversary (updated)', startTime: '18:00',
+    durationMinutes: '120', seasonStart: '4', seasonEnd: '10'
+  }, 'selftest');
+  assert_(updated.title === SELFTEST_PREFIX + 'anniversary (updated)' && updated.startTime === '18:00' &&
+    updated.seasonStart === '4' && updated.seasonEnd === '10',
+    'update persists title, timing, and season pair');
+
+  assertFails_('BAD_REQUEST', function () {
+    createRecurringEvent_({ title: 'x', cadence: 'weekly', anchorDate: '2026-06-01', defaultOwner: 'max',
+      lastGenerated: '2026-06-01' }, 'selftest');
+  }, 'lastGenerated on create rejected');
+  assertFails_('BAD_REQUEST', function () {
+    updateRecurringEvent_({ id: created.id, lastGenerated: '2026-06-01' }, 'selftest');
+  }, 'lastGenerated on update rejected');
+  assertFails_('VALIDATION_FAILED', function () {
+    createRecurringEvent_({ title: 'x', cadence: 'weekly', anchorDate: '2026-06-01', defaultOwner: 'max',
+      seasonStart: '4' }, 'selftest');
+  }, 'half season window rejected on create');
+  assertFails_('VALIDATION_FAILED', function () {
+    createRecurringEvent_({ title: 'x', cadence: 'weekly', anchorDate: '2026-06-01', defaultOwner: 'max',
+      startTime: '25:00' }, 'selftest');
+  }, 'invalid startTime rejected');
+  assertFails_('BAD_REQUEST', function () {
+    createRecurringEvent_({ title: 'x', cadence: 'weekly', anchorDate: '2026-06-01', defaultOwner: 'max',
+      bogus: 'y' }, 'selftest');
+  }, 'unknown field rejected');
+  assertFails_('NOT_FOUND', function () {
+    updateRecurringEvent_({ id: 'no-such-id', title: 'ghost' }, 'selftest');
+  }, 'update unknown id rejected');
+
+  // Edit/delete affect only future occurrences (FR-007/008): an existing occurrence keeps
+  // its original values after the rule changes.
+  var tz = getTimezone_();
+  var today = Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd');
+  var windowEnd = addDays_(today, 60);
+  var ruleId = SELFTEST_PREFIX + Utilities.getUuid();
+  createRecord_(TABS.RECURRING_EVENTS, {
+    id: ruleId, title: SELFTEST_PREFIX + 'scope test', cadence: 'annually',
+    anchorDate: addDays_(today, -10), startTime: '', durationMinutes: '', defaultOwner: 'max',
+    templateId: '', location: '', notes: '', lastGenerated: '', seasonStart: '', seasonEnd: ''
+  }, 'selftest');
+  generateForEventRule_(readEventRuleById_(ruleId), today, windowEnd);
+  var beforeEdit = listRecords_(TABS.EVENTS).filter(function (e) { return e.recurringEventId === ruleId; });
+  assert_(beforeEdit.length >= 1, 'scope-test rule generates an occurrence');
+  updateRecurringEvent_({ id: ruleId, title: SELFTEST_PREFIX + 'scope test (renamed)' }, 'selftest');
+  var afterEdit = listRecords_(TABS.EVENTS).filter(function (e) { return e.id === beforeEdit[0].id; })[0];
+  assert_(afterEdit.title === beforeEdit[0].title, 'editing the rule does not rewrite an already-generated occurrence');
+  deleteEntity_(TABS.RECURRING_EVENTS, { id: ruleId }, 'selftest');
+  var afterRuleDelete = listRecords_(TABS.EVENTS).filter(function (e) { return e.id === beforeEdit[0].id; });
+  assert_(afterRuleDelete.length === 1, 'deleting the rule leaves an already-generated occurrence in place');
+
+  // Deleting an occurrence event cascades its prep (FR-017) — confirms the existing 005
+  // `deleteEvent_` cascade already covers recurring-event occurrences (research D7).
+  var withPrep = createRecurringEvent_({
+    title: SELFTEST_PREFIX + 'cascade check', cadence: 'annually', anchorDate: addDays_(today, -5),
+    defaultOwner: 'jaz'
+  }, 'selftest');
+  var occ = createEvent_({
+    title: SELFTEST_PREFIX + 'cascade occurrence', start: today, end: today, owner: 'jaz'
+  }, 'selftest');
+  var manualPrep = createRecord_(TABS.TASKS, {
+    id: 'p' + Utilities.getUuid().replace(/-/g, '').substring(0, 32), title: SELFTEST_PREFIX + 'fake prep',
+    owner: 'jaz', status: 'open', eventId: occ.id
+  }, 'selftest');
+  deleteEvent_({ id: occ.id }, 'selftest');
+  var remainingPrep = listRecords_(TABS.TASKS).filter(function (t) { return t.eventId === occ.id; });
+  assert_(remainingPrep.length === 0, 'deleting an occurrence event cascades its prep tasks');
+
+  // Cleanup.
+  afterRuleDelete.forEach(function (e) { deleteEvent_({ id: e.id }, 'selftest'); });
+  deleteRecordById_(TABS.RECURRING_EVENTS, created.id, 'selftest');
+  deleteRecordById_(TABS.RECURRING_EVENTS, withPrep.id, 'selftest');
+  Logger.log('live recurring-event CRUD: pass');
 }
 
 // ---------------------------------------------------------------------------
