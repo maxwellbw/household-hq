@@ -41,6 +41,8 @@ function selfTest() {
   liveAcknowledge_();
   liveCalendarLocationSync_();
   liveTasksRank_();
+  liveListsCrud_();
+  liveListItemsCrud_();
   Logger.log('ALL PASS');
 }
 
@@ -1572,4 +1574,106 @@ function liveTasksRank_() {
 
   [a, b, c].forEach(function (id) { deleteRecordById_(TABS.TASKS, id, actor); });
   Logger.log('live tasks.rank: pass');
+}
+
+// ---------------------------------------------------------------------------
+// Live: Grocery & household lists (feature 024, contracts/api-024.md)
+// ---------------------------------------------------------------------------
+
+function countListItemRows_(listId) {
+  return listRecords_(TABS.LIST_ITEMS).filter(function (i) { return i.listId === listId; }).length;
+}
+
+function liveListsCrud_() {
+  var actor = 'selftest';
+  var listId = SELFTEST_PREFIX + Utilities.getUuid();
+
+  var created = createList_({ id: listId, name: 'Selftest Groceries' }, actor).list;
+  assert_(created.id === listId && created.name === 'Selftest Groceries', 'lists.create stores name');
+
+  assertFails_('BAD_REQUEST', function () { createList_({ id: listId, owner: 'max' }, actor); },
+    'unknown field rejected on lists.create');
+  assertFails_('VALIDATION_FAILED', function () { createList_({}, actor); },
+    'missing name rejected on lists.create');
+
+  // Cascade: deleting a list removes every ListItem row that belonged to it.
+  var itemA = createListItem_({ listId: listId, name: 'Milk' }, actor).item;
+  var itemB = createListItem_({ listId: listId, name: 'Eggs' }, actor).item;
+  assert_(countListItemRows_(listId) === 2, 'two items created on the list');
+
+  deleteList_({ id: listId }, actor);
+  assert_(countListItemRows_(listId) === 0, 'deleting a list cascades to delete its items');
+  assert_(listRecords_(TABS.LISTS).filter(function (l) { return l.id === listId; }).length === 0,
+    'the list row itself is gone');
+
+  assertFails_('NOT_FOUND', function () { deleteList_({ id: 'not-a-real-list-' + Utilities.getUuid() }, actor); },
+    'deleting a non-existent list is NOT_FOUND');
+
+  Logger.log('live Lists CRUD: pass');
+}
+
+function liveListItemsCrud_() {
+  var actor = 'selftest';
+  var listId = SELFTEST_PREFIX + Utilities.getUuid();
+  createList_({ id: listId, name: 'Selftest Hardware' }, actor);
+
+  // New items always start 'need'; a non-'need' create status is rejected.
+  var milk = createListItem_({ listId: listId, name: 'Milk' }, actor).item;
+  assert_(milk.status === 'need', 'new item defaults to need');
+  assert_(milk.section === '' && milk.staple === 'FALSE' && milk.note === '',
+    'section/staple/note default to blank/FALSE/blank');
+  assertFails_('BAD_REQUEST', function () {
+    createListItem_({ listId: listId, name: 'Bogus', status: 'stocked' }, actor);
+  }, 'non-need create status is rejected');
+  assertFails_('NOT_FOUND', function () {
+    createListItem_({ listId: 'not-a-real-list-' + Utilities.getUuid(), name: 'X' }, actor);
+  }, 'creating an item on an unknown list is NOT_FOUND');
+
+  // Reuse-and-flip: re-adding the same name (case/whitespace-insensitive) never
+  // duplicates — it flips the existing row to need instead (research R3).
+  toggleListItem_({ id: milk.id }, actor); // → stocked
+  var beforeCount = countListItemRows_(listId);
+  var reused = createListItem_({ listId: listId, name: '  MILK ' }, actor).item;
+  assert_(reused.id === milk.id, 'reuse-and-flip returns the existing row, not a new one');
+  assert_(reused.status === 'need', 'reuse-and-flip flips the existing row to need');
+  assert_(countListItemRows_(listId) === beforeCount, 'reuse-and-flip creates no duplicate row');
+  var logsAfterFlip = countLogRows_(milk.id, 'list-item-need');
+  var reusedAgain = createListItem_({ listId: listId, name: 'Milk' }, actor).item;
+  assert_(reusedAgain.status === 'need' &&
+    countLogRows_(milk.id, 'list-item-need') === logsAfterFlip,
+    're-adding an already-need item is a true no-op: no new log row');
+
+  // listItems.toggle flips need⇄stocked and is idempotent-safe by construction.
+  var toStocked = toggleListItem_({ id: milk.id }, actor);
+  assert_(toStocked.changed === true && toStocked.item.status === 'stocked', 'toggle flips need→stocked');
+  var toNeed = toggleListItem_({ id: milk.id }, actor);
+  assert_(toNeed.changed === true && toNeed.item.status === 'need', 'toggle flips stocked→need');
+  assertFails_('NOT_FOUND', function () { toggleListItem_({ id: 'nope-' + Utilities.getUuid() }, actor); },
+    'toggling an unknown item is NOT_FOUND');
+
+  // listItems.update: section/staple/note editable; status/listId are not (use toggle;
+  // moving between lists isn't supported).
+  var updated = updateListItem_({ id: milk.id, section: 'dairy', staple: 'TRUE', note: '2 bags' }, actor).item;
+  assert_(updated.section === 'dairy' && updated.staple === 'TRUE' && updated.note === '2 bags',
+    'update patches section/staple/note');
+  assertFails_('BAD_REQUEST', function () { updateListItem_({ id: milk.id, status: 'stocked' }, actor); },
+    'status via listItems.update is rejected (use listItems.toggle)');
+  assertFails_('BAD_REQUEST', function () { updateListItem_({ id: milk.id, listId: 'other' }, actor); },
+    'listId via listItems.update is rejected');
+
+  // listItems.list optionally filters by listId.
+  var eggs = createListItem_({ listId: listId, name: 'Eggs' }, actor).item;
+  assert_(listListItems_({ listId: listId }).items.length === 2, 'listItems.list filters to one list');
+  assert_(listListItems_({}).items.filter(function (i) { return i.listId === listId; }).length === 2,
+    'listItems.list with no filter still includes this list\'s items');
+
+  // Outright delete (distinct from toggling to stocked).
+  deleteListItem_({ id: eggs.id }, actor);
+  assert_(countListItemRows_(listId) === 1, 'listItems.delete removes the row outright');
+
+  assert_(isWriteAction_('listItems.toggle') && isWriteAction_('listItems.create'),
+    'listItems write actions are classified as writes (shared-account acting-person gate)');
+
+  deleteList_({ id: listId }, actor); // cleans up milk's row too
+  Logger.log('live ListItems CRUD: pass');
 }

@@ -46,7 +46,9 @@ var TABS = {
   TEMPLATES: 'TaskTemplates',
   RECURRING: 'Recurring',
   ACTIVITY_LOG: 'ActivityLog',
-  SETTINGS: 'Settings'
+  SETTINGS: 'Settings',
+  LISTS: 'Lists',
+  LIST_ITEMS: 'ListItems'
 };
 
 /**
@@ -64,11 +66,14 @@ var HEADERS = {
   Recurring: ['id', 'title', 'cadence', 'anchorDate', 'defaultOwner', 'lastGenerated',
               'seasonStart', 'seasonEnd', 'seedKey'],
   ActivityLog: ['timestamp', 'actor', 'action', 'targetId', 'detail'],
-  Settings: ['key', 'value', 'notes']
+  Settings: ['key', 'value', 'notes'],
+  // Feature 024 — Grocery & household lists (data-model.md).
+  Lists: ['id', 'name'],
+  ListItems: ['id', 'listId', 'name', 'status', 'section', 'staple', 'note']
 };
 
 /** Tabs whose rows carry a UUID `id` (eligible for blank-ID adoption, FR-022). */
-var ID_TABS = [TABS.EVENTS, TABS.TASKS, TABS.TEMPLATES, TABS.RECURRING];
+var ID_TABS = [TABS.EVENTS, TABS.TASKS, TABS.TEMPLATES, TABS.RECURRING, TABS.LISTS, TABS.LIST_ITEMS];
 
 // ---------------------------------------------------------------------------
 // Enumerations (FR-014)
@@ -77,6 +82,11 @@ var ID_TABS = [TABS.EVENTS, TABS.TASKS, TABS.TEMPLATES, TABS.RECURRING];
 var OWNERS = ['max', 'jaz', 'both'];
 var STATUSES = ['open', 'done', 'snoozed'];
 var CADENCES = ['weekly', 'biweekly', 'monthly', 'sixweekly', 'eightweekly', 'quarterly', 'annually'];
+
+/** Feature 024 — Grocery & household lists (data-model.md). */
+var LIST_ITEM_STATUSES = ['need', 'stocked'];
+/** Fixed order also drives the needed view's section grouping (FR-011). */
+var LIST_SECTIONS = ['produce', 'dairy', 'frozen', 'pantry', 'household', 'other'];
 
 // ---------------------------------------------------------------------------
 // Feature 003 — task slices + activity feed (contracts/api-003.md; research D4/D5)
@@ -101,7 +111,8 @@ var ACTION_VERBS = {
   'gcal-sync': 'synced to calendar', 'digest-weekly': 'emailed the week ahead',
   'digest-monthly': 'emailed the month ahead', 'ntfy-ping': 'sent a completion ping',
   snooze: 'snoozed', unsnooze: 'un-snoozed', acknowledge: 'committed to',
-  'settings-update': 'updated settings', 'rank-someday': 'ranked'
+  'settings-update': 'updated settings', 'rank-someday': 'ranked',
+  'list-item-need': 'marked needed', 'list-item-stocked': 'marked stocked'
 };
 
 /** feature 009 — free, keyless push-notification host; a platform choice, not household data. */
@@ -113,7 +124,7 @@ var NTFY_BASE_URL = 'https://ntfy.sh';
  * `*.update`, or `*.delete` counts.
  */
 function isWriteAction_(action) {
-  return /\.(create|update|delete|complete|reopen|snooze|unsnooze|acknowledge|rank)$/.test(String(action));
+  return /\.(create|update|delete|complete|reopen|snooze|unsnooze|acknowledge|rank|toggle)$/.test(String(action));
 }
 
 /**
@@ -127,7 +138,8 @@ var FIELD_TYPES = {
            somedayRank: 'posint' },
   TaskTemplates: { offsetDays: 'int', defaultOwner: 'owner' },
   Recurring: { cadence: 'cadence', anchorDate: 'date', defaultOwner: 'owner',
-               lastGenerated: 'date', seasonStart: 'month', seasonEnd: 'month' }
+               lastGenerated: 'date', seasonStart: 'month', seasonEnd: 'month' },
+  ListItems: { status: 'listItemStatus', section: 'listSection', staple: 'bool' }
 };
 
 /** Fields required to create a record (only Events/Tasks are API-writable in 001). */
@@ -135,7 +147,9 @@ var REQUIRED_ON_CREATE = {
   Events: ['title', 'start', 'end', 'owner'],
   Tasks: ['title', 'owner'],
   Recurring: ['title', 'cadence', 'anchorDate', 'defaultOwner'],
-  TaskTemplates: ['eventType', 'taskTitle', 'offsetDays', 'defaultOwner']
+  TaskTemplates: ['eventType', 'taskTitle', 'offsetDays', 'defaultOwner'],
+  Lists: ['name'],
+  ListItems: ['listId', 'name']
 };
 
 // ---------------------------------------------------------------------------
@@ -226,7 +240,10 @@ var SETTINGS_SEED = [
     'feature 004; days ahead the nightly generator materializes. Blank/≤0 falls back to 30'],
   ['recurringSeedApplied', '',
     'feature 015; "; "-delimited seed keys already applied by seedRecurringPack(); enables ' +
-    'never-resurrect. Clear a key (and delete its row) by hand to re-enable seeding of that chore.']
+    'never-resurrect. Clear a key (and delete its row) by hand to re-enable seeding of that chore.'],
+  ['groceryStapleNudgeThreshold', '3',
+    'feature 024; count of staple ListItems marked "need" (across all lists) that triggers ' +
+    'the Home dashboard shopping nudge']
 ];
 
 // ---------------------------------------------------------------------------
@@ -236,7 +253,8 @@ var SETTINGS_SEED = [
 
 var EDITABLE_SETTINGS = [
   'digestWeeklyEnabled', 'digestWeeklyDay', 'digestMonthlyEnabled', 'digestMonthlyDay',
-  'digestHour', 'ntfyEnabled', 'gcalEventReminderMin', 'timezone'
+  'digestHour', 'ntfyEnabled', 'gcalEventReminderMin', 'timezone',
+  'groceryStapleNudgeThreshold'
 ];
 
 /** Curated timezone choices for the editor (and the backend's allow-set for `timezone`). */

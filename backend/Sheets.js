@@ -249,7 +249,7 @@ function createRecord_(tabName, record, actor) {
     }
     record.id = id;
     writeRowAsText_(t.sheet, t.sheet.getLastRow() + 1, buildRowArray_(t, record, null));
-    appendLog_(actor, 'create', id, record.title || '');
+    appendLog_(actor, 'create', id, record.title || record.name || '');
     return stripInternal_(record);
   });
 }
@@ -269,7 +269,7 @@ function updateRecordById_(tabName, id, patch, actor, invariant) {
     if (invariant) invariant(merged);
     var rowArr = buildRowArray_(t, merged, t.values[rec._row - 1]);
     writeRowAsText_(t.sheet, rec._row, rowArr);
-    appendLog_(actor, 'update', id, merged.title || '');
+    appendLog_(actor, 'update', id, merged.title || merged.name || '');
     return stripInternal_(merged);
   });
 }
@@ -392,7 +392,7 @@ function deleteRecordById_(tabName, id, actor) {
     var rec = findRecord_(t, id);
     if (!rec) fail_('NOT_FOUND', 'No ' + tabName + ' record with id "' + id + '".');
     t.sheet.deleteRow(rec._row);
-    appendLog_(actor, 'delete', id, rec.title || '');
+    appendLog_(actor, 'delete', id, rec.title || rec.name || '');
     return id;
   });
 }
