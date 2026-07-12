@@ -17,7 +17,7 @@ const TYPE_LABELS: Record<QuickAddType, string> = {
   task: 'One-time task',
 }
 
-const CADENCES: Cadence[] = ['weekly', 'biweekly', 'monthly', 'quarterly', 'annually']
+const CADENCES: Cadence[] = ['weekly', 'biweekly', 'monthly', 'sixweekly', 'eightweekly', 'quarterly', 'annually']
 
 interface QuickAddSheetProps {
   onClose: () => void
