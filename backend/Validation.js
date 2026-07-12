@@ -26,6 +26,9 @@ function isValidType_(type, value) {
     case 'int': return /^-?\d+$/.test(value);
     case 'posint': return /^\d+$/.test(value) && Number(value) >= 1;
     case 'month': return /^\d+$/.test(value) && Number(value) >= 1 && Number(value) <= 12;
+    case 'listItemStatus': return LIST_ITEM_STATUSES.indexOf(value) >= 0;
+    case 'listSection': return value === '' || LIST_SECTIONS.indexOf(value) >= 0;
+    case 'bool': return value === 'TRUE' || value === 'FALSE';
     case 'text': return true;
     default: return true;
   }

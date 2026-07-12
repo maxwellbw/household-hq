@@ -1,0 +1,274 @@
+import { useEffect, useMemo, useState } from 'react'
+import { Plus, Trash2 } from 'lucide-react'
+import { cn } from '@/lib/utils'
+import { useToast } from '@/hooks/useToast'
+import { useLists, useListItems } from '@/hooks/useLists'
+import { useCreateList, useDeleteList, useCreateListItem } from '@/hooks/useListMutations'
+import { groupNeededBySection, LIST_SECTION_LABELS } from '@/lib/lists'
+import { ListItemRow } from '@/components/lists/ListItemRow'
+import { ApiError } from '@/lib/api'
+
+type ViewMode = 'needed' | 'all'
+
+/** Grocery & household Lists screen (feature 024): list switcher, low-friction
+ *  add-by-name, and a Needed (aisle-order) / All (management) view toggle. */
+export function ListsView() {
+  const listsQuery = useLists()
+  const itemsQuery = useListItems()
+  const createList = useCreateList()
+  const deleteList = useDeleteList()
+  const toast = useToast()
+
+  const [selectedListId, setSelectedListId] = useState<string | null>(null)
+  const [creatingList, setCreatingList] = useState(false)
+  const [newListName, setNewListName] = useState('')
+  const [viewMode, setViewMode] = useState<ViewMode>('needed')
+  const [newItemName, setNewItemName] = useState('')
+  const [confirmDeleteList, setConfirmDeleteList] = useState(false)
+
+  const lists = listsQuery.data ?? []
+
+  // Default to the first list once lists load, without stomping a user's later selection.
+  useEffect(() => {
+    if (!selectedListId && lists.length > 0) setSelectedListId(lists[0].id)
+    if (selectedListId && !lists.some((l) => l.id === selectedListId)) {
+      setSelectedListId(lists[0]?.id ?? null)
+    }
+  }, [lists, selectedListId])
+
+  const itemsForList = useMemo(
+    () => (itemsQuery.data ?? []).filter((item) => item.listId === selectedListId),
+    [itemsQuery.data, selectedListId],
+  )
+  const neededGroups = useMemo(() => groupNeededBySection(itemsForList), [itemsForList])
+
+  const isPending = listsQuery.isPending || itemsQuery.isPending
+  const isError = listsQuery.isError || itemsQuery.isError
+
+  const createListItem = useCreateListItem()
+
+  async function handleCreateList(e: React.FormEvent) {
+    e.preventDefault()
+    const name = newListName.trim()
+    if (!name) return
+    try {
+      const { list } = await createList.mutateAsync(name)
+      setSelectedListId(list.id)
+      setNewListName('')
+      setCreatingList(false)
+    } catch (err) {
+      toast.show(err instanceof ApiError ? err.message : 'Could not create the list.')
+    }
+  }
+
+  async function handleDeleteList(id: string, name: string) {
+    await deleteList.mutateAsync(id)
+    setConfirmDeleteList(false)
+    toast.show(`"${name}" deleted`)
+  }
+
+  async function handleAddItem(e: React.FormEvent) {
+    e.preventDefault()
+    const name = newItemName.trim()
+    if (!name || !selectedListId) return
+    setNewItemName('')
+    try {
+      await createListItem.mutateAsync({ listId: selectedListId, name })
+    } catch (err) {
+      toast.show(err instanceof ApiError ? err.message : 'Could not add the item.')
+    }
+  }
+
+  if (isPending) {
+    return (
+      <div className="flex flex-col gap-2 px-4 py-6" aria-busy="true" aria-label="Loading lists">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div key={i} className="h-14 animate-pulse rounded-card bg-surface-alt" />
+        ))}
+      </div>
+    )
+  }
+
+  if (isError) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-2 px-6 py-12 text-center">
+        <p className="font-display text-lg text-ink">Couldn't load your lists</p>
+        <p className="text-sm text-ink-muted">Check your connection and try again.</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex flex-col gap-4 px-4 py-4">
+      {/* List switcher */}
+      <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Lists">
+        {lists.map((list) => (
+          <button
+            key={list.id}
+            type="button"
+            aria-pressed={selectedListId === list.id}
+            onClick={() => {
+              setSelectedListId(list.id)
+              setConfirmDeleteList(false)
+            }}
+            className={cn(
+              'min-h-[44px] rounded-full border px-3 text-sm font-medium',
+              'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
+              selectedListId === list.id
+                ? 'border-accent bg-accent-soft text-ink'
+                : 'border-border bg-surface text-ink-muted',
+            )}
+          >
+            {list.name}
+          </button>
+        ))}
+        {creatingList ? (
+          <form onSubmit={handleCreateList} className="flex items-center gap-1">
+            <input
+              autoFocus
+              aria-label="List name"
+              value={newListName}
+              onChange={(e) => setNewListName(e.target.value)}
+              onBlur={() => !newListName.trim() && setCreatingList(false)}
+              placeholder="List name"
+              className="min-h-[44px] w-32 rounded-control border border-border bg-surface px-3 text-sm text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+            />
+          </form>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setCreatingList(true)}
+            aria-label="New list"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-dashed border-border text-ink-muted hover:border-accent hover:text-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+          >
+            <Plus className="h-4 w-4" aria-hidden="true" />
+          </button>
+        )}
+      </div>
+
+      {lists.length === 0 && !creatingList && (
+        <div className="flex flex-col items-center justify-center gap-2 py-12 text-center">
+          <p className="font-display text-lg text-ink">No lists yet</p>
+          <p className="text-sm text-ink-muted">Create your first list to start adding items.</p>
+          <button
+            type="button"
+            onClick={() => setCreatingList(true)}
+            className="mt-2 min-h-[44px] rounded-control bg-accent px-4 text-sm font-medium text-surface hover:bg-accent-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+          >
+            Create a list
+          </button>
+        </div>
+      )}
+
+      {selectedListId && (
+        <>
+          {/* Low-friction add bar (US2, SC-001) */}
+          <form onSubmit={handleAddItem} className="flex items-center gap-2">
+            <input
+              value={newItemName}
+              onChange={(e) => setNewItemName(e.target.value)}
+              placeholder="Add an item…"
+              aria-label="Add an item"
+              className="min-h-[44px] flex-1 rounded-control border border-border bg-surface px-3 text-sm text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+            />
+            <button
+              type="submit"
+              disabled={!newItemName.trim() || createListItem.isPending}
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-control bg-accent text-surface hover:bg-accent-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:opacity-50"
+              aria-label="Add item"
+            >
+              <Plus className="h-4 w-4" aria-hidden="true" />
+            </button>
+          </form>
+
+          {/* Needed / All toggle */}
+          <div className="flex gap-1 rounded-control bg-surface-alt p-1" role="group" aria-label="View">
+            {(['needed', 'all'] as const).map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                aria-pressed={viewMode === mode}
+                onClick={() => setViewMode(mode)}
+                className={cn(
+                  'min-h-[44px] flex-1 rounded-control text-sm font-medium capitalize',
+                  'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
+                  viewMode === mode ? 'bg-surface text-ink shadow-card' : 'text-ink-muted',
+                )}
+              >
+                {mode === 'needed' ? 'Needed' : 'All'}
+              </button>
+            ))}
+          </div>
+
+          {viewMode === 'needed' ? (
+            neededGroups.length === 0 ? (
+              <div className="flex flex-col items-center justify-center gap-1 py-8 text-center">
+                <p className="text-sm font-medium text-ink">Nothing needed</p>
+                <p className="text-xs text-ink-muted">Everything on this list is stocked.</p>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-4">
+                {neededGroups.map((group) => (
+                  <section key={group.section}>
+                    <h3 className="mb-1 px-1 text-xs font-medium uppercase tracking-wide text-ink-faint">
+                      {LIST_SECTION_LABELS[group.section]}
+                    </h3>
+                    <ul className="rounded-card bg-surface shadow-card">
+                      {group.items.map((item) => (
+                        <ListItemRow key={item.id} item={item} />
+                      ))}
+                    </ul>
+                  </section>
+                ))}
+              </div>
+            )
+          ) : itemsForList.length === 0 ? (
+            <div className="flex flex-col items-center justify-center gap-1 py-8 text-center">
+              <p className="text-sm font-medium text-ink">No items yet</p>
+              <p className="text-xs text-ink-muted">Add one above to get started.</p>
+            </div>
+          ) : (
+            <ul className="rounded-card bg-surface shadow-card">
+              {itemsForList.map((item) => (
+                <ListItemRow key={item.id} item={item} />
+              ))}
+            </ul>
+          )}
+
+          {confirmDeleteList ? (
+            <div className="mt-2 flex items-center justify-center gap-2">
+              <span className="text-xs text-ink-muted">Delete this list and all its items?</span>
+              <button
+                type="button"
+                onClick={() => setConfirmDeleteList(false)}
+                className="min-h-[36px] rounded-control px-2 text-xs text-ink-muted hover:bg-surface-alt focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const list = lists.find((l) => l.id === selectedListId)
+                  if (list) void handleDeleteList(list.id, list.name)
+                }}
+                disabled={deleteList.isPending}
+                className="min-h-[36px] rounded-control bg-danger px-2 text-xs font-medium text-surface hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-danger disabled:opacity-50"
+              >
+                {deleteList.isPending ? 'Deleting…' : 'Delete'}
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setConfirmDeleteList(true)}
+              className="mt-2 flex min-h-[44px] items-center justify-center gap-2 self-center rounded-control px-3 text-xs text-danger hover:bg-surface-alt focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-danger"
+            >
+              <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+              Delete this list
+            </button>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
