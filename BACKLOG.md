@@ -11,14 +11,18 @@ order confirmed by Jaz 2026-07-11, including 010/011 — definitely a go, slotte
 
 ## The queue — up next, in order
 
-**Next up: 024 — Grocery & household lists** (implemented + backend deployed 2026-07-12;
-needs your manual `setupDatabase()`/`selfTest()` run + live validation before PR).
+**Next up: 025 — Recurring events** (024 merged 2026-07-12; 025 is next in the confirmed order).
+
+**024 follow-up still needed:** run `setupDatabase()` then `selfTest()` from the Apps
+Script editor to provision the `Lists`/`ListItems` tabs and confirm `ALL PASS` (not done
+as part of the merge — no API-executable deployment configured for `clasp run`), then
+walk through `specs/024-grocery-household-lists/quickstart.md` scenarios A–G live.
 
 | Order | # | Feature | Stage | Spec folder | PR |
 |---|---|---|---|---|---|
 | 1 | 021 | Someday force-rank + Tasks-tab Someday section | ✅ merged | specs/021-someday-force-rank | [#21](https://github.com/maxwellbw/household-hq/pull/21) |
 | 2 | 023 | Dog-care recurring seed rows | ✅ merged | specs/023-dog-care-seed-rows | [#22](https://github.com/maxwellbw/household-hq/pull/22) |
-| 3 | 024 | Grocery & household lists | 🟡 implemented | specs/024-grocery-household-lists | — |
+| 3 | 024 | Grocery & household lists | ✅ merged | specs/024-grocery-household-lists | [#23](https://github.com/maxwellbw/household-hq/pull/23) |
 | 4 | 025 | Recurring events | ⬜ not started | — | — |
 | 5 | 026 | Inbound gcal import (personal calendars) | ⬜ not started | — | — |
 | 6 | 010 | PWA install + web push | ⬜ not started | — | — |
