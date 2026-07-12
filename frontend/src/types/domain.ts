@@ -3,7 +3,7 @@
 
 export type Owner = 'max' | 'jaz' | 'both'
 export type TaskStatus = 'open' | 'done' | 'snoozed'
-export type Cadence = 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | 'annually'
+export type Cadence = 'weekly' | 'biweekly' | 'monthly' | 'sixweekly' | 'eightweekly' | 'quarterly' | 'annually'
 
 export interface Event {
   id: string

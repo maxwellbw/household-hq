@@ -16,7 +16,7 @@ order confirmed by Jaz 2026-07-11, including 010/011 — definitely a go, slotte
 | Order | # | Feature | Stage | Spec folder | PR |
 |---|---|---|---|---|---|
 | 1 | 021 | Someday force-rank + Tasks-tab Someday section | ✅ merged | specs/021-someday-force-rank | [#21](https://github.com/maxwellbw/household-hq/pull/21) |
-| 2 | 023 | Dog-care recurring seed rows | ⬜ not started | — | — |
+| 2 | 023 | Dog-care recurring seed rows | 🔨 implemented, pending deploy+validation | specs/023-dog-care-seed-rows | — |
 | 3 | 024 | Grocery & household lists | ⬜ not started | — | — |
 | 4 | 025 | Recurring events | ⬜ not started | — | — |
 | 5 | 026 | Inbound gcal import (personal calendars) | ⬜ not started | — | — |
@@ -32,11 +32,16 @@ into a labeled **Someday section at the bottom of the Tasks tab**, rendered in t
 ranking order, collapsible like the other sections (022 makes Open/Done collapsible; the
 new Someday section ships collapsible from day one).
 
-**023 — Dog-care recurring seed rows** (backend-only; extends 015's `Seed.js` pattern).
-Standard set, owned by `both`, hand-edit after seeding (clarified 2026-07-11): flea/tick
-meds monthly, heartworm monthly, nail trim ~6 weeks, grooming ~8 weeks. Annual vet +
-vaccines waits for 025 (yearly recurrence) or is seeded as a yearly rule if 025's engine
-work lands first.
+**023 — Dog-care recurring seed rows** (extends 015's `Seed.js` pattern). Standard set,
+owned by `both`, hand-edit after seeding (clarified 2026-07-11): flea/tick meds monthly,
+heartworm monthly, nail trim ~6 weeks, grooming ~8 weeks. Annual vet + vaccines waits for
+025 (yearly recurrence) or is seeded as a yearly rule if 025's engine work lands first.
+**Clarified 2026-07-12:** the engine had no 6-/8-week cadence (nothing between monthly and
+quarterly), so this widened from "backend-only" to add two new fixed cadences —
+`sixweekly` (+42d) / `eightweekly` (+56d) — across `backend/Config.js` + `Recurring.js`
+**and** the frontend `Cadence` type/labels/dropdowns (`RecurringManager.tsx`,
+`QuickAddSheet.tsx`), so seeded rows display and stay hand-selectable. Still no new API
+action or screen; `seedRecurringPack()`/the ledger from 015 are untouched.
 
 **024 — Grocery & household lists.** Modeled on Jaz's Apple Notes flow: a **standalone
 persistent list** (clarified 2026-07-11 — not task-attached `listItems`), items live forever

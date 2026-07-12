@@ -76,7 +76,7 @@ var ID_TABS = [TABS.EVENTS, TABS.TASKS, TABS.TEMPLATES, TABS.RECURRING];
 
 var OWNERS = ['max', 'jaz', 'both'];
 var STATUSES = ['open', 'done', 'snoozed'];
-var CADENCES = ['weekly', 'biweekly', 'monthly', 'quarterly', 'annually'];
+var CADENCES = ['weekly', 'biweekly', 'monthly', 'sixweekly', 'eightweekly', 'quarterly', 'annually'];
 
 // ---------------------------------------------------------------------------
 // Feature 003 — task slices + activity feed (contracts/api-003.md; research D4/D5)
@@ -261,5 +261,11 @@ var SEED_PACK = [
   { seedKey: 'dishwasher-filter', title: 'Clean dishwasher filter', cadence: 'monthly', anchorRule: 'today', defaultOwner: 'both' },
   { seedKey: 'gutters', title: 'Clean gutters', cadence: 'annually', anchorRule: 'fall-oct15', defaultOwner: 'both' },
   { seedKey: 'detector-batteries', title: 'Replace smoke/CO detector batteries', cadence: 'annually', anchorRule: 'fall-nov1', defaultOwner: 'both' },
-  { seedKey: 'mow-lawn', title: 'Mow lawn', cadence: 'weekly', anchorRule: 'today', defaultOwner: 'both', seasonStart: 4, seasonEnd: 10 }
+  { seedKey: 'mow-lawn', title: 'Mow lawn', cadence: 'weekly', anchorRule: 'today', defaultOwner: 'both', seasonStart: 4, seasonEnd: 10 },
+  // feature 023 — dog-care routine; year-round, all owned by both. Annual vet + vaccines
+  // are out of scope (deferred to feature 025's yearly-recurrence work).
+  { seedKey: 'flea-tick', title: 'Flea/tick meds', cadence: 'monthly', anchorRule: 'today', defaultOwner: 'both' },
+  { seedKey: 'heartworm', title: 'Heartworm meds', cadence: 'monthly', anchorRule: 'today', defaultOwner: 'both' },
+  { seedKey: 'nail-trim', title: 'Nail trim', cadence: 'sixweekly', anchorRule: 'today', defaultOwner: 'both' },
+  { seedKey: 'grooming', title: 'Grooming', cadence: 'eightweekly', anchorRule: 'today', defaultOwner: 'both' }
 ];
