@@ -11,12 +11,12 @@ order confirmed by Jaz 2026-07-11, including 010/011 — definitely a go, slotte
 
 ## The queue — up next, in order
 
-**Next up: 023 — Dog-care recurring seed rows** (021 merged 2026-07-12; 023 is next in the confirmed order).
+**Next up: 024 — Grocery & household lists** (023 merged 2026-07-12; 024 is next in the confirmed order).
 
 | Order | # | Feature | Stage | Spec folder | PR |
 |---|---|---|---|---|---|
 | 1 | 021 | Someday force-rank + Tasks-tab Someday section | ✅ merged | specs/021-someday-force-rank | [#21](https://github.com/maxwellbw/household-hq/pull/21) |
-| 2 | 023 | Dog-care recurring seed rows | 🔨 implemented, pending deploy+validation | specs/023-dog-care-seed-rows | — |
+| 2 | 023 | Dog-care recurring seed rows | ✅ merged | specs/023-dog-care-seed-rows | [#22](https://github.com/maxwellbw/household-hq/pull/22) |
 | 3 | 024 | Grocery & household lists | ⬜ not started | — | — |
 | 4 | 025 | Recurring events | ⬜ not started | — | — |
 | 5 | 026 | Inbound gcal import (personal calendars) | ⬜ not started | — | — |
@@ -124,6 +124,7 @@ prep template).
 | 022 | UX fix batch 2 (snooze on calendar, delete, collapsible Open) | [specs/022-ux-fix-batch-2](specs/022-ux-fix-batch-2/spec.md) | [#18](https://github.com/maxwellbw/household-hq/pull/18) |
 | 019 | Task & event details + collaboration | [specs/019-details-collaboration](specs/019-details-collaboration/spec.md) | [#19](https://github.com/maxwellbw/household-hq/pull/19) |
 | 020 | Settings editor under More | [specs/020-settings-editor](specs/020-settings-editor/spec.md) | [#20](https://github.com/maxwellbw/household-hq/pull/20) |
+| 023 | Dog-care recurring seed rows (`sixweekly`/`eightweekly` cadences added) | [specs/023-dog-care-seed-rows](specs/023-dog-care-seed-rows/spec.md) | [#22](https://github.com/maxwellbw/household-hq/pull/22) |
 
 **Planning history:** Phase 1 (001–007) + Phase 2 (008–009) per brief §10 · Phase 2.5
 (012–015) planned 2026-07-09, Jaz's feedback round 1 — the backend had outrun the UI ·
@@ -134,7 +135,13 @@ grocery lists + inbound gcal import from the parked list.
 
 ### Post-merge notes & open follow-ups
 
-**Open follow-ups first:** **020's `selfTest()` and live click-through are still pending** —
+**Open follow-ups first:** **023's `selfTestSeedPack()` live run is still pending** — the
+sandbox can't execute Apps Script, so `selfTestSeedPack()` (updated for the 12-chore pack
+and the two new `sixweekly`/`eightweekly` cadences) needs to be run manually from the Apps
+Script editor to confirm `SEED PACK: ALL PASS`, and `seedRecurringPack()` needs a real run to
+seed the four dog-care chores into production (see `specs/023-dog-care-seed-rows/quickstart.md`
+§A–G). Backend code is pushed and the web-app deployment refreshed (@18) either way.
+**020's `selfTest()` and live click-through are still pending** —
 `clasp run` needs an API-executable deployment this project doesn't use (web app only), so
 `selfTest()` (which now includes `liveSettingsUpdate_()`) must be run manually from the Apps
 Script editor; the sandboxed preview also can't complete real Google OAuth, so the new
@@ -151,6 +158,17 @@ especially, since its core value (silent restore/refresh) is exactly what the sa
 exercise** — see `specs/018-stay-signed-in/quickstart.md`. 006's T057 live sign-in
 walkthrough was never formally run. 013's US3 (desktop drag-onto-day) is deferred until
 Schedule-X exposes stable `data-date` on month-grid cells.
+
+_023 (PR #22). Extends 015's seed pack with four dog-care chores (flea/tick meds,
+heartworm meds, nail trim, grooming), all owned by `both`, year-round — reuses
+`seedRecurringPack()`'s seed-key + `recurringSeedApplied` ledger unchanged, so idempotency,
+edit-preservation, and never-resurrect all come free. Nail trim (~6 wk) and grooming
+(~8 wk) needed two new fixed cadences — `sixweekly` (+42d) and `eightweekly` (+56d) — added
+to `CADENCE_STEP_`/`CADENCES` **and** the frontend `Cadence` type + labels + dropdowns
+(`RecurringManager.tsx`, `QuickAddSheet.tsx`), widening the feature from the backlog's
+original "backend-only" framing by this bounded amount. No new API action or screen. 322
+tests green (2 new); `npm run build` clean. Backend pushed and the web-app deployment
+refreshed (@18); `selfTestSeedPack()` live run still pending (see follow-up above)._
 
 _020 (PR #20). New `settings.update` backend action — the only write path onto a curated
 subset of the keyless Settings tab (`EDITABLE_SETTINGS` whitelist enforced server-side; every
