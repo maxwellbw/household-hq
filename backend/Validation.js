@@ -23,6 +23,10 @@ function isValidType_(type, value) {
     case 'cadence': return CADENCES.indexOf(value) >= 0;
     case 'date': return isIsoDate_(value);
     case 'datetime': return isIsoDateTime_(value);
+    // Feature 025: Events start/end accept a full datetime OR a date-only (all-day) value.
+    case 'datetimeOrDate': return isIsoDateTime_(value) || isIsoDate_(value);
+    // Feature 025: recurring-event rule's occurrence time-of-day, HH:mm 24-hour.
+    case 'time': return /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
     case 'int': return /^-?\d+$/.test(value);
     case 'posint': return /^\d+$/.test(value) && Number(value) >= 1;
     case 'month': return /^\d+$/.test(value) && Number(value) >= 1 && Number(value) <= 12;

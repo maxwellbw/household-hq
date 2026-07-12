@@ -48,7 +48,9 @@ var TABS = {
   ACTIVITY_LOG: 'ActivityLog',
   SETTINGS: 'Settings',
   LISTS: 'Lists',
-  LIST_ITEMS: 'ListItems'
+  LIST_ITEMS: 'ListItems',
+  // Feature 025 — recurring events.
+  RECURRING_EVENTS: 'RecurringEvents'
 };
 
 /**
@@ -58,7 +60,7 @@ var TABS = {
  */
 var HEADERS = {
   Events: ['id', 'title', 'start', 'end', 'owner', 'type', 'templateId', 'notes', 'gcalEventId',
-           'prepGeneratedFor', 'location'],
+           'prepGeneratedFor', 'location', 'recurringEventId'],
   Tasks: ['id', 'title', 'dueDate', 'owner', 'status', 'eventId', 'recurringId',
           'completedBy', 'completedAt', 'snoozeHistory', 'listItems', 'gcalEventId',
           'notes', 'ackBy', 'ackAt', 'somedayRank'],
@@ -69,11 +71,16 @@ var HEADERS = {
   Settings: ['key', 'value', 'notes'],
   // Feature 024 — Grocery & household lists (data-model.md).
   Lists: ['id', 'name'],
-  ListItems: ['id', 'listId', 'name', 'status', 'section', 'staple', 'note']
+  ListItems: ['id', 'listId', 'name', 'status', 'section', 'staple', 'note'],
+  // Feature 025 — Recurring events (data-model.md).
+  RecurringEvents: ['id', 'title', 'cadence', 'anchorDate', 'startTime', 'durationMinutes',
+                     'defaultOwner', 'templateId', 'location', 'notes', 'seasonStart',
+                     'seasonEnd', 'lastGenerated']
 };
 
 /** Tabs whose rows carry a UUID `id` (eligible for blank-ID adoption, FR-022). */
-var ID_TABS = [TABS.EVENTS, TABS.TASKS, TABS.TEMPLATES, TABS.RECURRING, TABS.LISTS, TABS.LIST_ITEMS];
+var ID_TABS = [TABS.EVENTS, TABS.TASKS, TABS.TEMPLATES, TABS.RECURRING, TABS.LISTS,
+               TABS.LIST_ITEMS, TABS.RECURRING_EVENTS];
 
 // ---------------------------------------------------------------------------
 // Enumerations (FR-014)
@@ -129,17 +136,22 @@ function isWriteAction_(action) {
 
 /**
  * Typed fields per tab, driving both write validation (reject) and read warnings
- * (surface, don't drop — FR-020). Types: text | date | datetime | owner | status |
- * cadence | int | posint | month. Untyped columns are free text.
+ * (surface, don't drop — FR-020). Types: text | date | datetime | datetimeOrDate | owner |
+ * status | cadence | int | posint | month | time. Untyped columns are free text.
  */
 var FIELD_TYPES = {
-  Events: { start: 'datetime', end: 'datetime', owner: 'owner' },
+  // Feature 025: start/end accept a full datetime OR a date-only (all-day) value.
+  Events: { start: 'datetimeOrDate', end: 'datetimeOrDate', owner: 'owner' },
   Tasks: { dueDate: 'date', owner: 'owner', status: 'status', completedAt: 'datetime',
            somedayRank: 'posint' },
   TaskTemplates: { offsetDays: 'int', defaultOwner: 'owner' },
   Recurring: { cadence: 'cadence', anchorDate: 'date', defaultOwner: 'owner',
                lastGenerated: 'date', seasonStart: 'month', seasonEnd: 'month' },
-  ListItems: { status: 'listItemStatus', section: 'listSection', staple: 'bool' }
+  ListItems: { status: 'listItemStatus', section: 'listSection', staple: 'bool' },
+  // Feature 025 — recurring events (data-model.md).
+  RecurringEvents: { cadence: 'cadence', anchorDate: 'date', startTime: 'time',
+                      durationMinutes: 'posint', defaultOwner: 'owner',
+                      seasonStart: 'month', seasonEnd: 'month', lastGenerated: 'date' }
 };
 
 /** Fields required to create a record (only Events/Tasks are API-writable in 001). */
@@ -149,8 +161,20 @@ var REQUIRED_ON_CREATE = {
   Recurring: ['title', 'cadence', 'anchorDate', 'defaultOwner'],
   TaskTemplates: ['eventType', 'taskTitle', 'offsetDays', 'defaultOwner'],
   Lists: ['name'],
-  ListItems: ['listId', 'name']
+  ListItems: ['listId', 'name'],
+  RecurringEvents: ['title', 'cadence', 'anchorDate', 'defaultOwner']
 };
+
+// ---------------------------------------------------------------------------
+// Feature 025 — recurring events (research D5/D6)
+// ---------------------------------------------------------------------------
+
+/** Fallback lookahead (days) when Settings' recurringEventsLookaheadDays is blank/≤0. */
+var RECURRING_EVENTS_LOOKAHEAD_DEFAULT_DAYS = 60;
+
+/** Hour (household tz) the nightly recurring-events generator trigger runs at; ahead of
+ *  004's/005's hours so occurrences (and their prep) exist before every downstream job. */
+var RECURRING_EVENTS_TRIGGER_HOUR = 2;
 
 // ---------------------------------------------------------------------------
 // Feature 004 — recurring chore engine (research D6/D7)
@@ -243,7 +267,9 @@ var SETTINGS_SEED = [
     'never-resurrect. Clear a key (and delete its row) by hand to re-enable seeding of that chore.'],
   ['groceryStapleNudgeThreshold', '3',
     'feature 024; count of staple ListItems marked "need" (across all lists) that triggers ' +
-    'the Home dashboard shopping nudge']
+    'the Home dashboard shopping nudge'],
+  ['recurringEventsLookaheadDays', '60',
+    'feature 025; days ahead the nightly recurring-events generator materializes. Blank/≤0 falls back to 60']
 ];
 
 // ---------------------------------------------------------------------------
