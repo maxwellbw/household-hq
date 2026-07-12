@@ -553,8 +553,9 @@ function liveRecurringCatchUp_() {
 // ---------------------------------------------------------------------------
 
 function unitSeedPack_() {
-  // The starter pack itself: 8 chores, valid cadences/owners, mow-lawn's season window.
-  assert_(SEED_PACK.length === 8, 'SEED_PACK has 8 starter chores');
+  // The starter pack itself: 12 chores (8 household + 4 dog-care, feature 023), valid
+  // cadences/owners, mow-lawn's season window.
+  assert_(SEED_PACK.length === 12, 'SEED_PACK has 12 starter chores');
   var keys = SEED_PACK.map(function (c) { return c.seedKey; });
   assert_(keys.length === Object.keys(keys.reduce(function (s, k) { s[k] = true; return s; }, {})).length,
     'every seedKey in SEED_PACK is unique');
@@ -567,6 +568,27 @@ function unitSeedPack_() {
     'mow-lawn is seeded April-October (FR-006)');
   var gutters = SEED_PACK.filter(function (c) { return c.seedKey === 'gutters'; })[0];
   assert_(gutters && gutters.cadence === 'annually', 'gutters is a single annual rule, not biannual');
+
+  // Dog-care chores (feature 023): flea/tick + heartworm monthly, nail trim every 6 weeks,
+  // grooming every 8 weeks, all owned by both, all year-round (no season window).
+  var nailTrim = SEED_PACK.filter(function (c) { return c.seedKey === 'nail-trim'; })[0];
+  var grooming = SEED_PACK.filter(function (c) { return c.seedKey === 'grooming'; })[0];
+  var fleaTick = SEED_PACK.filter(function (c) { return c.seedKey === 'flea-tick'; })[0];
+  var heartworm = SEED_PACK.filter(function (c) { return c.seedKey === 'heartworm'; })[0];
+  assert_(nailTrim && nailTrim.cadence === 'sixweekly' && nailTrim.defaultOwner === 'both',
+    'nail trim is every-6-weeks, owned by both');
+  assert_(grooming && grooming.cadence === 'eightweekly' && grooming.defaultOwner === 'both',
+    'grooming is every-8-weeks, owned by both');
+  assert_(fleaTick && fleaTick.cadence === 'monthly' && heartworm && heartworm.cadence === 'monthly',
+    'flea/tick and heartworm meds are monthly');
+  assert_(nailTrim.seasonStart == null && grooming.seasonStart == null,
+    'dog-care chores run year-round (no season window)');
+
+  // New cadence step math (feature 023): sixweekly/eightweekly advance by exact day counts.
+  assert_(CADENCE_STEP_('sixweekly', '2026-07-10') === '2026-08-21',
+    'sixweekly steps exactly 42 days');
+  assert_(CADENCE_STEP_('eightweekly', '2026-07-10') === '2026-09-04',
+    'eightweekly steps exactly 56 days');
 
   // Anchor math.
   assert_(computeSeedAnchor_('today', '2026-07-10') === '2026-07-10', 'today anchor is today');

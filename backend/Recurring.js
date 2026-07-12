@@ -54,6 +54,8 @@ function CADENCE_STEP_(cadence, ymd) {
     case 'weekly': return addDays_(ymd, 7);
     case 'biweekly': return addDays_(ymd, 14);
     case 'monthly': return addMonthsClamped_(ymd, 1);
+    case 'sixweekly': return addDays_(ymd, 42);
+    case 'eightweekly': return addDays_(ymd, 56);
     case 'quarterly': return addMonthsClamped_(ymd, 3);
     case 'annually': return addMonthsClamped_(ymd, 12);
     default: fail_('VALIDATION_FAILED', 'Unknown cadence "' + cadence + '".', 'cadence');
