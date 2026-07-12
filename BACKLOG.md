@@ -11,23 +11,17 @@ order confirmed by Jaz 2026-07-11, including 010/011 — definitely a go, slotte
 
 ## The queue — up next, in order
 
-**Next up: 020 — Settings editor under More** (019 merged 2026-07-12; 020 is next in the confirmed order).
+**Next up: 021 — Someday force-rank + Tasks-tab Someday section** (020 merged 2026-07-12; 021 is next in the confirmed order).
 
 | Order | # | Feature | Stage | Spec folder | PR |
 |---|---|---|---|---|---|
-| 1 | 020 | Settings editor under More | 🚧 implemented, pending live validation | `specs/020-settings-editor/` | — |
-| 2 | 021 | Someday force-rank + Tasks-tab Someday section | ⬜ not started | — | — |
-| 3 | 023 | Dog-care recurring seed rows | ⬜ not started | — | — |
-| 4 | 024 | Grocery & household lists | ⬜ not started | — | — |
-| 5 | 025 | Recurring events | ⬜ not started | — | — |
-| 6 | 026 | Inbound gcal import (personal calendars) | ⬜ not started | — | — |
-| 7 | 010 | PWA install + web push | ⬜ not started | — | — |
-| 8 | 011 | Weather-aware dog-walk window finder | ⬜ not started | — | — |
-
-**020 — Settings editor under More.** Curated form (clarified: not a raw key–value
-editor): digest schedule (weekly/monthly day + hour), ntfy pings on/off, calendar reminder
-minutes, timezone. Allowlist emails and ntfy topics stay Sheet-only for safety. Needs a
-`settings.update` backend action (does not exist yet).
+| 1 | 021 | Someday force-rank + Tasks-tab Someday section | ⬜ not started | — | — |
+| 2 | 023 | Dog-care recurring seed rows | ⬜ not started | — | — |
+| 3 | 024 | Grocery & household lists | ⬜ not started | — | — |
+| 4 | 025 | Recurring events | ⬜ not started | — | — |
+| 5 | 026 | Inbound gcal import (personal calendars) | ⬜ not started | — | — |
+| 6 | 010 | PWA install + web push | ⬜ not started | — | — |
+| 7 | 011 | Weather-aware dog-walk window finder | ⬜ not started | — | — |
 
 **021 — Someday force-rank + Tasks-tab Someday section.** "This or that?" pairwise session
 through the Someday list producing **one shared household ranking** (clarified: not
@@ -124,6 +118,7 @@ prep template).
 | 018 | Stay signed in (session persistence) | [specs/018-stay-signed-in](specs/018-stay-signed-in/spec.md) | [#17](https://github.com/maxwellbw/household-hq/pull/17) |
 | 022 | UX fix batch 2 (snooze on calendar, delete, collapsible Open) | [specs/022-ux-fix-batch-2](specs/022-ux-fix-batch-2/spec.md) | [#18](https://github.com/maxwellbw/household-hq/pull/18) |
 | 019 | Task & event details + collaboration | [specs/019-details-collaboration](specs/019-details-collaboration/spec.md) | [#19](https://github.com/maxwellbw/household-hq/pull/19) |
+| 020 | Settings editor under More | [specs/020-settings-editor](specs/020-settings-editor/spec.md) | [#20](https://github.com/maxwellbw/household-hq/pull/20) |
 
 **Planning history:** Phase 1 (001–007) + Phase 2 (008–009) per brief §10 · Phase 2.5
 (012–015) planned 2026-07-09, Jaz's feedback round 1 — the backend had outrun the UI ·
@@ -134,19 +129,34 @@ grocery lists + inbound gcal import from the parked list.
 
 ### Post-merge notes & open follow-ups
 
-**Open follow-ups first:** **019's Sheet migration is still pending** — `setupDatabase()`
-(adds `Tasks.notes/ackBy/ackAt` + `Events.location`) and `selfTest()` need to be run from
-the Apps Script editor (no `clasp run` executable deployment configured for remote
-execution); until then the app fails closed with `SCHEMA_MISMATCH` on any request touching
-those fields. Backend code is pushed and the web-app deployment refreshed (@15) either way.
-009's live validation is still deferred (run `setupDatabase()` + `selfTest()`, pick topics,
-subscribe phones, quickstart A–F). 016, 017, 018, 019, and **022** all shipped without a
-live browser pass (the sandboxed preview can't do real Google OAuth) — **a manual desktop +
-mobile quickstart pass is still recommended for all five; 018 especially, since its core
-value (silent restore/refresh) is exactly what the sandbox can't exercise** — see
-`specs/018-stay-signed-in/quickstart.md`. 006's T057 live sign-in walkthrough was never
-formally run. 013's US3 (desktop drag-onto-day) is deferred until Schedule-X exposes stable
-`data-date` on month-grid cells.
+**Open follow-ups first:** **020's `selfTest()` and live click-through are still pending** —
+`clasp run` needs an API-executable deployment this project doesn't use (web app only), so
+`selfTest()` (which now includes `liveSettingsUpdate_()`) must be run manually from the Apps
+Script editor; the sandboxed preview also can't complete real Google OAuth, so the new
+More → Settings screen has only been verified via component tests + code-level review, not a
+live click-through. Backend code is pushed and the web-app deployment refreshed (@16)
+either way. **019's Sheet migration is still pending** — `setupDatabase()` (adds
+`Tasks.notes/ackBy/ackAt` + `Events.location`) and `selfTest()` need to be run from the Apps
+Script editor; until then the app fails closed with `SCHEMA_MISMATCH` on any request
+touching those fields. 009's live validation is still deferred (run `setupDatabase()` +
+`selfTest()`, pick topics, subscribe phones, quickstart A–F). 016, 017, 018, 019, 020, and
+**022** all shipped without a live browser pass (the sandboxed preview can't do real Google
+OAuth) — **a manual desktop + mobile quickstart pass is still recommended for all six; 018
+especially, since its core value (silent restore/refresh) is exactly what the sandbox can't
+exercise** — see `specs/018-stay-signed-in/quickstart.md`. 006's T057 live sign-in
+walkthrough was never formally run. 013's US3 (desktop drag-onto-day) is deferred until
+Schedule-X exposes stable `data-date` on month-grid cells.
+
+_020 (PR #20). New `settings.update` backend action — the only write path onto a curated
+subset of the keyless Settings tab (`EDITABLE_SETTINGS` whitelist enforced server-side; every
+other key, including emails/ntfy topics, is unreachable through this action even if a client
+sends it). All fields validated before any write (no partial writes); a save writes only the
+keys that actually changed and appends exactly one `settings-update` ActivityLog row (no log
+noise on a no-op resave). Changing `digestHour` reinstalls the daily `sendDigests` trigger in
+the same call, so the new schedule takes effect with no manual step. New **Settings** screen
+under More (digest schedule, ntfy toggle, reminder minutes, curated 6-zone timezone dropdown)
+— single Save button, only submits changed fields. 272 tests green (3 new); backend
+`liveSettingsUpdate_()` added to `selfTest()` but not yet run live (see follow-up above)._
 
 _019 (PR #19). Four slices, no new OAuth scope, one new backend action. **Notes**: new
 `Tasks.notes` column (Events' `notes` already existed) editable in create/edit everywhere;
