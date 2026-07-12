@@ -11,11 +11,11 @@ order confirmed by Jaz 2026-07-11, including 010/011 — definitely a go, slotte
 
 ## The queue — up next, in order
 
-**Next up: 021 — Someday force-rank + Tasks-tab Someday section** (020 merged 2026-07-12; 021 is next in the confirmed order).
+**Next up: 023 — Dog-care recurring seed rows** (021 merged 2026-07-12; 023 is next in the confirmed order).
 
 | Order | # | Feature | Stage | Spec folder | PR |
 |---|---|---|---|---|---|
-| 1 | 021 | Someday force-rank + Tasks-tab Someday section | 🟦 deployed (pending validation) | specs/021-someday-force-rank | [#21](https://github.com/maxwellbw/household-hq/pull/21) |
+| 1 | 021 | Someday force-rank + Tasks-tab Someday section | ✅ merged | specs/021-someday-force-rank | [#21](https://github.com/maxwellbw/household-hq/pull/21) |
 | 2 | 023 | Dog-care recurring seed rows | ⬜ not started | — | — |
 | 3 | 024 | Grocery & household lists | ⬜ not started | — | — |
 | 4 | 025 | Recurring events | ⬜ not started | — | — |
