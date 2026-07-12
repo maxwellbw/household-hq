@@ -339,6 +339,31 @@ function setTaskSnooze_(id, newDueDate, actor) {
 }
 
 /**
+ * Acknowledge/commit to an assigned task (feature 019 US2, "I've got it"). Inside the lock:
+ * if `ackBy` already equals `actor`, return unchanged (changed:false, idempotent replay —
+ * mirrors setTaskSnooze_). Otherwise stamp ackBy/ackAt, write the row, and log 'acknowledge'.
+ * Authorization (actor === owner, owner is a single person) is the caller's job (Api.js).
+ *
+ * @return {{task: Object, changed: boolean}}
+ */
+function setTaskAcknowledge_(id, actor) {
+  return withLock_(function () {
+    var t = readTableForWrite_(TABS.TASKS);
+    var rec = findRecord_(t, id);
+    if (!rec) fail_('NOT_FOUND', 'No ' + TABS.TASKS + ' record with id "' + id + '".');
+    if (rec.ackBy === actor) {
+      return { task: stripInternal_(rec), changed: false };
+    }
+    var merged = stripInternal_(rec);
+    merged.ackBy = actor;
+    merged.ackAt = nowIso_();
+    writeRowAsText_(t.sheet, rec._row, buildRowArray_(t, merged, t.values[rec._row - 1]));
+    appendLog_(actor, 'acknowledge', id, merged.title || '');
+    return { task: merged, changed: true };
+  });
+}
+
+/**
  * Unsnooze a task: return it to 'open' (snoozeHistory preserved). If already open,
  * no-change (changed:false). Logs 'unsnooze' on a real transition.
  *

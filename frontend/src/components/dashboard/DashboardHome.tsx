@@ -5,11 +5,13 @@ import { useRecurring } from '@/hooks/useRecurring'
 import { useSettings } from '@/hooks/useSettings'
 import { useAuth } from '@/hooks/useAuth'
 import { highlights, loadBalance, resolveViewer, sevenDayTiles, smartViews } from '@/lib/dashboard'
+import { ackNotices } from '@/lib/ackNotices'
 import { monthRange, weekRange } from '@/lib/datetime'
 import { SmartViews } from '@/components/dashboard/SmartViews'
 import { LoadBalance } from '@/components/dashboard/LoadBalance'
 import { Highlights } from '@/components/dashboard/Highlights'
 import { SevenDayStrip } from '@/components/dashboard/SevenDayStrip'
+import { AckNotices } from '@/components/dashboard/AckNotices'
 
 interface DashboardHomeProps {
   onOpenDate: (dateKey: string) => void
@@ -41,6 +43,8 @@ export function DashboardHome({ onOpenDate }: DashboardHomeProps) {
   )
 
   const viewer = resolveViewer(session)
+
+  const notices = useMemo(() => ackNotices(tasksQuery.data ?? [], viewer), [tasksQuery.data, viewer])
 
   const highlightItems = useMemo(
     () => highlights(eventsQuery.data ?? [], recurringQuery.data ?? [], tasksQuery.data ?? [], timezone),
@@ -76,6 +80,7 @@ export function DashboardHome({ onOpenDate }: DashboardHomeProps) {
 
   return (
     <div className="flex flex-col py-2">
+      <AckNotices notices={notices} />
       <SevenDayStrip tiles={strip} onOpenDate={onOpenDate} />
       <SmartViews views={views} timezone={timezone} />
       <LoadBalance weekBalance={weekBal} monthBalance={monthBal} viewer={viewer} />

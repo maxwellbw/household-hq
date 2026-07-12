@@ -68,4 +68,19 @@ describe('DashboardHome', () => {
     expect(screen.getByLabelText('Loading dashboard')).toBeInTheDocument()
     expect(screen.queryByText('Today')).not.toBeInTheDocument()
   })
+
+  it('shows an acknowledge notice when the other person committed to a task the viewer assigned (019 US2)', () => {
+    mockUseTasks.mockReturnValueOnce({
+      data: [
+        {
+          id: 't1', title: 'Pick up the dog', owner: 'max', status: 'open',
+          ackBy: 'max', ackAt: '2026-07-11T09:00',
+        },
+      ],
+      isPending: false,
+      isError: false,
+    })
+    render(<DashboardHome onOpenDate={vi.fn()} />)
+    expect(screen.getByText('Max has it: Pick up the dog')).toBeInTheDocument()
+  })
 })

@@ -1,4 +1,4 @@
-import type { Task } from '@/types/domain'
+import type { Owner, Task } from '@/types/domain'
 
 export interface GroupedTasks {
   open: Task[]
@@ -65,4 +65,23 @@ export function groupTasks(tasks: Task[]): GroupedTasks {
     })
 
   return { open, done }
+}
+
+/**
+ * True when `task` is assigned to a single person and that person has not yet
+ * acknowledged it (feature 019 US2 — "not yet committed"). `both`-owned and completed
+ * tasks are never uncommitted; the badge/action is visible to both users regardless of
+ * `viewer` (viewer is accepted for API symmetry with `canAcknowledge`).
+ */
+export function isUncommitted(task: Task, _viewer?: Owner): boolean {
+  return (
+    (task.owner === 'max' || task.owner === 'jaz') &&
+    (task.status === 'open' || task.status === 'snoozed') &&
+    task.ackBy !== task.owner
+  )
+}
+
+/** True when `viewer` is the assignee of an uncommitted task — i.e. may tap "I've got it". */
+export function canAcknowledge(task: Task, viewer: Owner | undefined): boolean {
+  return isUncommitted(task) && viewer !== undefined && viewer === task.owner
 }

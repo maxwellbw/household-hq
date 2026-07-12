@@ -33,6 +33,15 @@ function buildPingMessage_(completer, title) {
   return name + ' completed: ' + t;
 }
 
+/** `"Max has it: Pick up the dog"` (feature 019 US2) — same fallback rules as completion. */
+function buildAckMessage_(assignee, title) {
+  var name = assignee === 'max' ? 'Max' : 'Jaz';
+  var t = String(title || '').trim();
+  if (t === '') return name + ' has it';
+  if (t.length > NTFY_MAX_TITLE_LEN) t = t.slice(0, NTFY_MAX_TITLE_LEN - 1) + '…';
+  return name + ' has it: ' + t;
+}
+
 /** POST `message` to ntfy.sh's `topic`. Never throws — returns {ok, code} either way. */
 function postToNtfy_(topic, message) {
   try {
@@ -83,5 +92,41 @@ function pingCompletion_(task, completer) {
     }
   } catch (e) {
     // Absolute last resort — a completion must never fail because of this side effect.
+  }
+}
+
+/**
+ * Best-effort acknowledgement ping (feature 019 US2). Called only when a task really
+ * transitioned to acknowledged. Recipient is the assigner — the household member who is
+ * NOT the assignee/owner (mirrors pingCompletion_'s otherPerson_ logic). Never throws.
+ */
+function pingAcknowledge_(task) {
+  try {
+    var settings = readSettingsMap_();
+    if (!isEnabled_(settings, 'ntfyEnabled')) {
+      appendLog_('system', 'ntfy-ping', task.id, 'ntfy skipped (disabled)');
+      return;
+    }
+
+    var recipient = otherPerson_(task.owner);
+    var topic = ntfyTopicFor_(recipient, settings);
+    if (topic === '') {
+      appendLog_('system', 'ntfy-ping', task.id, 'ntfy skipped (topic blank)');
+      return;
+    }
+
+    var message = buildAckMessage_(task.owner, task.title);
+    var result = postToNtfy_(topic, message);
+    var recipientName = recipient === 'max' ? 'Max' : 'Jaz';
+    if (result.ok) {
+      appendLog_('system', 'ntfy-ping', task.id,
+        'pinged ' + recipientName + ': "' + (task.title || '') + '"');
+    } else if (result.code) {
+      appendLog_('system', 'ntfy-ping', task.id, 'ntfy failed (HTTP ' + result.code + ')');
+    } else {
+      appendLog_('system', 'ntfy-ping', task.id, 'ntfy failed (' + (result.error || 'unknown') + ')');
+    }
+  } catch (e) {
+    // Absolute last resort — an acknowledgement must never fail because of this side effect.
   }
 }

@@ -11,6 +11,8 @@ export interface NewEventInput {
   end?: string // ISO datetime; defaults to start + 1h
   owner: Owner
   type?: string
+  notes?: string
+  location?: string
 }
 
 export interface NewRecurringInput {
@@ -24,6 +26,7 @@ export interface NewOneTimeTaskInput {
   title: string
   dueDate?: string // ISO date; omitted → undated (Someday)
   owner: Owner
+  notes?: string
 }
 
 function addOneHour(isoDateTime: string): string {
@@ -42,6 +45,8 @@ export function buildEventPayload(input: NewEventInput): Record<string, unknown>
     end: input.end || addOneHour(input.start),
     owner: input.owner,
     ...(input.type ? { type: input.type } : {}),
+    ...(input.notes ? { notes: input.notes } : {}),
+    ...(input.location ? { location: input.location } : {}),
   }
 }
 
@@ -61,5 +66,6 @@ export function buildOneTimeTaskPayload(input: NewOneTimeTaskInput, _timezone: s
     title: input.title,
     owner: input.owner,
     ...(input.dueDate ? { dueDate: input.dueDate } : {}),
+    ...(input.notes ? { notes: input.notes } : {}),
   }
 }

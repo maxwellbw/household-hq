@@ -60,7 +60,15 @@ export function useUpdateEvent() {
   const { authedCall, handleAuthError } = useAuth()
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (payload: { id: string; title?: string; start?: string; end?: string; owner?: Owner }) => {
+    mutationFn: async (payload: {
+      id: string
+      title?: string
+      start?: string
+      end?: string
+      owner?: Owner
+      notes?: string
+      location?: string
+    }) => {
       try {
         return await authedCall('events.update', payload)
       } catch (err) {
@@ -154,12 +162,12 @@ export function useScheduleTask() {
   })
 }
 
-/** Update a task's title/owner/dueDate (US2) — dueDate: '' clears the date. */
+/** Update a task's title/owner/dueDate/notes (US2) — dueDate: '' clears the date. */
 export function useUpdateTask() {
   const { authedCall, handleAuthError } = useAuth()
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (payload: { id: string; title?: string; owner?: Owner; dueDate?: string }) => {
+    mutationFn: async (payload: { id: string; title?: string; owner?: Owner; dueDate?: string; notes?: string }) => {
       try {
         return await authedCall('tasks.update', payload)
       } catch (err) {
@@ -228,6 +236,37 @@ export function useUnsnoozeTask() {
       const previous = queryClient.getQueryData<Task[]>(['tasks'])
       queryClient.setQueryData<Task[] | undefined>(['tasks'], (old) =>
         old?.map((t) => (t.id === taskId ? { ...t, status: 'open' as const } : t)),
+      )
+      return { previous }
+    },
+    onError: (_err, _taskId, context) => {
+      if (context?.previous) queryClient.setQueryData(['tasks'], context.previous)
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['tasks'] }),
+  })
+}
+
+/** Acknowledge/commit to an assigned task ("I've got it", feature 019 US2) — optimistic
+ *  ackBy flip to the acting person, invalidate on settle. Server enforces that only the
+ *  current owner may acknowledge and pings the assigner best-effort. */
+export function useAcknowledgeTask() {
+  const { authedCall, handleAuthError, session } = useAuth()
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (taskId: string) => {
+      try {
+        return await authedCall('tasks.acknowledge', { id: taskId })
+      } catch (err) {
+        handleAuthError(err)
+        throw err
+      }
+    },
+    onMutate: async (taskId: string) => {
+      await queryClient.cancelQueries({ queryKey: ['tasks'] })
+      const previous = queryClient.getQueryData<Task[]>(['tasks'])
+      const actor = session?.who.identity === 'shared' ? session.actingPerson : session?.who.identity
+      queryClient.setQueryData<Task[] | undefined>(['tasks'], (old) =>
+        old?.map((t) => (t.id === taskId && actor ? { ...t, ackBy: actor as Owner } : t)),
       )
       return { previous }
     },
