@@ -14,7 +14,7 @@
 function setupDatabase() {
   var ss = openDb_();
   var order = [TABS.EVENTS, TABS.TASKS, TABS.TEMPLATES, TABS.RECURRING, TABS.ACTIVITY_LOG,
-    TABS.SETTINGS, TABS.LISTS, TABS.LIST_ITEMS];
+    TABS.SETTINGS, TABS.LISTS, TABS.LIST_ITEMS, TABS.RECURRING_EVENTS];
   var changed = false;
 
   order.forEach(function (tab) {

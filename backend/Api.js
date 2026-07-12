@@ -118,6 +118,13 @@ var HANDLERS = {
   'recurring.create': function (p, actor) { return { recurring: createRecurring_(p, actor) }; },
   'recurring.update': function (p, actor) { return { recurring: updateRecurring_(p, actor) }; },
   'recurring.delete': function (p, actor) { return { id: deleteEntity_(TABS.RECURRING, p, actor) }; },
+
+  // Feature 025: recurring events — full parity with recurring.* above, but materializes Events.
+  'recurringEvents.list':   function () { return { recurringEvents: listRecords_(TABS.RECURRING_EVENTS) }; },
+  'recurringEvents.create': function (p, actor) { return { recurringEvent: createRecurringEvent_(p, actor) }; },
+  'recurringEvents.update': function (p, actor) { return { recurringEvent: updateRecurringEvent_(p, actor) }; },
+  'recurringEvents.delete': function (p, actor) { return { id: deleteEntity_(TABS.RECURRING_EVENTS, p, actor) }; },
+
   'settings.list':  function () { return { settings: readSettingsMap_() }; },
   'settings.update': function (p, actor) { return updateSettings_(p, actor); },
 
