@@ -34,7 +34,9 @@ describe('TaskEditSheet', () => {
     fireEvent.click(screen.getByRole('button', { name: /Jaz/ }))
     fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
     await waitFor(() =>
-      expect(mutateAsync).toHaveBeenCalledWith({ id: 't1', title: 'Water the plants', owner: 'jaz', dueDate: '2026-07-22' }),
+      expect(mutateAsync).toHaveBeenCalledWith({
+        id: 't1', title: 'Water the plants', owner: 'jaz', dueDate: '2026-07-22', notes: '',
+      }),
     )
     expect(onClose).toHaveBeenCalled()
   })
@@ -46,7 +48,26 @@ describe('TaskEditSheet', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Clear date' }))
     fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
     await waitFor(() =>
-      expect(mutateAsync).toHaveBeenCalledWith({ id: 't1', title: 'Water the plants', owner: 'max', dueDate: '' }),
+      expect(mutateAsync).toHaveBeenCalledWith({
+        id: 't1', title: 'Water the plants', owner: 'max', dueDate: '', notes: '',
+      }),
+    )
+  })
+
+  it('seeds the notes field from the task and submits an edited value', async () => {
+    mutateAsync.mockClear()
+    mutateAsync.mockResolvedValueOnce({})
+    const taskWithNotes = { ...baseTask, notes: 'https://example.com' }
+    render(<TaskEditSheet task={taskWithNotes} onClose={vi.fn()} />)
+    const textarea = screen.getByPlaceholderText('Add a note — links are tappable')
+    expect(textarea).toHaveValue('https://example.com')
+    fireEvent.change(textarea, { target: { value: 'https://example.com updated' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+    await waitFor(() =>
+      expect(mutateAsync).toHaveBeenCalledWith({
+        id: 't1', title: 'Water the plants', owner: 'max', dueDate: '2026-07-22',
+        notes: 'https://example.com updated',
+      }),
     )
   })
 

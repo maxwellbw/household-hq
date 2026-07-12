@@ -10,10 +10,21 @@ vi.mock('@/hooks/useMutations', () => ({
   useCompleteTask: () => ({ mutate: vi.fn() }),
   useReopenTask: () => ({ mutate: vi.fn() }),
   useUpdateEvent: () => ({ mutateAsync: vi.fn().mockResolvedValue({}), isPending: false }),
+  useAcknowledgeTask: () => ({ mutate: vi.fn(), isPending: false }),
 }))
 
 vi.mock('@/hooks/useToast', () => ({
   useToast: () => ({ show: vi.fn() }),
+}))
+
+vi.mock('@/hooks/useAuth', () => ({
+  useAuth: () => ({
+    session: {
+      token: 'tok',
+      who: { identity: 'jaz', displayName: 'Jaz', email: 'jaz@test.com', needsActingPerson: false },
+      actingPerson: undefined,
+    },
+  }),
 }))
 
 const prepTask: Task = {
@@ -85,5 +96,30 @@ describe('EventDetailSheet — delete (022 US2)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
     expect(deleteMutate).not.toHaveBeenCalled()
     expect(screen.queryByRole('dialog', { name: 'Delete event?' })).not.toBeInTheDocument()
+  })
+})
+
+describe('EventDetailSheet — notes and location (019 US3/US4)', () => {
+  it('renders notes with a tappable link', () => {
+    const event = { ...makeEvent([]), notes: 'Reservation: https://example.com/res' }
+    render(<EventDetailSheet event={event} timezone="America/Los_Angeles" onClose={vi.fn()} />)
+    const link = screen.getByRole('link', { name: 'https://example.com/res' })
+    expect(link).toHaveAttribute('href', 'https://example.com/res')
+  })
+
+  it('shows no notes paragraph when the event has no notes', () => {
+    render(<EventDetailSheet event={makeEvent([])} timezone="America/Los_Angeles" onClose={vi.fn()} />)
+    expect(screen.queryByRole('link')).not.toBeInTheDocument()
+  })
+
+  it('displays the location when set', () => {
+    const event = { ...makeEvent([]), location: '123 Main St' }
+    render(<EventDetailSheet event={event} timezone="America/Los_Angeles" onClose={vi.fn()} />)
+    expect(screen.getByText('123 Main St')).toBeInTheDocument()
+  })
+
+  it('shows no location line when unset', () => {
+    render(<EventDetailSheet event={makeEvent([])} timezone="America/Los_Angeles" onClose={vi.fn()} />)
+    expect(screen.queryByText('123 Main St')).not.toBeInTheDocument()
   })
 })

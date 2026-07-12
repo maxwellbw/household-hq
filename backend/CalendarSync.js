@@ -202,17 +202,20 @@ function syncCalendarForEvent_(event, actor) {
   var start = parseHouseholdDatetime_(event.start);
   var end = parseHouseholdDatetime_(event.end);
   var minutesBefore = eventReminderMinutes_();
+  var location = String(event.location || '');
 
   if (existing) {
     existing.setTitle(title);
     existing.setTime(start, end);
     existing.setColor(ownerColor_(event.owner));
+    existing.setLocation(location); // feature 019 US4: '' clears a removed location
     applyReminders_(existing, minutesBefore);
     return;
   }
 
   var created = calendar.createEvent(title, start, end);
   created.setColor(ownerColor_(event.owner));
+  created.setLocation(location);
   applyReminders_(created, minutesBefore);
   tagEntry_(created, 'event', event.id);
   setGcalPointer_(TABS.EVENTS, event.id, created.getId(),

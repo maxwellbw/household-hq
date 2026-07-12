@@ -37,6 +37,8 @@ export function QuickAddSheet({ onClose }: QuickAddSheetProps) {
   const [endTime, setEndTime] = useState('')
   const [cadence, setCadence] = useState<Cadence>('weekly')
   const [owner, setOwner] = useState<Owner>(defaultOwner)
+  const [notes, setNotes] = useState('')
+  const [location, setLocation] = useState('')
   const [fieldError, setFieldError] = useState<{ field?: string; message: string } | null>(null)
 
   const createEvent = useCreateEvent()
@@ -67,7 +69,14 @@ export function QuickAddSheet({ onClose }: QuickAddSheetProps) {
           setFieldError({ field: 'end', message: 'End must be on or after start.' })
           return
         }
-        await createEvent.mutateAsync({ title, start, end, owner })
+        await createEvent.mutateAsync({
+          title,
+          start,
+          end,
+          owner,
+          notes: notes.trim() || undefined,
+          location: location.trim() || undefined,
+        })
       } else if (type === 'recurring') {
         if (!date) {
           setFieldError({ field: 'anchorDate', message: 'Pick a starting date.' })
@@ -75,7 +84,7 @@ export function QuickAddSheet({ onClose }: QuickAddSheetProps) {
         }
         await createRecurring.mutateAsync({ title, cadence, anchorDate: date, defaultOwner: owner })
       } else {
-        await createTask.mutateAsync({ title, dueDate: date || undefined, owner })
+        await createTask.mutateAsync({ title, dueDate: date || undefined, owner, notes: notes.trim() || undefined })
       }
       onClose()
     } catch (err) {
@@ -202,6 +211,31 @@ export function QuickAddSheet({ onClose }: QuickAddSheetProps) {
                 </option>
               ))}
             </select>
+          </label>
+        )}
+
+        {type === 'event' && (
+          <label className="mb-3 block">
+            <span className="mb-1 block text-xs font-medium text-ink-muted">Location (optional)</span>
+            <input
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
+              placeholder="Address or place"
+              className="min-h-[44px] w-full rounded-control border border-border bg-surface px-3 text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+            />
+          </label>
+        )}
+
+        {(type === 'event' || type === 'task') && (
+          <label className="mb-3 block">
+            <span className="mb-1 block text-xs font-medium text-ink-muted">Notes (optional)</span>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Add a note — links are tappable"
+              rows={2}
+              className="w-full rounded-control border border-border bg-surface px-3 py-2 text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+            />
           </label>
         )}
 
