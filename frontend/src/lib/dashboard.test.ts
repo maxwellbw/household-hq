@@ -367,7 +367,7 @@ describe('resolveViewer — shared account has no "you"', () => {
   it('returns "max" when signed in as max', () => {
     const session: Session = {
       token: 't',
-      who: { identity: 'max', displayName: 'Max', email: 'm@example.com', needsActingPerson: false },
+      who: { identity: 'max', displayName: 'Max', email: 'm@example.com', needsActingPerson: false, sessionToken: 'hqs1.t.s' },
     }
     expect(resolveViewer(session)).toBe('max')
   })
@@ -375,7 +375,7 @@ describe('resolveViewer — shared account has no "you"', () => {
   it('returns "jaz" when signed in as jaz', () => {
     const session: Session = {
       token: 't',
-      who: { identity: 'jaz', displayName: 'Jaz', email: 'j@example.com', needsActingPerson: false },
+      who: { identity: 'jaz', displayName: 'Jaz', email: 'j@example.com', needsActingPerson: false, sessionToken: 'hqs1.t.s' },
     }
     expect(resolveViewer(session)).toBe('jaz')
   })
@@ -383,7 +383,7 @@ describe('resolveViewer — shared account has no "you"', () => {
   it('returns null for shared account with no acting person — shared is never an owner (FR-009)', () => {
     const session: Session = {
       token: 't',
-      who: { identity: 'shared', displayName: 'Household', email: 's@example.com', needsActingPerson: true },
+      who: { identity: 'shared', displayName: 'Household', email: 's@example.com', needsActingPerson: true, sessionToken: 'hqs1.t.s' },
     }
     expect(resolveViewer(session)).toBeNull()
   })
@@ -391,7 +391,7 @@ describe('resolveViewer — shared account has no "you"', () => {
   it('returns actingPerson when shared account has selected who they are acting as', () => {
     const session: Session = {
       token: 't',
-      who: { identity: 'shared', displayName: 'Household', email: 's@example.com', needsActingPerson: false },
+      who: { identity: 'shared', displayName: 'Household', email: 's@example.com', needsActingPerson: false, sessionToken: 'hqs1.t.s' },
       actingPerson: 'jaz',
     }
     expect(resolveViewer(session)).toBe('jaz')

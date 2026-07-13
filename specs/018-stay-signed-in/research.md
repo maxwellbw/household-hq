@@ -127,3 +127,42 @@ untouched avoids OAuth re-consent churn and keeps the change reviewable.
   sign-in button (rendered on the wall) is always available as the escape hatch.
 - **Single-flight correctness**: ensure the shared refresh promise is cleared after settle
   (success or failure) so a later expiry can refresh again.
+
+## R7 — Revision 2026-07-12: backend-minted session token (R1 failed in the field)
+
+**Field failure**: R1's bet on GIS auto-select did not hold. On the household's actual
+devices, `google.accounts.id.prompt()` was silently declined — iOS Safari's ITP blocks the
+third-party context One Tap needs, and Chrome's FedCM declines without a useful reason. The
+shipped behavior was a 4-second "Signing you back in…" stall followed by the sign-in wall
+and the full Google popup: strictly worse than pre-018. (This was flagged as an "open risk"
+above; it turned out to be the common case, not the edge.)
+
+**Decision**: Mint a **household session token** on the backend and persist it client-side.
+
+- **Format**: `hqs1.<base64url payload>.<base64url HMAC-SHA256>`; payload is
+  `{ e: email, n: displayName, x: expiryMs }`. Signed with a `SESSION_SECRET` script
+  property (auto-created on first use via `Utilities.getUuid()`); verified with
+  `Utilities.computeHmacSha256Signature` — no new services, no npm, Constitution III/IV
+  intact.
+- **Lifecycle**: `auth.whoami` returns a fresh token on every call (30-day expiry, so each
+  app open slides the window). The client stores it in `localStorage` (`hq.sessionToken`),
+  presents it as the request `token`, and replaces it with the renewed one after each boot.
+- **Verification path**: `authenticate_` branches on the `hqs1.` prefix — session tokens
+  verify locally (signature + expiry), Google ID tokens keep the existing `tokeninfo` path
+  (first sign-in). Both paths converge on `resolveIdentity_`, so the **live allowlist is
+  still checked on every request** — removing an email locks that person out immediately,
+  token or no token (FR-008 unchanged).
+- **Revocation**: sign-out clears the stored token and `disableAutoSelect()`; rotating
+  `SESSION_SECRET` invalidates every outstanding session at once. Expiry errors map to
+  `UNAUTHENTICATED`, tampering to `INVALID_CREDENTIAL` — both land the client on the wall,
+  never a loop.
+- **Client simplification**: the silent-prompt machinery (`promptSilent`, the 4s race, the
+  single-flight reactive refresh) is deleted. Boot = one `whoami` round-trip. Mid-session
+  expiry (a tab open >30 days) just falls back to the wall.
+
+**Why not the alternatives re-considered**: OAuth refresh-token flow still needs a secret
+exchange and consent churn for marginal benefit; a server-side session store still violates
+the stateless model. The signed stateless token is the smallest thing that actually delivers
+US1 on iOS. Trade-off accepted: a device-local bearer credential now exists for up to 30
+days — acceptable for a two-person household app on the owners' own devices, mitigated by
+per-request allowlist checks, expiry, and bulk revocation.

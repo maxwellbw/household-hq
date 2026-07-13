@@ -115,6 +115,8 @@ export interface WhoAmI {
   displayName: string
   email: string
   needsActingPerson: boolean
+  /** Backend-minted household session token (018 rev.) — fresh on every whoami. */
+  sessionToken: string
 }
 
 export interface Session {
