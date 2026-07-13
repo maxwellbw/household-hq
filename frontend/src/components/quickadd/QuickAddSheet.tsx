@@ -76,7 +76,7 @@ export function QuickAddSheet({ onClose }: QuickAddSheetProps) {
           setFieldError({ field: 'end', message: 'End must be on or after start.' })
           return
         }
-        await createEvent.mutateAsync({
+        createEvent.mutate({
           title,
           start,
           end,
@@ -84,16 +84,18 @@ export function QuickAddSheet({ onClose }: QuickAddSheetProps) {
           notes: notes.trim() || undefined,
           location: location.trim() || undefined,
         })
+        onClose()
       } else if (type === 'recurring') {
         if (!date) {
           setFieldError({ field: 'anchorDate', message: 'Pick a starting date.' })
           return
         }
         await createRecurring.mutateAsync({ title, cadence, anchorDate: date, defaultOwner: owner })
+        onClose()
       } else {
-        await createTask.mutateAsync({ title, dueDate: date || undefined, owner, notes: notes.trim() || undefined })
+        createTask.mutate({ title, dueDate: date || undefined, owner, notes: notes.trim() || undefined })
+        onClose()
       }
-      onClose()
     } catch (err) {
       if (err instanceof ApiError) {
         setFieldError({ field: err.field, message: err.message })

@@ -74,7 +74,7 @@ export function AppShell({ children, active, onNavigate }: AppShellProps) {
         </nav>
 
         {/* Main content area */}
-        <main className="flex-1 overflow-y-auto pb-16 sm:pb-0">{children}</main>
+        <main className="flex-1 overflow-y-auto pb-[calc(4rem+env(safe-area-inset-bottom))] sm:pb-0">{children}</main>
       </div>
 
       {/* Quick-add FAB */}
@@ -82,15 +82,16 @@ export function AppShell({ children, active, onNavigate }: AppShellProps) {
         type="button"
         onClick={() => setQuickAddOpen(true)}
         aria-label="Add something"
-        className="fixed bottom-20 right-4 z-10 flex h-14 w-14 items-center justify-center rounded-full bg-accent text-surface shadow-card hover:bg-accent-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent sm:bottom-6"
+        className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] right-4 z-10 flex h-14 w-14 items-center justify-center rounded-full bg-accent text-surface shadow-card hover:bg-accent-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent sm:bottom-6"
       >
         <Plus className="h-6 w-6" aria-hidden="true" />
       </button>
 
-      {/* Mobile bottom tab bar — hidden on sm+ */}
+      {/* Mobile bottom tab bar — hidden on sm+; safe-area padding keeps the tab row above the
+          home indicator while the surface background still reaches the physical edge. */}
       <nav
         aria-label="Main navigation"
-        className="fixed inset-x-0 bottom-0 z-10 flex border-t border-border bg-surface sm:hidden"
+        className="fixed inset-x-0 bottom-0 z-10 flex border-t border-border bg-surface pb-[env(safe-area-inset-bottom)] sm:hidden"
       >
         {NAV_ITEMS.map(({ key, label, icon: Icon }) => (
           <button

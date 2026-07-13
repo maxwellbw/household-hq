@@ -9,7 +9,7 @@ vi.mock('@/hooks/useMutations', () => ({
   useDeleteEvent: () => ({ mutate: deleteMutate, isPending: false }),
   useCompleteTask: () => ({ mutate: vi.fn() }),
   useReopenTask: () => ({ mutate: vi.fn() }),
-  useUpdateEvent: () => ({ mutateAsync: vi.fn().mockResolvedValue({}), isPending: false }),
+  useUpdateEvent: () => ({ mutate: vi.fn(), mutateAsync: vi.fn().mockResolvedValue({}), isPending: false }),
   useAcknowledgeTask: () => ({ mutate: vi.fn(), isPending: false }),
 }))
 

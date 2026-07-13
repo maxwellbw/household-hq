@@ -3,7 +3,6 @@ import { useUpdateEvent } from '@/hooks/useMutations'
 import { useDialogA11y } from '@/hooks/useDialogA11y'
 import { endBeforeStart } from '@/lib/datetime'
 import { ownerStyle, ALL_OWNERS } from '@/lib/owners'
-import { ApiError } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import type { Event, Owner } from '@/types/domain'
 
@@ -37,7 +36,7 @@ export function EventEditSheet({ event, onClose }: EventEditSheetProps) {
   const [location, setLocation] = useState(event.location ?? '')
   const [fieldError, setFieldError] = useState<{ field?: string; message: string } | null>(null)
 
-  async function handleSubmit(e: React.FormEvent) {
+  function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setFieldError(null)
 
@@ -58,24 +57,16 @@ export function EventEditSheet({ event, onClose }: EventEditSheetProps) {
       return
     }
 
-    try {
-      await updateEvent.mutateAsync({
-        id: event.id,
-        title: title.trim(),
-        start,
-        end,
-        owner,
-        notes,
-        location,
-      })
-      onClose()
-    } catch (err) {
-      if (err instanceof ApiError) {
-        setFieldError({ field: err.field, message: err.message })
-      } else {
-        setFieldError({ message: 'Something went wrong. Please try again.' })
-      }
-    }
+    updateEvent.mutate({
+      id: event.id,
+      title: title.trim(),
+      start,
+      end,
+      owner,
+      notes,
+      location,
+    })
+    onClose()
   }
 
   return (

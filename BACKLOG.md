@@ -33,7 +33,7 @@ follow-up notes below).
 | 3 | 024 | Grocery & household lists | ✅ merged | specs/024-grocery-household-lists | [#23](https://github.com/maxwellbw/household-hq/pull/23) |
 | 4 | 025 | Recurring events | ✅ merged | specs/025-recurring-events | [#24](https://github.com/maxwellbw/household-hq/pull/24) |
 | 5 | 027 | Household seed data + engine extensions | ✅ merged | specs/027-household-seed-data | [#25](https://github.com/maxwellbw/household-hq/pull/25) |
-| 6 | 028 | UX fix batch 3 (mobile polish + save speed + event lookahead) | ⏸ tasks generated (awaiting go-ahead) | specs/028-ux-fix-batch-3 | — |
+| 6 | 028 | UX fix batch 3 (mobile polish + save speed + event lookahead) | 🔧 implemented, pending PR | specs/028-ux-fix-batch-3 | — |
 | 7 | 010 | PWA install + web push (promoted 2026-07-13) | ⬜ not started | — | — |
 | 8 | 026 | Inbound gcal import (personal calendars) | ⬜ not started | — | — |
 | 9 | 011 | Weather-aware dog-walk window finder | ⬜ not started | — | — |
@@ -125,6 +125,16 @@ Notification quality (round-4 item 7) is **not** in 028 — it *is* feature 010,
 promotion. Stopgap available before 028 ships: hand-edit Settings
 `recurringEventsLookaheadDays` to 366 and run `generateRecurringEvents()` once — safe
 today because every current RecurringEvents rule is yearly.
+
+**028 status (2026-07-13): implemented, pending PR.** All 7 user stories + polish done;
+frontend gate green (379/379 tests, up from a 346-test baseline — the spec's "322" was
+stale; build clean). Backend (`clasp push`/`deploy` + live `selfTest1Core()` …
+`selfTest4CalendarAndComms()` + the `generateRecurringEvents()` backfill) and the
+real-iPhone passes (zoom lock, safe-area, day-peek touch) are the remaining steps —
+tracked as T027 in `specs/028-ux-fix-batch-3/tasks.md`; some of that needs Jaz's phone and
+Google OAuth, which this sandbox can't do. See tasks.md for the couple of implementation
+deviations from plan (all presentation-only, written back inline next to the relevant
+task; also research.md R7/R8 addenda).
 
 **026 — Inbound gcal import (personal calendars).** Pull externally-created events
 (reservations, appointments) from **Max's and Jaz's personal gmail calendars** (shared to

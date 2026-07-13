@@ -9,17 +9,63 @@
 
 var SELFTEST_PREFIX = 'selftest-';
 
+/**
+ * Chunk coverage map (feature 028 US7, research R8) — the monolithic `selfTest()` grew past
+ * the Apps Script 6-minute execution limit (the live-Calendar suites make real Calendar API
+ * calls and dominate wall time), so it is split into four public, editor-runnable chunks.
+ * This is a flat regrouping of the exact same 42 suite calls in their original relative
+ * order, split by dependency cluster — no suite's internal behavior changed. Union of the
+ * four chunks == the old monolith's coverage; each suite appears in exactly one chunk:
+ *
+ *   selfTest1Core()            (14): unitValidators_, unitAuth_, unitSessionTokens_,
+ *     liveCrudRoundTrip_, liveTaskSlices_, liveActivityFeed_, liveErrorCases_,
+ *     liveHandEditResilience_, liveEventCrud_, liveTemplateCrud_, liveSnooze_,
+ *     liveTaskNotes_, liveAcknowledge_, liveTasksRank_
+ *   selfTest2Recurring()        (12): unitOccurrenceMath_, unitThanksgivingAndOrdinals_,
+ *     liveRecurringGeneration_, liveRecurringCrud_, liveRecurringCatchUp_,
+ *     unitRecurringEventMath_, liveRecurringEventGeneration_, liveRecurringEventPrep_,
+ *     liveRecurringEventCrud_, unitPrepMath_, livePrepGeneration_, livePrepLifecycle_
+ *   selfTest3SeedAndLists()      (8): liveSeedEventsAndTemplates_, unitSeedPack_,
+ *     liveSeedPack_, unitAlternatingBins_, liveSeedTripTemplateOnEvent_, liveListsCrud_,
+ *     liveListItemsCrud_, liveSeedLists_
+ *   selfTest4CalendarAndComms()  (8): unitCalendarSync_, liveCalendarEventSync_,
+ *     liveCalendarTaskSync_, liveCalendarReconcile_, unitDigests_, liveSettingsUpdate_,
+ *     unitNtfy_, liveCalendarLocationSync_
+ *
+ *   Total: 14 + 12 + 8 + 8 = 42 suites, matching the old monolith's call count exactly.
+ *
+ * `selfTestSeedPack()` and `selfTestSessionTokens()` (below) are unrelated targeted runners
+ * from earlier features and are untouched.
+ */
 function selfTest() {
+  Logger.log('selfTest() no longer runs the suite directly — the full run exceeds the Apps ' +
+    'Script 6-minute execution limit. Run these four chunks from the editor, in order: ' +
+    'selfTest1Core(), selfTest2Recurring(), selfTest3SeedAndLists(), selfTest4CalendarAndComms().');
+  throw new Error('selfTest() is a fail-loud guard, not a runner. See the Logger output above ' +
+    'for the four chunk functions to run instead — never trust a partial run as a pass.');
+}
+
+function selfTest1Core() {
   unitValidators_();
   unitAuth_();
   unitSessionTokens_();
-  unitOccurrenceMath_();
-  unitThanksgivingAndOrdinals_();
   liveCrudRoundTrip_();
   liveTaskSlices_();
   liveActivityFeed_();
   liveErrorCases_();
   liveHandEditResilience_();
+  liveEventCrud_();
+  liveTemplateCrud_();
+  liveSnooze_();
+  liveTaskNotes_();
+  liveAcknowledge_();
+  liveTasksRank_();
+  Logger.log('SELFTEST 1/4 (Core): ALL PASS');
+}
+
+function selfTest2Recurring() {
+  unitOccurrenceMath_();
+  unitThanksgivingAndOrdinals_();
   liveRecurringGeneration_();
   liveRecurringCrud_();
   liveRecurringCatchUp_();
@@ -27,16 +73,25 @@ function selfTest() {
   liveRecurringEventGeneration_();
   liveRecurringEventPrep_();
   liveRecurringEventCrud_();
+  unitPrepMath_();
+  livePrepGeneration_();
+  livePrepLifecycle_();
+  Logger.log('SELFTEST 2/4 (Recurring): ALL PASS');
+}
+
+function selfTest3SeedAndLists() {
   liveSeedEventsAndTemplates_();
   unitSeedPack_();
   liveSeedPack_();
   unitAlternatingBins_();
-  liveEventCrud_();
-  liveTemplateCrud_();
   liveSeedTripTemplateOnEvent_();
-  unitPrepMath_();
-  livePrepGeneration_();
-  livePrepLifecycle_();
+  liveListsCrud_();
+  liveListItemsCrud_();
+  liveSeedLists_();
+  Logger.log('SELFTEST 3/4 (SeedAndLists): ALL PASS');
+}
+
+function selfTest4CalendarAndComms() {
   unitCalendarSync_();
   liveCalendarEventSync_();
   liveCalendarTaskSync_();
@@ -44,15 +99,8 @@ function selfTest() {
   unitDigests_();
   liveSettingsUpdate_();
   unitNtfy_();
-  liveSnooze_();
-  liveTaskNotes_();
-  liveAcknowledge_();
   liveCalendarLocationSync_();
-  liveTasksRank_();
-  liveListsCrud_();
-  liveListItemsCrud_();
-  liveSeedLists_();
-  Logger.log('ALL PASS');
+  Logger.log('SELFTEST 4/4 (CalendarAndComms): ALL PASS');
 }
 
 /**
@@ -774,6 +822,46 @@ function liveRecurringEventGeneration_() {
   deleteRecordById_(TABS.RECURRING_EVENTS, ruleId, 'selftest');
   deleteRecordById_(TABS.RECURRING_EVENTS, timedId, 'selftest');
   deleteRecordById_(TABS.RECURRING_EVENTS, seasonId, 'selftest');
+
+  // Feature 028: per-cadence generator window (generateRecurringEvents() itself, not
+  // generateForEventRule_ directly, so the annual-vs-short window selection is exercised).
+  var yearlyAnchorId = SELFTEST_PREFIX + Utilities.getUuid();
+  var yearlyAnchor = addDays_(today, 300); // ~10 months out: beyond the 60-day short window, inside the 366-day yearly window
+  createRecord_(TABS.RECURRING_EVENTS, {
+    id: yearlyAnchorId, title: SELFTEST_PREFIX + 'wide-window birthday', cadence: 'annually',
+    anchorDate: yearlyAnchor, startTime: '', durationMinutes: '', defaultOwner: 'both',
+    templateId: '', location: '', notes: '', lastGenerated: '', seasonStart: '', seasonEnd: ''
+  }, 'selftest');
+
+  var shortWeeklyId = SELFTEST_PREFIX + Utilities.getUuid();
+  var weeklyAnchor = addDays_(today, 70); // beyond the 60-day short window
+  createRecord_(TABS.RECURRING_EVENTS, {
+    id: shortWeeklyId, title: SELFTEST_PREFIX + 'short-window weekly', cadence: 'weekly',
+    anchorDate: weeklyAnchor, startTime: '', durationMinutes: '', defaultOwner: 'jaz',
+    templateId: '', location: '', notes: '', lastGenerated: '', seasonStart: '', seasonEnd: ''
+  }, 'selftest');
+
+  generateRecurringEvents();
+
+  var yearlyOccurrences = function () {
+    return listRecords_(TABS.EVENTS).filter(function (e) { return e.recurringEventId === yearlyAnchorId; });
+  };
+  var weeklyOccurrences = function () {
+    return listRecords_(TABS.EVENTS).filter(function (e) { return e.recurringEventId === shortWeeklyId; });
+  };
+  assert_(yearlyOccurrences().length === 1, 'annual rule ~10 months out generates inside the wide 366-day window');
+  assert_(weeklyOccurrences().length === 0, 'weekly rule beyond 60 days generates nothing in the short window');
+
+  // Re-run: idempotent at the wide window too — no new rows for the annual rule.
+  var yearlyCountBefore = yearlyOccurrences().length;
+  generateRecurringEvents();
+  assert_(yearlyOccurrences().length === yearlyCountBefore, 're-run at the wide window creates no duplicate occurrences');
+
+  yearlyOccurrences().forEach(function (e) { deleteEvent_({ id: e.id }, 'selftest'); });
+  weeklyOccurrences().forEach(function (e) { deleteEvent_({ id: e.id }, 'selftest'); });
+  deleteRecordById_(TABS.RECURRING_EVENTS, yearlyAnchorId, 'selftest');
+  deleteRecordById_(TABS.RECURRING_EVENTS, shortWeeklyId, 'selftest');
+
   Logger.log('live recurring-event generation: pass');
 }
 

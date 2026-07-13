@@ -12,11 +12,11 @@ vi.mock('@/hooks/useMutations', () => ({
   useReopenTask: () => ({ mutate: vi.fn() }),
   useSnoozeTask: () => ({ mutate: vi.fn() }),
   useUnsnoozeTask: () => ({ mutate: vi.fn() }),
-  useUpdateTask: () => ({ mutateAsync: vi.fn().mockResolvedValue({}), isPending: false }),
+  useUpdateTask: () => ({ mutate: vi.fn(), mutateAsync: vi.fn().mockResolvedValue({}), isPending: false }),
   useDeleteTask: () => ({ mutate: vi.fn(), isPending: false }),
   useDeleteEvent: () => ({ mutate: vi.fn(), isPending: false }),
   useAcknowledgeTask: () => ({ mutate: vi.fn(), isPending: false }),
-  useUpdateEvent: () => ({ mutateAsync: vi.fn().mockResolvedValue({}), isPending: false }),
+  useUpdateEvent: () => ({ mutate: vi.fn(), mutateAsync: vi.fn().mockResolvedValue({}), isPending: false }),
 }))
 
 vi.mock('@/hooks/useToast', () => ({

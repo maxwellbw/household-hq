@@ -109,18 +109,27 @@ function renderOccurrenceTitle_(ruleTitle, anchorDate, occurrenceDate) {
  * which lock and log individually and are idempotent on their own (Principle V), so
  * overlapping/retried runs of this whole function are safe.  One rule's failure is isolated
  * so it can't abort generation for the rest (defensive; Apps Script triggers get no user to
- * report an error to) — mirrors `generateRecurringTasks`.
+ * report an error to) — mirrors `generateRecurringTasks`. Window end is per-cadence
+ * (feature 028): annual-class rules (`annually`, `thanksgiving-sat`) get the wide
+ * `recurringEventsYearlyLookaheadDays` window so birthdays/anniversaries materialize a
+ * full year ahead; every other cadence keeps the short `recurringEventsLookaheadDays`
+ * window so weekly/monthly rules don't flood Events/the calendar mirror.
  */
 function generateRecurringEvents() {
-  var lookaheadRaw = Number(readSettingsMap_()['recurringEventsLookaheadDays']);
+  var settings = readSettingsMap_();
+  var lookaheadRaw = Number(settings['recurringEventsLookaheadDays']);
   var lookahead = lookaheadRaw > 0 ? lookaheadRaw : RECURRING_EVENTS_LOOKAHEAD_DEFAULT_DAYS;
+  var yearlyLookaheadRaw = Number(settings['recurringEventsYearlyLookaheadDays']);
+  var yearlyLookahead = yearlyLookaheadRaw > 0 ? yearlyLookaheadRaw : RECURRING_EVENTS_YEARLY_LOOKAHEAD_DEFAULT_DAYS;
   var today = Utilities.formatDate(new Date(), getTimezone_(), 'yyyy-MM-dd');
-  var windowEnd = addDays_(today, lookahead);
+  var windowEndShort = addDays_(today, lookahead);
+  var windowEndYearly = addDays_(today, yearlyLookahead);
 
   var rules = listRecords_(TABS.RECURRING_EVENTS);
   rules.forEach(function (rule) {
     try {
-      generateForEventRule_(rule, today, windowEnd);
+      var isAnnual = rule.cadence === 'annually' || rule.cadence === 'thanksgiving-sat';
+      generateForEventRule_(rule, today, isAnnual ? windowEndYearly : windowEndShort);
     } catch (err) {
       console.error('generateRecurringEvents: rule ' + rule.id + ' failed: ' +
         (err && err.stack ? err.stack : err));

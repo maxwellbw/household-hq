@@ -6,6 +6,7 @@
 import type { Cadence, Owner } from '@/types/domain'
 
 export interface NewEventInput {
+  id?: string // client-minted UUID for optimistic create (research R2); omitted → server generates one
   title: string
   start: string // ISO datetime
   end?: string // ISO datetime; defaults to start + 1h
@@ -23,6 +24,7 @@ export interface NewRecurringInput {
 }
 
 export interface NewOneTimeTaskInput {
+  id?: string // client-minted UUID for optimistic create (research R2); omitted → server generates one
   title: string
   dueDate?: string // ISO date; omitted → undated (Someday)
   owner: Owner
@@ -40,6 +42,7 @@ function addOneHour(isoDateTime: string): string {
 /** → events.create payload. */
 export function buildEventPayload(input: NewEventInput): Record<string, unknown> {
   return {
+    ...(input.id ? { id: input.id } : {}),
     title: input.title,
     start: input.start,
     end: input.end || addOneHour(input.start),
@@ -63,6 +66,7 @@ export function buildRecurringPayload(input: NewRecurringInput): Record<string, 
 /** → tasks.create payload. Omits dueDate when blank so the task lands undated in Someday. */
 export function buildOneTimeTaskPayload(input: NewOneTimeTaskInput, _timezone: string): Record<string, unknown> {
   return {
+    ...(input.id ? { id: input.id } : {}),
     title: input.title,
     owner: input.owner,
     ...(input.dueDate ? { dueDate: input.dueDate } : {}),
