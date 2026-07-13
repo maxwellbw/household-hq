@@ -10,7 +10,7 @@ const settingsData = {
     digestMonthlyEnabled: 'TRUE',
     digestMonthlyDay: 'last',
     digestHour: '7',
-    ntfyEnabled: 'TRUE',
+    pushEnabled: 'TRUE',
     gcalEventReminderMin: '30',
   },
 }
@@ -25,6 +25,18 @@ vi.mock('@/hooks/useSettings', () => ({
 
 vi.mock('@/hooks/useToast', () => ({
   useToast: () => ({ show: toastShow }),
+}))
+
+vi.mock('@/hooks/useAuth', () => ({
+  useAuth: () => ({ authedCall: vi.fn() }),
+}))
+
+vi.mock('@/lib/push', () => ({
+  getCapability: () => 'unsupported',
+  isIos: () => false,
+  isSubscribedThisDevice: async () => false,
+  subscribeThisDevice: vi.fn(),
+  unsubscribeThisDevice: vi.fn(),
 }))
 
 beforeEach(() => {
@@ -53,12 +65,12 @@ describe('SettingsView', () => {
     await waitFor(() => expect(toastShow).toHaveBeenCalledWith('Settings saved'))
   })
 
-  it('toggling ntfy pings off submits the flipped boolean', async () => {
+  it('toggling push notifications off submits the flipped boolean', async () => {
     render(<SettingsView />)
 
-    fireEvent.click(screen.getByLabelText(/instant completion pings/i))
+    fireEvent.click(screen.getByLabelText(/^push notifications$/i))
     fireEvent.click(screen.getByRole('button', { name: /save changes/i }))
 
-    await waitFor(() => expect(mutateAsync).toHaveBeenCalledWith({ ntfyEnabled: 'FALSE' }))
+    await waitFor(() => expect(mutateAsync).toHaveBeenCalledWith({ pushEnabled: 'FALSE' }))
   })
 })

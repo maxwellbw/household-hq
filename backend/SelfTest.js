@@ -30,7 +30,8 @@ var SELFTEST_PREFIX = 'selftest-';
  *     liveListItemsCrud_, liveSeedLists_
  *   selfTest4CalendarAndComms()  (8): unitCalendarSync_, liveCalendarEventSync_,
  *     liveCalendarTaskSync_, liveCalendarReconcile_, unitDigests_, liveSettingsUpdate_,
- *     unitNtfy_, liveCalendarLocationSync_
+ *     unitPush_, liveCalendarLocationSync_ (feature 010: unitPush_ replaces the retired
+ *     unitNtfy_; the crypto proof itself lives in the separate selfTestPush() runner)
  *
  *   Total: 14 + 12 + 8 + 8 = 42 suites, matching the old monolith's call count exactly.
  *
@@ -98,7 +99,7 @@ function selfTest4CalendarAndComms() {
   liveCalendarReconcile_();
   unitDigests_();
   liveSettingsUpdate_();
-  unitNtfy_();
+  unitPush_();
   liveCalendarLocationSync_();
   Logger.log('SELFTEST 4/4 (CalendarAndComms): ALL PASS');
 }
@@ -2041,7 +2042,7 @@ function liveSettingsUpdate_() {
   assert_(sendDigestsTriggers.length === 1, 'exactly one sendDigests trigger exists after reinstall');
 
   // 8. A save that doesn't touch digestHour does not report a reinstall.
-  var r8 = updateSettings_({ ntfyEnabled: before.ntfyEnabled === 'FALSE' ? 'TRUE' : 'FALSE' }, 'selftest');
+  var r8 = updateSettings_({ pushEnabled: before.pushEnabled === 'FALSE' ? 'TRUE' : 'FALSE' }, 'selftest');
   assert_(r8.digestTriggerReinstalled === false, 'a save without digestHour does not reinstall the trigger');
 
   // Restore every key this test touched, back to the pre-test snapshot.
@@ -2049,7 +2050,7 @@ function liveSettingsUpdate_() {
     digestWeeklyDay: before.digestWeeklyDay || 'Sunday',
     digestMonthlyDay: before.digestMonthlyDay || 'last',
     digestHour: String(before.digestHour || 7),
-    ntfyEnabled: before.ntfyEnabled === 'FALSE' ? 'FALSE' : 'TRUE'
+    pushEnabled: before.pushEnabled === 'FALSE' ? 'FALSE' : 'TRUE'
   }, 'selftest');
 
   Logger.log('live settings.update: pass');
@@ -2227,47 +2228,127 @@ function setSettingValue_(key, value) {
   sheet.appendRow([key, value, 'selftest']);
 }
 
-/** feature 009 — ntfy completion pings: pure helpers + best-effort gating, no real POST. */
-function unitNtfy_() {
-  // --- recipient routing (FR-002, FR-003) --------------------------------------------------
+/**
+ * feature 010 — web push: subscription store + message builders + best-effort gating.
+ * No real network sends here (that needs an actual browser subscription); see
+ * selfTestPush() for the crypto proof (RFC 8291 vector + VAPID roundtrip).
+ */
+function unitPush_() {
+  // --- recipient routing (mirrors the retired feature 009 otherPerson_) ---------------------
   assert_(otherPerson_('max') === 'jaz', 'otherPerson_ of max is jaz');
   assert_(otherPerson_('jaz') === 'max', 'otherPerson_ of jaz is max');
 
-  // --- topic selection (FR-004) --------------------------------------------------------------
-  var settings = { ntfyTopicMax: 'topic-max', ntfyTopicJaz: 'topic-jaz' };
-  assert_(ntfyTopicFor_('max', settings) === 'topic-max', 'ntfyTopicFor_ selects ntfyTopicMax for Max');
-  assert_(ntfyTopicFor_('jaz', settings) === 'topic-jaz', 'ntfyTopicFor_ selects ntfyTopicJaz for Jaz');
-  assert_(ntfyTopicFor_('max', {}) === '', 'ntfyTopicFor_ returns blank when the Settings key is unset');
+  // --- device label heuristic -----------------------------------------------------------------
+  assert_(deriveDeviceLabelFromUa_('Mozilla/5.0 (iPhone; CPU iPhone OS) ... Safari/604.1') === 'iPhone Safari',
+    'deriveDeviceLabelFromUa_ recognizes iPhone Safari');
+  assert_(deriveDeviceLabelFromUa_('Mozilla/5.0 (Macintosh) ... Chrome/120 Safari/537.36') === 'Mac Chrome',
+    'deriveDeviceLabelFromUa_ recognizes Mac Chrome');
 
-  // --- message formatting (FR-002, edge cases) ------------------------------------------------
-  assert_(buildPingMessage_('max', 'Take out recycling') === 'Max completed: Take out recycling',
-    'buildPingMessage_ names the completer and the task title');
-  assert_(buildPingMessage_('jaz', '') === 'Jaz completed a task',
-    'buildPingMessage_ falls back to a sensible message for a blank title');
+  // --- message formatting (FR-015 — byte-identical to the retired ntfy messages) -------------
+  assert_(buildCompletionMessage_('max', 'Take out recycling') === 'Max completed: Take out recycling',
+    'buildCompletionMessage_ names the completer and the task title');
+  assert_(buildCompletionMessage_('jaz', '') === 'Jaz completed a task',
+    'buildCompletionMessage_ falls back to a sensible message for a blank title');
   var longTitle = new Array(200).join('x');
-  var longMessage = buildPingMessage_('max', longTitle);
-  assert_(longMessage.length < longTitle.length, 'buildPingMessage_ clamps an unusually long title');
-  assert_(longMessage.indexOf('Max completed: ') === 0, 'a clamped message still names the completer');
+  var longMessage = buildCompletionMessage_('max', longTitle);
+  assert_(longMessage.length < longTitle.length, 'buildCompletionMessage_ clamps an unusually long title');
+  assert_(buildAcknowledgeMessage_('max', 'Pick up the dog') === 'Max has it: Pick up the dog',
+    'buildAcknowledgeMessage_ names the assignee and the task title');
+  assert_(buildAcknowledgeMessage_('jaz', '') === 'Jaz has it',
+    'buildAcknowledgeMessage_ falls back to a sensible message for a blank title');
 
-  // --- best-effort gating: disabled and blank-topic paths never reach UrlFetchApp (FR-005, FR-006) --
-  var fakeTaskDisabled = { id: SELFTEST_PREFIX + 'ntfy-disabled-' + Utilities.getUuid(), title: 'disabled-path task' };
-  setSettingValue_('ntfyEnabled', 'FALSE');
-  pingCompletion_(fakeTaskDisabled, 'max'); // must not throw, must not POST
+  // --- subscription upsert/dedupe (endpoint-keyed, research R8) ------------------------------
+  var endpoint = 'https://selftest.example/' + Utilities.getUuid();
+  var sub1 = subscribeDevice_({ endpoint: endpoint, p256dh: 'p256dh-a', auth: 'auth-a', deviceLabel: 'Test Device' }, 'max');
+  assert_(sub1.subscribed === true, 'subscribeDevice_ reports subscribed on first enable');
+  var afterFirst = listSubscriptionsForPerson_('max').filter(function (s) { return s.endpoint === endpoint; });
+  assert_(afterFirst.length === 1, 'subscribeDevice_ creates exactly one row for a new endpoint');
+  var firstId = afterFirst[0].id;
+
+  subscribeDevice_({ endpoint: endpoint, p256dh: 'p256dh-b', auth: 'auth-b', deviceLabel: 'Test Device' }, 'max');
+  var afterSecond = listSubscriptionsForPerson_('max').filter(function (s) { return s.endpoint === endpoint; });
+  assert_(afterSecond.length === 1 && afterSecond[0].id === firstId,
+    'subscribeDevice_ upserts the same endpoint instead of creating a duplicate row');
+  assert_(afterSecond[0].p256dh === 'p256dh-b', 'subscribeDevice_ refreshes the keys on upsert');
+
+  var otherEndpoint = 'https://selftest.example/' + Utilities.getUuid();
+  subscribeDevice_({ endpoint: otherEndpoint, p256dh: 'p256dh-c', auth: 'auth-c' }, 'max');
+  assert_(listSubscriptionsForPerson_('max').filter(function (s) {
+    return s.endpoint === endpoint || s.endpoint === otherEndpoint;
+  }).length === 2, 'a different endpoint creates a second, independent row');
+
+  unsubscribeDevice_({ endpoint: endpoint });
+  unsubscribeDevice_({ endpoint: otherEndpoint });
+  assert_(listSubscriptionsForPerson_('max').filter(function (s) {
+    return s.endpoint === endpoint || s.endpoint === otherEndpoint;
+  }).length === 0, 'unsubscribeDevice_ removes the row');
+  unsubscribeDevice_({ endpoint: endpoint }); // idempotent: unsubscribing again is a no-op, not an error
+
+  // --- best-effort gating: disabled and no-devices paths never reach UrlFetchApp -------------
+  var fakeTaskDisabled = { id: SELFTEST_PREFIX + 'push-disabled-' + Utilities.getUuid(), title: 'disabled-path task' };
+  setSettingValue_('pushEnabled', 'FALSE');
+  pushCompletion_(fakeTaskDisabled, 'max'); // must not throw, must not POST
   var disabledLog = readActivityFeed_({ limit: 100 }).filter(function (e) { return e.targetId === fakeTaskDisabled.id; });
   assert_(disabledLog.length === 1 && disabledLog[0].detail.indexOf('disabled') !== -1,
-    'pingCompletion_ logs a skip and sends nothing when ntfyEnabled is FALSE');
-  setSettingValue_('ntfyEnabled', 'TRUE');
+    'pushCompletion_ logs a skip and sends nothing when pushEnabled is FALSE');
+  setSettingValue_('pushEnabled', 'TRUE');
 
-  var fakeTaskBlank = { id: SELFTEST_PREFIX + 'ntfy-blanktopic-' + Utilities.getUuid(), title: 'blank-topic task' };
-  var savedJazTopic = readSettingsMap_()['ntfyTopicJaz'];
-  setSettingValue_('ntfyTopicJaz', '');
-  pingCompletion_(fakeTaskBlank, 'max'); // recipient is jaz; her topic is blank -> must not throw, must not POST
-  var blankLog = readActivityFeed_({ limit: 100 }).filter(function (e) { return e.targetId === fakeTaskBlank.id; });
-  assert_(blankLog.length === 1 && blankLog[0].detail.indexOf('topic blank') !== -1,
-    'pingCompletion_ logs a skip and sends nothing when the recipient topic is blank');
-  setSettingValue_('ntfyTopicJaz', savedJazTopic || '');
+  var fakeTaskNoDevices = { id: SELFTEST_PREFIX + 'push-nodevices-' + Utilities.getUuid(), title: 'no-devices task', owner: 'jaz' };
+  pushAcknowledge_(fakeTaskNoDevices); // recipient is max; assume no real subscriptions -> must not throw, must not POST
+  var noDevicesLog = readActivityFeed_({ limit: 100 }).filter(function (e) { return e.targetId === fakeTaskNoDevices.id; });
+  assert_(noDevicesLog.length === 1 &&
+    (noDevicesLog[0].detail.indexOf('no devices') !== -1 || noDevicesLog[0].detail.indexOf('pushed') !== -1),
+    'pushAcknowledge_ logs a skip (or a real send) without throwing');
 
-  Logger.log('unit ntfy: pass');
+  Logger.log('unit push: pass');
+}
+
+/**
+ * feature 010 — the crypto proof: encryptPayload_ reproduces the RFC 8291 §5 published
+ * test vector byte-for-byte (salt/server-keypair injected via encryptPayload_'s test-only
+ * opts), and a VAPID JWT signed by vapidHeaders_ verifies against its own public key. This
+ * is the load-bearing check that the vendored SJCL crypto (research R1) is wired correctly —
+ * runnable from the editor, no device needed. Public name so it appears in the Run menu.
+ */
+function selfTestPush() {
+  // --- RFC 8291 §5 / Appendix A worked example (fixed inputs, exact expected outputs) --------
+  var uaPublicB64 = 'BCVxsr7N_eNgVRqvHtD0zTZsEc6-VV-JvLexhqUzORcxaOzi6-AYWXvTBHm4bjyPjs7Vd8pZGH6SRpkNtoIAiw4';
+  var asPrivateB64 = 'yfWPiYE-n46HLnH0KqZOF1fJJU3MYrct3AELtAQ-oRw';
+  var asPublicB64 = 'BP4z9KsN6nGRTbVYI_c7VJSPQTBtkgcy27mlmlMoZIIgDll6e3vCYLocInmYWAmS6TlzAC8wEqKK6PBru3jl7A8';
+  var saltB64 = 'DGv6ra1nlYgDCS1FRnbzlw';
+  var authSecretB64 = 'BTBZMqHH6r4Tts7J_aSIgg';
+  var plaintext = 'When I grow up, I want to be a watermelon';
+  var expectedWireBody = 'DGv6ra1nlYgDCS1FRnbzlwAAEABBBP4z9KsN6nGRTbVYI_c7VJSPQTBtkgcy27ml' +
+    'mlMoZIIgDll6e3vCYLocInmYWAmS6TlzAC8wEqKK6PBru3jl7A_yl95bQpu6cVPTpK4Mqgkf1CXztLVBSt2Ks3oZwbuwXPXLWyouBWLVWGNWQexSgSxsj_Qulcy4a-fN';
+
+  var wireBytes = encryptPayload_(plaintext, uaPublicB64, authSecretB64, {
+    saltBits: sjcl.codec.base64url.toBits(saltB64),
+    serverPrivateBits: sjcl.codec.base64url.toBits(asPrivateB64)
+  });
+  var wireB64 = sjcl.codec.base64url.fromBits(bytesToBits_(wireBytes));
+  assert_(wireB64 === expectedWireBody,
+    'encryptPayload_ reproduces the RFC 8291 test vector byte-for-byte; as_public was ' + asPublicB64);
+
+  // --- VAPID (RFC 8292): generate, sign, and verify a JWT against its own public key ---------
+  var kp = generateVapidKeys_();
+  assert_(kp.publicKey.length > 0 && kp.privateKey.length > 0, 'generateVapidKeys_ returns a keypair');
+  var headers = vapidHeaders_('https://web.push.apple.com/some/path', kp.publicKey, kp.privateKey,
+    'mailto:selftest@example.com');
+  assert_(headers.Authorization.indexOf('vapid t=') === 0, 'vapidHeaders_ builds a vapid Authorization header');
+  var parts = headers.Authorization.match(/t=([^,]+),/)[1].split('.');
+  assert_(parts.length === 3, 'the VAPID JWT has header.payload.signature');
+  var signingInput = parts[0] + '.' + parts[1];
+  var hash = sjcl.hash.sha256.hash(sjcl.codec.utf8String.toBits(signingInput));
+  var sigBits = sjcl.codec.base64url.toBits(parts[2]);
+  var pubRaw = sjcl.codec.base64url.toBits(kp.publicKey);
+  var pubPoint = sjcl.ecc.curves.c256.fromBits(sjcl.bitArray.bitSlice(pubRaw, 8));
+  var pub = new sjcl.ecc.ecdsa.publicKey(sjcl.ecc.curves.c256, pubPoint);
+  assert_(pub.verify(hash, sigBits), 'the VAPID JWT signature verifies against its own public key');
+  var payload = JSON.parse(Utilities.newBlob(
+    Utilities.base64DecodeWebSafe(parts[1])).getDataAsString());
+  assert_(payload.aud === 'https://web.push.apple.com', 'the JWT aud is the endpoint origin, not the full URL');
+
+  Logger.log('selfTestPush: pass (RFC 8291 vector + VAPID roundtrip)');
 }
 
 // ---------------------------------------------------------------------------

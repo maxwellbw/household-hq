@@ -14,7 +14,7 @@
 function setupDatabase() {
   var ss = openDb_();
   var order = [TABS.EVENTS, TABS.TASKS, TABS.TEMPLATES, TABS.RECURRING, TABS.ACTIVITY_LOG,
-    TABS.SETTINGS, TABS.LISTS, TABS.LIST_ITEMS, TABS.RECURRING_EVENTS];
+    TABS.SETTINGS, TABS.LISTS, TABS.LIST_ITEMS, TABS.RECURRING_EVENTS, TABS.PUSH_SUBSCRIPTIONS];
   var changed = false;
 
   order.forEach(function (tab) {
@@ -96,4 +96,24 @@ function seedSettings_(ss) {
     }
   });
   return added;
+}
+
+/**
+ * feature 010 — one-time VAPID keypair generation. Idempotent: does nothing if
+ * vapidPublicKey/vapidPrivateKey are already set, so re-running never rotates keys out from
+ * under live subscriptions (research R2). Run manually from the editor after
+ * setupDatabase(); public name so it appears in the Run menu.
+ */
+function setupPush() {
+  var settings = readSettingsMap_();
+  if (String(settings.vapidPublicKey || '').trim() && String(settings.vapidPrivateKey || '').trim()) {
+    Logger.log('setupPush: VAPID keys already present, no changes.');
+    return;
+  }
+  var kp = generateVapidKeys_();
+  setSettingValues_(
+    { vapidPublicKey: kp.publicKey, vapidPrivateKey: kp.privateKey },
+    'system',
+    'generated VAPID keypair for web push');
+  Logger.log('setupPush: VAPID keypair generated.');
 }

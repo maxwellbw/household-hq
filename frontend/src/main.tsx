@@ -27,3 +27,11 @@ createRoot(document.getElementById('root')!).render(
     </QueryClientProvider>
   </StrictMode>,
 )
+
+// Feature 010: cache the app shell for offline/installed launches and receive Web Push.
+// Registration failure is non-fatal — the app works identically without it (FR-005).
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register(import.meta.env.BASE_URL + 'sw.js').catch(() => {})
+  })
+}

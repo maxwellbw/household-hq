@@ -1,7 +1,7 @@
 // Per-device dismissal of acknowledge notices ("X has it", feature 019 research R4). Not
 // household data — dismissal state lives only in this browser, mirroring session-store.ts's
-// UI-hint pattern. The durable, cross-device signal is the ntfy ping; this just keeps a
-// dismissed notice from reappearing on this device on reload.
+// UI-hint pattern. The durable, cross-device signal is the web push (feature 010); this just
+// keeps a dismissed notice from reappearing on this device on reload.
 
 const DISMISSED_KEY = 'hq.ackDismissed'
 
