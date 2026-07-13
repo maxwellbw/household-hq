@@ -11,9 +11,8 @@ order confirmed by Jaz 2026-07-11, including 010/011 — definitely a go, slotte
 
 ## The queue — up next, in order
 
-**Next up: 026 — Inbound gcal import**, after 027 (added 2026-07-12 out of the confirmed
-order at Jaz's direct request — real seed data was needed before more feature work; 026
-resumes as next once 027 is merged).
+**Next up: 026 — Inbound gcal import** (027 merged 2026-07-12; 026 resumes as next in the
+confirmed order).
 
 **027 follow-up still needed (blocks any household use of the seeded data):** run, in
 order, from the Apps Script editor — `setupDatabase()` (migrates `seedKey` onto
@@ -38,7 +37,7 @@ walk through `specs/024-grocery-household-lists/quickstart.md` scenarios A–G l
 | 2 | 023 | Dog-care recurring seed rows | ✅ merged | specs/023-dog-care-seed-rows | [#22](https://github.com/maxwellbw/household-hq/pull/22) |
 | 3 | 024 | Grocery & household lists | ✅ merged | specs/024-grocery-household-lists | [#23](https://github.com/maxwellbw/household-hq/pull/23) |
 | 4 | 025 | Recurring events | ✅ merged | specs/025-recurring-events | [#24](https://github.com/maxwellbw/household-hq/pull/24) |
-| 5 | 027 | Household seed data + engine extensions | 🔧 implemented, pending PR | specs/027-household-seed-data | — |
+| 5 | 027 | Household seed data + engine extensions | ✅ merged | specs/027-household-seed-data | [#25](https://github.com/maxwellbw/household-hq/pull/25) |
 | 6 | 026 | Inbound gcal import (personal calendars) | ⬜ not started | — | — |
 | 7 | 010 | PWA install + web push | ⬜ not started | — | — |
 | 8 | 011 | Weather-aware dog-walk window finder | ⬜ not started | — | — |
