@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Plus, Trash2 } from 'lucide-react'
+import { Plus, Search, Trash2, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/useToast'
 import { useLists, useListItems } from '@/hooks/useLists'
 import { useCreateList, useDeleteList, useCreateListItem } from '@/hooks/useListMutations'
-import { groupNeededBySection, LIST_SECTION_LABELS } from '@/lib/lists'
+import { filterItemsByName, groupNeededBySection, LIST_SECTION_LABELS } from '@/lib/lists'
 import { ListItemRow } from '@/components/lists/ListItemRow'
 import { ApiError } from '@/lib/api'
 
@@ -25,6 +25,7 @@ export function ListsView() {
   const [viewMode, setViewMode] = useState<ViewMode>('needed')
   const [newItemName, setNewItemName] = useState('')
   const [confirmDeleteList, setConfirmDeleteList] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
 
   const lists = listsQuery.data ?? []
 
@@ -40,7 +41,12 @@ export function ListsView() {
     () => (itemsQuery.data ?? []).filter((item) => item.listId === selectedListId),
     [itemsQuery.data, selectedListId],
   )
-  const neededGroups = useMemo(() => groupNeededBySection(itemsForList), [itemsForList])
+  const filteredItemsForList = useMemo(
+    () => filterItemsByName(itemsForList, searchQuery),
+    [itemsForList, searchQuery],
+  )
+  const neededGroups = useMemo(() => groupNeededBySection(filteredItemsForList), [filteredItemsForList])
+  const searchHasNoMatches = searchQuery.trim().length > 0 && filteredItemsForList.length === 0
 
   const isPending = listsQuery.isPending || itemsQuery.isPending
   const isError = listsQuery.isError || itemsQuery.isError
@@ -110,6 +116,7 @@ export function ListsView() {
             onClick={() => {
               setSelectedListId(list.id)
               setConfirmDeleteList(false)
+              setSearchQuery('')
             }}
             className={cn(
               'min-h-[44px] rounded-full border px-3 text-sm font-medium',
@@ -200,7 +207,38 @@ export function ListsView() {
             ))}
           </div>
 
-          {viewMode === 'needed' ? (
+          {/* Search (US5, FR-017/018): filters the active view's items by name. */}
+          <div className="relative">
+            <Search
+              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-muted"
+              aria-hidden="true"
+            />
+            <input
+              type="search"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search items…"
+              aria-label="Search items"
+              className="min-h-[44px] w-full rounded-control border border-border bg-surface py-2 pl-9 pr-11 text-sm text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                aria-label="Clear search"
+                className="absolute right-0 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-control text-ink-muted hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+              >
+                <X className="h-4 w-4" aria-hidden="true" />
+              </button>
+            )}
+          </div>
+
+          {searchHasNoMatches ? (
+            <div className="flex flex-col items-center justify-center gap-1 py-8 text-center">
+              <p className="text-sm font-medium text-ink">No items match "{searchQuery.trim()}"</p>
+              <p className="text-xs text-ink-muted">Try a different search.</p>
+            </div>
+          ) : viewMode === 'needed' ? (
             neededGroups.length === 0 ? (
               <div className="flex flex-col items-center justify-center gap-1 py-8 text-center">
                 <p className="text-sm font-medium text-ink">Nothing needed</p>
@@ -222,14 +260,14 @@ export function ListsView() {
                 ))}
               </div>
             )
-          ) : itemsForList.length === 0 ? (
+          ) : filteredItemsForList.length === 0 ? (
             <div className="flex flex-col items-center justify-center gap-1 py-8 text-center">
               <p className="text-sm font-medium text-ink">No items yet</p>
               <p className="text-xs text-ink-muted">Add one above to get started.</p>
             </div>
           ) : (
             <ul className="rounded-card bg-surface shadow-card">
-              {itemsForList.map((item) => (
+              {filteredItemsForList.map((item) => (
                 <ListItemRow key={item.id} item={item} />
               ))}
             </ul>

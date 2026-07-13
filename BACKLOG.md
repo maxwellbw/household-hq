@@ -11,7 +11,21 @@ order confirmed by Jaz 2026-07-11, including 010/011 — definitely a go, slotte
 
 ## The queue — up next, in order
 
-**Next up: 026 — Inbound gcal import** (025 merged 2026-07-12; 026 is next in the confirmed order).
+**Next up: 026 — Inbound gcal import**, after 027 (added 2026-07-12 out of the confirmed
+order at Jaz's direct request — real seed data was needed before more feature work; 026
+resumes as next once 027 is merged).
+
+**027 follow-up still needed (blocks any household use of the seeded data):** run, in
+order, from the Apps Script editor — `setupDatabase()` (migrates `seedKey` onto
+`Lists`/`ListItems`/`TaskTemplates`/`RecurringEvents` + adds the three new Settings
+ledgers) → `selfTest()` or the faster `selfTestSeedPack()` (confirm `ALL PASS`) →
+`seedHousehold()` (the real one-time load) → `generateRecurringEvents()` +
+`generateRecurringTasks()` (materialize the first occurrences without waiting for the
+nightly triggers). See `specs/027-household-seed-data/quickstart.md` §A–§H for the full
+live-verification walkthrough. Code is pushed and the web-app deployment refreshed (@21)
+either way. A manual browser click-through of the new Lists search box is also
+recommended — the sandboxed preview hit the real Google sign-in wall (see follow-up notes
+below).
 
 **024 follow-up still needed:** run `setupDatabase()` then `selfTest()` from the Apps
 Script editor to provision the `Lists`/`ListItems` tabs and confirm `ALL PASS` (not done
@@ -24,9 +38,10 @@ walk through `specs/024-grocery-household-lists/quickstart.md` scenarios A–G l
 | 2 | 023 | Dog-care recurring seed rows | ✅ merged | specs/023-dog-care-seed-rows | [#22](https://github.com/maxwellbw/household-hq/pull/22) |
 | 3 | 024 | Grocery & household lists | ✅ merged | specs/024-grocery-household-lists | [#23](https://github.com/maxwellbw/household-hq/pull/23) |
 | 4 | 025 | Recurring events | ✅ merged | specs/025-recurring-events | [#24](https://github.com/maxwellbw/household-hq/pull/24) |
-| 5 | 026 | Inbound gcal import (personal calendars) | ⬜ not started | — | — |
-| 6 | 010 | PWA install + web push | ⬜ not started | — | — |
-| 7 | 011 | Weather-aware dog-walk window finder | ⬜ not started | — | — |
+| 5 | 027 | Household seed data + engine extensions | 🔧 implemented, pending PR | specs/027-household-seed-data | — |
+| 6 | 026 | Inbound gcal import (personal calendars) | ⬜ not started | — | — |
+| 7 | 010 | PWA install + web push | ⬜ not started | — | — |
+| 8 | 011 | Weather-aware dog-walk window finder | ⬜ not started | — | — |
 
 **021 — Someday force-rank + Tasks-tab Someday section.** "This or that?" pairwise session
 through the Someday list producing **one shared household ranking** (clarified: not
@@ -69,6 +84,20 @@ to Events with **full parity with the task engine** (weekly / biweekly / monthly
 clarified 2026-07-11), and **prep templates attachable to the rule** so each occurrence
 auto-generates its prep tasks (birthday → buy gift, plan dinner — reuses 005's template
 mechanics).
+
+**027 — Household seed data + engine extensions.** Added 2026-07-12, out of the confirmed
+order, at Jaz's direct request — the app was fully built but empty, so real starting data
+was wanted before more feature work. Loads Max & Jaz's actual shopping lists (2 lists, 38
+items), 8 birthdays + 5 anniversaries with per-person prep, 13 recurring
+maintenance/yard/holiday/vet tasks, and 2 multi-task prep templates
+(`docs/seed-data.md`), via one idempotent `seedHousehold()` (mirrors `seedRecurringPack()`
+— per-item seed keys + Settings ledgers, hand-edits/deletions always preserved). Needed
+three small engine extensions: a `semiannually` cadence (mirrors 023's
+sixweekly/eightweekly precedent), a computed `thanksgiving-sat` cadence so "put up
+Christmas lights" never drifts off the actual weekend, and a `{nth}` title token so
+anniversary occurrences bake a live ordinal ("6th dating anniversary") with no schema
+change. Also ships the list-item search box (US5) that the now much-longer Groceries list
+needed. See specs/027-household-seed-data/.
 
 **026 — Inbound gcal import (personal calendars).** Pull externally-created events
 (reservations, appointments) from **Max's and Jaz's personal gmail calendars** (shared to

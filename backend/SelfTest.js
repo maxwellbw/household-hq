@@ -13,6 +13,7 @@ function selfTest() {
   unitValidators_();
   unitAuth_();
   unitOccurrenceMath_();
+  unitThanksgivingAndOrdinals_();
   liveCrudRoundTrip_();
   liveTaskSlices_();
   liveActivityFeed_();
@@ -25,11 +26,13 @@ function selfTest() {
   liveRecurringEventGeneration_();
   liveRecurringEventPrep_();
   liveRecurringEventCrud_();
+  liveSeedEventsAndTemplates_();
   unitSeedPack_();
   liveSeedPack_();
   unitAlternatingBins_();
   liveEventCrud_();
   liveTemplateCrud_();
+  liveSeedTripTemplateOnEvent_();
   unitPrepMath_();
   livePrepGeneration_();
   livePrepLifecycle_();
@@ -47,6 +50,7 @@ function selfTest() {
   liveTasksRank_();
   liveListsCrud_();
   liveListItemsCrud_();
+  liveSeedLists_();
   Logger.log('ALL PASS');
 }
 
@@ -414,7 +418,55 @@ function unitOccurrenceMath_() {
   assert_(id1 !== id3, 'recurringTaskId_ differs across dates');
   assert_(id1.indexOf('r') === 0, 'recurringTaskId_ starts with "r"');
 
+  // Feature 027: semiannually steps exactly 6 months, clamped like the other month steps.
+  assert_(CADENCE_STEP_('semiannually', '2026-01-31') === '2026-07-31', 'semiannually steps 6 months');
+  assert_(CADENCE_STEP_('semiannually', '2026-08-31') === '2027-02-28', 'semiannually clamps into a shorter month');
+
   Logger.log('unit occurrence math: pass');
+}
+
+// ---------------------------------------------------------------------------
+// Unit: Thanksgiving math + ordinal titles (feature 027, research R4/R5)
+// ---------------------------------------------------------------------------
+
+function unitThanksgivingAndOrdinals_() {
+  // Verified against a real calendar (research R5): 2026/2027/2028 all land correctly,
+  // including a case where the 4th Thursday itself crosses no month boundary quirks.
+  assert_(fourthThursdayOfNovember_(2026) === '2026-11-26', '2026 Thanksgiving is Nov 26');
+  assert_(thanksgivingSaturday_(2026) === '2026-11-21', '2026 lights weekend is Nov 21');
+  assert_(fourthThursdayOfNovember_(2027) === '2027-11-25', '2027 Thanksgiving is Nov 25');
+  assert_(thanksgivingSaturday_(2027) === '2027-11-20', '2027 lights weekend is Nov 20');
+  assert_(fourthThursdayOfNovember_(2028) === '2028-11-23', '2028 Thanksgiving is Nov 23');
+  assert_(thanksgivingSaturday_(2028) === '2028-11-18', '2028 lights weekend is Nov 18');
+
+  // occurrencesInWindow_ special-cases 'thanksgiving-sat': exactly one per year, correct date,
+  // never drifting off a fixed step (unlike a plain annually anchor).
+  var multiYear = occurrencesInWindow_('2026-01-01', 'thanksgiving-sat', '2026-01-01', '2028-12-31');
+  assert_(multiYear.join(',') === ['2026-11-21', '2027-11-20', '2028-11-18'].join(','),
+    'thanksgiving-sat yields one correct occurrence per year across a multi-year window');
+  assert_(occurrencesInWindow_('2026-01-01', 'thanksgiving-sat', '2026-01-01', '2026-06-30').length === 0,
+    'thanksgiving-sat yields nothing in a window that ends before the computed date');
+
+  // Ordinal rendering (research R4): standard English ordinal suffixes, including the
+  // 11th/12th/13th teen exception.
+  assert_(ordinal_(1) === '1st' && ordinal_(2) === '2nd' && ordinal_(3) === '3rd' && ordinal_(4) === '4th',
+    'ordinal_ 1-4');
+  assert_(ordinal_(11) === '11th' && ordinal_(12) === '12th' && ordinal_(13) === '13th',
+    'ordinal_ teens are always "th"');
+  assert_(ordinal_(21) === '21st' && ordinal_(22) === '22nd' && ordinal_(23) === '23rd',
+    'ordinal_ 21-23 after the teens exception');
+
+  // {nth} token substitution, baked per occurrence from anchor year -> occurrence year.
+  assert_(renderOccurrenceTitle_('{nth} dating anniversary', '2020-01-24', '2026-01-24') === '6th dating anniversary',
+    'renderOccurrenceTitle_ substitutes the year delta as an ordinal');
+  assert_(renderOccurrenceTitle_("Rufus's {nth} gotcha day", '2022-07-10', '2027-07-10') === "Rufus's 5th gotcha day",
+    'renderOccurrenceTitle_ works inside a possessive title');
+  assert_(renderOccurrenceTitle_("Jazmine's birthday", '2020-01-02', '2027-01-02') === "Jazmine's birthday",
+    'renderOccurrenceTitle_ returns a token-less title unchanged');
+  assert_(renderOccurrenceTitle_('{nth} wedding anniversary', '2025-05-05', '2025-05-05') === '{nth} wedding anniversary',
+    'renderOccurrenceTitle_ leaves the token in place rather than rendering a non-positive ordinal');
+
+  Logger.log('unit Thanksgiving + ordinals: pass');
 }
 
 // ---------------------------------------------------------------------------
@@ -851,9 +903,10 @@ function liveRecurringEventCrud_() {
 // ---------------------------------------------------------------------------
 
 function unitSeedPack_() {
-  // The starter pack itself: 12 chores (8 household + 4 dog-care, feature 023), valid
+  // The starter pack itself: 12 chores (8 household + 4 dog-care, feature 023) plus 13
+  // more (feature 027: 6 semiannual cleans + 4 yard + 3 holiday/vet) = 25, valid
   // cadences/owners, mow-lawn's season window.
-  assert_(SEED_PACK.length === 12, 'SEED_PACK has 12 starter chores');
+  assert_(SEED_PACK.length === 25, 'SEED_PACK has 25 chores (12 from 015/023 + 13 from 027)');
   var keys = SEED_PACK.map(function (c) { return c.seedKey; });
   assert_(keys.length === Object.keys(keys.reduce(function (s, k) { s[k] = true; return s; }, {})).length,
     'every seedKey in SEED_PACK is unique');
@@ -888,6 +941,43 @@ function unitSeedPack_() {
   assert_(CADENCE_STEP_('eightweekly', '2026-07-10') === '2026-09-04',
     'eightweekly steps exactly 56 days');
 
+  // Feature 027 — six-month cleans: owners (dishwasher=max, washing machine=jaz, rest
+  // both) and, critically, their anchors resolve to six *distinct* calendar months so the
+  // real household never gets all six due at once (docs/seed-data.md §4).
+  var sixMonthKeys = ['water-filter', 'clean-dishwasher', 'deep-clean', 'clean-fridge',
+    'clean-oven', 'clean-washing-machine'];
+  var sixMonthChores = sixMonthKeys.map(function (k) {
+    return SEED_PACK.filter(function (c) { return c.seedKey === k; })[0];
+  });
+  sixMonthChores.forEach(function (c) {
+    assert_(c && c.cadence === 'semiannually', 'chore "' + c.seedKey + '" is semiannually');
+  });
+  var dishwasher = sixMonthChores[1], washer = sixMonthChores[5];
+  assert_(dishwasher.defaultOwner === 'max', 'clean-dishwasher is owned by Max');
+  assert_(washer.defaultOwner === 'jaz', 'clean-washing-machine is owned by Jaz');
+  var anchorMonths = sixMonthChores.map(function (c) {
+    return monthOf_(computeSeedAnchor_(c.anchorRule, '2026-07-10'));
+  });
+  var uniqueMonths = anchorMonths.reduce(function (s, m) { s[m] = true; return s; }, {});
+  assert_(Object.keys(uniqueMonths).length === 6,
+    'the six semiannual cleans resolve to six distinct calendar months');
+
+  // Feature 027 — yard/holiday/vet: cadence + season/owner specifics.
+  var leafCleanup = SEED_PACK.filter(function (c) { return c.seedKey === 'leaf-cleanup'; })[0];
+  assert_(leafCleanup && leafCleanup.cadence === 'biweekly' &&
+    String(leafCleanup.seasonStart) === '10' && String(leafCleanup.seasonEnd) === '12',
+    'leaf-cleanup is biweekly, seasoned Oct-Dec');
+  assert_(!inSeason_(7, leafCleanup.seasonStart, leafCleanup.seasonEnd),
+    'leaf-cleanup is out of season in July');
+  assert_(inSeason_(11, leafCleanup.seasonStart, leafCleanup.seasonEnd),
+    'leaf-cleanup is in season in November');
+  var lights = SEED_PACK.filter(function (c) { return c.seedKey === 'christmas-lights'; })[0];
+  assert_(lights && lights.cadence === 'thanksgiving-sat',
+    'christmas-lights uses the computed thanksgiving-sat cadence, not a fixed annual date');
+  var vet = SEED_PACK.filter(function (c) { return c.seedKey === 'vet-annual'; })[0];
+  assert_(vet && vet.cadence === 'annually' && vet.anchorRule === 'monthday-10-01' &&
+    vet.defaultOwner === 'max', 'vet-annual is an October 1 annual rule owned by Max');
+
   // Anchor math.
   assert_(computeSeedAnchor_('today', '2026-07-10') === '2026-07-10', 'today anchor is today');
   assert_(computeSeedAnchor_('today+7', '2026-07-10') === '2026-07-17', 'today+7 anchor is 7 days out');
@@ -895,6 +985,14 @@ function unitSeedPack_() {
     'fall anchor resolves to this year when the date is still ahead');
   assert_(nextMonthDayOnOrAfter_('2026-11-10', 11, 1) === '2027-11-01',
     'fall anchor rolls to next year once the date has passed');
+
+  // Feature 027 — new anchorRule forms: today+Nmo and monthday-MM-DD.
+  assert_(computeSeedAnchor_('today+2mo', '2026-07-10') === '2026-09-10', 'today+2mo anchor is 2 months out');
+  assert_(computeSeedAnchor_('today+7mo', '2026-07-10') === '2027-02-10', 'today+7mo anchor crosses the year boundary');
+  assert_(computeSeedAnchor_('monthday-10-01', '2026-07-10') === '2026-10-01',
+    'monthday anchor resolves to this year when the date is still ahead');
+  assert_(computeSeedAnchor_('monthday-04-01', '2026-07-10') === '2027-04-01',
+    'monthday anchor rolls to next year once the date has passed');
 
   // Ledger parse/serialize round-trip.
   var parsed = parseAppliedKeys_('trash; recycling;  yardwaste ');
@@ -964,6 +1062,218 @@ function liveSeedPack_() {
   rulesForKey(testPack[0].seedKey).forEach(function (r) { deleteRecordById_(TABS.RECURRING, r.id, 'selftest'); });
   setSettingValue_('recurringSeedApplied', ledgerBefore || '');
   Logger.log('live seed pack: pass');
+}
+
+// ---------------------------------------------------------------------------
+// Live: household list seed pack — idempotence, edit-preservation, never-resurrect,
+// cross-tab list->item resolution (feature 027, docs/seed-data.md §1)
+// ---------------------------------------------------------------------------
+
+/**
+ * Exercises the real `seedLists()` against a small isolated test pack (not the production
+ * `LIST_SEED_PACK`), mirroring `liveSeedPack_()`'s approach so running selfTest() never
+ * permanently seeds the real household lists. The shared `listSeedApplied` ledger is still
+ * the real one — restored at the end.
+ */
+function liveSeedLists_() {
+  var testPack = {
+    lists: [{ seedKey: SELFTEST_PREFIX + 'list-a', name: SELFTEST_PREFIX + 'list a' }],
+    items: [
+      { seedKey: SELFTEST_PREFIX + 'item-a', listSeedKey: SELFTEST_PREFIX + 'list-a',
+        name: SELFTEST_PREFIX + 'item a', section: 'pantry', staple: 'TRUE', status: 'need' },
+      { seedKey: SELFTEST_PREFIX + 'item-b', listSeedKey: SELFTEST_PREFIX + 'list-a',
+        name: SELFTEST_PREFIX + 'item b', section: 'produce', staple: 'FALSE', status: 'stocked' }
+    ]
+  };
+  var ledgerBefore = readSettingsMap_()['listSeedApplied'];
+  var listForKey = function (key) {
+    return listRecords_(TABS.LISTS).filter(function (l) { return l.seedKey === key; });
+  };
+  var itemForKey = function (key) {
+    return listRecords_(TABS.LIST_ITEMS).filter(function (i) { return i.seedKey === key; });
+  };
+
+  seedLists(testPack);
+  var listRow = listForKey(testPack.lists[0].seedKey)[0];
+  assert_(listRow && listRow.name === testPack.lists[0].name, 'first run seeds the list');
+  var itemA = itemForKey(testPack.items[0].seedKey)[0];
+  var itemB = itemForKey(testPack.items[1].seedKey)[0];
+  assert_(itemA && itemA.listId === listRow.id && itemA.status === 'need' &&
+    itemA.section === 'pantry' && itemA.staple === 'TRUE',
+    'first run seeds item a, resolved to the newly-created list, with its explicit fields');
+  assert_(itemB && itemB.status === 'stocked',
+    'first run seeds item b with its explicit stocked status (bypassing createListItem_\'s force-to-need)');
+
+  // Re-run: idempotent, no duplicates (mirrors liveSeedPack_'s SC-002 check).
+  seedLists(testPack);
+  assert_(listForKey(testPack.lists[0].seedKey).length === 1 &&
+    itemForKey(testPack.items[0].seedKey).length === 1 &&
+    itemForKey(testPack.items[1].seedKey).length === 1,
+    're-run creates no duplicate list or item rows');
+
+  // Edit preservation — a hand-renamed item is left untouched by a re-run (identity is
+  // seedKey, never name).
+  updateRecordById_(TABS.LIST_ITEMS, itemA.id, { name: SELFTEST_PREFIX + 'renamed item a' }, 'selftest');
+  seedLists(testPack);
+  assert_(itemForKey(testPack.items[0].seedKey)[0].name === SELFTEST_PREFIX + 'renamed item a',
+    're-run preserves a hand-renamed seeded item');
+
+  // Never-resurrect: delete item b, re-run, confirm it stays gone.
+  deleteRecordById_(TABS.LIST_ITEMS, itemB.id, 'selftest');
+  seedLists(testPack);
+  assert_(itemForKey(testPack.items[1].seedKey).length === 0,
+    'deleted seeded item is not resurrected on re-run');
+
+  // Cleanup: cascading list delete removes the surviving item too; restore the ledger.
+  deleteList_({ id: listRow.id }, 'selftest');
+  setSettingValue_('listSeedApplied', ledgerBefore || '');
+  Logger.log('live seed lists: pass');
+}
+
+// ---------------------------------------------------------------------------
+// Live: household event + template seed packs — birthday prep (owner/offset), ordinal
+// anniversary titles, idempotence, never-resurrect (feature 027, docs/seed-data.md §2-§3)
+// ---------------------------------------------------------------------------
+
+/**
+ * Exercises the real `seedEvents()`/`seedTemplates()` against small isolated test packs
+ * (not the production packs), mirroring `liveSeedPack_()`. Anchors are deliberately chosen
+ * so a real occurrence lands inside the generator's lookahead window: the birthday anchor
+ * is a few days in the future (exactly how `monthday-MM-DD` resolves in production — the
+ * *next* future occurrence), and the anniversary anchor is the same month/day five years
+ * earlier, so both step to the identical occurrence date this year.
+ */
+function liveSeedEventsAndTemplates_() {
+  var tz = getTimezone_();
+  var today = Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd');
+  var windowEnd = addDays_(today, 60);
+  var futureAnchor = addDays_(today, 10);
+  var historicalAnchor = addMonthsClamped_(futureAnchor, -60); // same month/day, 5 years earlier
+
+  var templatePack = [
+    { seedKey: SELFTEST_PREFIX + 'tmpl-bday-x', eventType: SELFTEST_PREFIX + 'bday-x',
+      taskTitle: SELFTEST_PREFIX + 'Buy X a gift', offsetDays: -14, defaultOwner: 'max' }
+  ];
+  var eventPack = [
+    { seedKey: SELFTEST_PREFIX + 'bday-x', title: SELFTEST_PREFIX + "X's birthday",
+      cadence: 'annually', anchorDate: futureAnchor, defaultOwner: 'both',
+      templateId: SELFTEST_PREFIX + 'bday-x' },
+    { seedKey: SELFTEST_PREFIX + 'anniv-x', title: SELFTEST_PREFIX + '{nth} test anniversary',
+      cadence: 'annually', anchorDate: historicalAnchor, defaultOwner: 'both' }
+  ];
+  var templateLedgerBefore = readSettingsMap_()['templateSeedApplied'];
+  var eventLedgerBefore = readSettingsMap_()['eventSeedApplied'];
+  var ruleForKey = function (key) {
+    return listRecords_(TABS.RECURRING_EVENTS).filter(function (r) { return r.seedKey === key; })[0];
+  };
+  var occForRule = function (ruleId) {
+    return listRecords_(TABS.EVENTS).filter(function (e) { return e.recurringEventId === ruleId; });
+  };
+
+  seedTemplates(templatePack);
+  seedEvents(eventPack);
+  var bdayRule = ruleForKey(eventPack[0].seedKey);
+  var annivRule = ruleForKey(eventPack[1].seedKey);
+  assert_(bdayRule && bdayRule.templateId === templatePack[0].eventType,
+    'seeded birthday rule carries its own per-person templateId');
+
+  generateForEventRule_(bdayRule, today, windowEnd);
+  generateForEventRule_(annivRule, today, windowEnd);
+
+  var bdayOcc = occForRule(bdayRule.id);
+  assert_(bdayOcc.length === 1, 'seeded birthday rule generates its occurrence');
+  var prep = listRecords_(TABS.TASKS).filter(function (t) { return t.eventId === bdayOcc[0].id; });
+  assert_(prep.length === 1 && prep[0].title === templatePack[0].taskTitle &&
+    prep[0].owner === 'max' && prep[0].dueDate === addDays_(bdayOcc[0].start.substring(0, 10), -14),
+    'seeded birthday occurrence generates its per-person prep task with the right owner and lead time');
+
+  var annivOcc = occForRule(annivRule.id);
+  assert_(annivOcc.length === 1, 'seeded anniversary rule generates its occurrence');
+  assert_(annivOcc[0].title === '5th test anniversary',
+    'seeded anniversary occurrence bakes the {nth} token as the correct ordinal (5 years)');
+
+  // Idempotency: re-run creates no duplicate template row or event rule.
+  seedTemplates(templatePack);
+  seedEvents(eventPack);
+  assert_(listRecords_(TABS.TEMPLATES).filter(function (t) { return t.seedKey === templatePack[0].seedKey; }).length === 1,
+    're-run creates no duplicate template row');
+  assert_(listRecords_(TABS.RECURRING_EVENTS).filter(function (r) { return r.seedKey === eventPack[0].seedKey; }).length === 1,
+    're-run creates no duplicate event rule');
+
+  // Never-resurrect: delete the anniversary rule, re-run, confirm it stays gone.
+  deleteRecordById_(TABS.RECURRING_EVENTS, annivRule.id, 'selftest');
+  seedEvents(eventPack);
+  assert_(listRecords_(TABS.RECURRING_EVENTS).filter(function (r) { return r.seedKey === eventPack[1].seedKey; }).length === 0,
+    'deleted seeded event rule is not resurrected on re-run');
+
+  // Cleanup.
+  bdayOcc.concat(annivOcc).forEach(function (e) { deleteEvent_({ id: e.id }, 'selftest'); }); // cascades prep
+  deleteRecordById_(TABS.RECURRING_EVENTS, bdayRule.id, 'selftest');
+  var tmplRow = listRecords_(TABS.TEMPLATES).filter(function (t) { return t.seedKey === templatePack[0].seedKey; })[0];
+  if (tmplRow) deleteRecordById_(TABS.TEMPLATES, tmplRow.id, 'selftest');
+  setSettingValue_('templateSeedApplied', templateLedgerBefore || '');
+  setSettingValue_('eventSeedApplied', eventLedgerBefore || '');
+  Logger.log('live seed events + templates: pass');
+}
+
+// ---------------------------------------------------------------------------
+// Live: "leaving-trip" prep checklist end-to-end — seeded template rows attached to a
+// real one-off event, via the existing events.create -> syncPrepForEvent_ path
+// (feature 027, docs/seed-data.md §8)
+// ---------------------------------------------------------------------------
+
+/**
+ * Confirms the actual "leaving-trip" checklist content transcribed into
+ * `TEMPLATE_SEED_PACK` (Config.js) generates correctly once a household member attaches it
+ * to a real one-off event — exercising `seedTemplates()` + the existing `events.create`
+ * (`createEvent_` -> `syncPrepForEvent_`) path together. Uses an isolated
+ * SELFTEST_PREFIX-tagged copy of the pack's five rows (not the production `eventType`), so
+ * running selfTest() never touches real household templates or events.
+ */
+function liveSeedTripTemplateOnEvent_() {
+  var tz = getTimezone_();
+  var today = Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd');
+  var eventType = SELFTEST_PREFIX + 'leaving-trip';
+  var templateLedgerBefore = readSettingsMap_()['templateSeedApplied'];
+  var pack = [
+    { seedKey: SELFTEST_PREFIX + 'tmpl-trip-pumpkin', eventType: eventType, taskTitle: 'Get enough pumpkin & pup veggies', offsetDays: -1, defaultOwner: 'max' },
+    { seedKey: SELFTEST_PREFIX + 'tmpl-trip-plants', eventType: eventType, taskTitle: 'Water plants', offsetDays: -1, defaultOwner: 'jaz' },
+    { seedKey: SELFTEST_PREFIX + 'tmpl-trip-trash', eventType: eventType, taskTitle: 'Take trash out', offsetDays: -1, defaultOwner: 'max' },
+    { seedKey: SELFTEST_PREFIX + 'tmpl-trip-pup-instructions', eventType: eventType, taskTitle: 'Set out pup instructions', offsetDays: 0, defaultOwner: 'max' },
+    { seedKey: SELFTEST_PREFIX + 'tmpl-trip-key', eventType: eventType, taskTitle: 'Key under mat for dog sitter', offsetDays: 0, defaultOwner: 'both' }
+  ];
+  seedTemplates(pack);
+
+  var tripStart = addDays_(today, 20);
+  var event = createEvent_({
+    title: SELFTEST_PREFIX + 'trip', start: tripStart, end: addDays_(tripStart, 5),
+    owner: 'both', templateId: eventType
+  }, 'selftest');
+
+  var prep = listRecords_(TABS.TASKS).filter(function (t) { return t.eventId === event.id; });
+  assert_(prep.length === 5, 'attaching leaving-trip generates all five checklist tasks');
+  var byTitle = {};
+  prep.forEach(function (t) { byTitle[t.title] = t; });
+  assert_(byTitle['Get enough pumpkin & pup veggies'].owner === 'max' &&
+    byTitle['Get enough pumpkin & pup veggies'].dueDate === addDays_(tripStart, -1),
+    'pumpkin/pup-veggies task: Max, one day before');
+  assert_(byTitle['Water plants'].owner === 'jaz' && byTitle['Water plants'].dueDate === addDays_(tripStart, -1),
+    'water plants task: Jaz, one day before');
+  assert_(byTitle['Take trash out'].owner === 'max' && byTitle['Take trash out'].dueDate === addDays_(tripStart, -1),
+    'trash task: Max, one day before');
+  assert_(byTitle['Set out pup instructions'].owner === 'max' && byTitle['Set out pup instructions'].dueDate === tripStart,
+    'pup instructions task: Max, day of');
+  assert_(byTitle['Key under mat for dog sitter'].owner === 'both' && byTitle['Key under mat for dog sitter'].dueDate === tripStart,
+    'key-under-mat task: both, day of');
+
+  // Cleanup: deleting the event cascades its prep; remove the seeded template rows too
+  // (their seedKeys would otherwise keep them "applied" via the row-scan even after the
+  // ledger is restored below); restore the ledger.
+  deleteEvent_({ id: event.id }, 'selftest');
+  listRecords_(TABS.TEMPLATES).filter(function (t) { return t.eventType === eventType; })
+    .forEach(function (t) { deleteRecordById_(TABS.TEMPLATES, t.id, 'selftest'); });
+  setSettingValue_('templateSeedApplied', templateLedgerBefore || '');
+  Logger.log('live seed trip template on event: pass');
 }
 
 // ---------------------------------------------------------------------------

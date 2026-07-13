@@ -17,7 +17,14 @@ const TYPE_LABELS: Record<QuickAddType, string> = {
   task: 'One-time task',
 }
 
-const CADENCES: Cadence[] = ['weekly', 'biweekly', 'monthly', 'sixweekly', 'eightweekly', 'quarterly', 'annually']
+const CADENCES: Cadence[] = ['weekly', 'biweekly', 'monthly', 'sixweekly', 'eightweekly', 'quarterly', 'annually', 'semiannually', 'thanksgiving-sat']
+
+// Two cadences don't read cleanly from a capitalized raw value (see the option label below);
+// every other cadence keeps using that simple capitalize fallback.
+const CADENCE_LABEL_OVERRIDES: Partial<Record<Cadence, string>> = {
+  semiannually: 'Every 6 months',
+  'thanksgiving-sat': 'Weekend before Thanksgiving',
+}
 
 interface QuickAddSheetProps {
   onClose: () => void
@@ -207,7 +214,7 @@ export function QuickAddSheet({ onClose }: QuickAddSheetProps) {
             >
               {CADENCES.map((c) => (
                 <option key={c} value={c}>
-                  {c[0].toUpperCase() + c.slice(1)}
+                  {CADENCE_LABEL_OVERRIDES[c] ?? c[0].toUpperCase() + c.slice(1)}
                 </option>
               ))}
             </select>
