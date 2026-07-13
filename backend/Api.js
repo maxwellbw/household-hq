@@ -142,6 +142,11 @@ var HANDLERS = {
   // Feature 003: read the household activity feed (newest-first, bounded; read-only).
   'activity.list':  function (p) { return listActivity_(p); },
 
+  // Feature 010: web push — per-device subscribe/unsubscribe + config (contracts/api-push.md).
+  'push.config':      function () { return pushConfig_(); },
+  'push.subscribe':   function (p, actor) { return subscribeDevice_(p, actor); },
+  'push.unsubscribe': function (p, actor) { return unsubscribeDevice_(p, actor); },
+
   // Feature 002: "who am I" — identity + whether the client must confirm Max/Jaz (FR-009).
   'auth.whoami':    function (p, actor, identity) { return whoami_(identity); }
 };
@@ -167,8 +172,8 @@ function deleteEntity_(tabName, payload, actor) {
 
 // ---------------------------------------------------------------------------
 // Settings editor (feature 020) — curated write on top of the Sheet-only Settings tab.
-// Only EDITABLE_SETTINGS (Config.js) may be written here; everything else (emails, ntfy
-// topics, calendar/weather keys) stays Sheet-only for safety (FR-013).
+// Only EDITABLE_SETTINGS (Config.js) may be written here; everything else (emails, vapid
+// keys, calendar/weather keys) stays Sheet-only for safety (FR-013).
 // ---------------------------------------------------------------------------
 
 /** Throws BAD_REQUEST if `value` isn't valid for `key`; every editable key is checked before
@@ -178,7 +183,7 @@ function validateSettingValue_(key, value) {
   switch (key) {
     case 'digestWeeklyEnabled':
     case 'digestMonthlyEnabled':
-    case 'ntfyEnabled':
+    case 'pushEnabled':
       if (value !== 'TRUE' && value !== 'FALSE') {
         fail_('BAD_REQUEST', key + ' must be TRUE or FALSE.', key);
       }
@@ -583,7 +588,7 @@ function completeTask_(payload, actor) {
   var result = setTaskLifecycle_(String(payload.id).trim(), 'done', actor, 'complete');
   if (result.changed) {
     mirrorTaskToCalendar_(result.task, actor); // feature 007: removes the calendar entry
-    pingCompletion_(result.task, actor); // feature 009: best-effort, never throws
+    pushCompletion_(result.task, actor); // feature 010: best-effort web push, never throws
     result.task = rereadTask_(result.task.id) || result.task;
   }
   return result;
@@ -636,8 +641,8 @@ function unsnoozeTask_(payload, actor) {
  * Acknowledge/commit to an assigned task (feature 019 US2, "I've got it"). Only the
  * current owner may acknowledge, and only when the owner is a single person — `both` and
  * self-assignment never need acknowledgement (spec Assumptions). Delegates to
- * setTaskAcknowledge_ (idempotent), then best-effort pings the assigner on a real change.
- * Returns { task, changed }.
+ * setTaskAcknowledge_ (idempotent), then best-effort web-pushes the assigner on a real
+ * change. Returns { task, changed }.
  */
 function acknowledgeTask_(payload, actor) {
   requireFields_(payload, ['id']);
@@ -652,7 +657,7 @@ function acknowledgeTask_(payload, actor) {
   }
   var result = setTaskAcknowledge_(id, actor);
   if (result.changed) {
-    pingAcknowledge_(result.task); // feature 009 plumbing reused, best-effort, never throws
+    pushAcknowledge_(result.task); // feature 010: best-effort web push, never throws
     result.task = rereadTask_(result.task.id) || result.task;
   }
   return result;

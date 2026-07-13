@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '@/hooks/useAuth'
+import { listenForDeepLinks } from '@/lib/deeplink'
 import { AppShell } from '@/components/shell/AppShell'
 import { SignInGate } from '@/components/auth/SignInGate'
 import { RestoringGate } from '@/components/auth/RestoringGate'
@@ -37,6 +38,16 @@ function App() {
       setCalendarFocusDate(null)
     }
   }, [active, calendarFocusDate])
+
+  // Feature 010 US3: a tapped push notification deep-links here — cold launch via the
+  // `?task=` URL param, or a warm-app postMessage from the service worker. Tasks tab is
+  // the closest existing surface to "the related task" without new detail-view routing;
+  // no id (or unsupported) falls through to whatever section was already active (Home by
+  // default), matching the spec's fallback.
+  useEffect(() => {
+    return listenForDeepLinks(() => setActive('tasks'))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   if (status === 'restoring') {
     return <RestoringGate />

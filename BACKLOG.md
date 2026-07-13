@@ -23,7 +23,7 @@ feedback round 4 — real iPhone notifications matter more than gcal import righ
 | 4 | 025 | Recurring events | ✅ merged | specs/025-recurring-events | [#24](https://github.com/maxwellbw/household-hq/pull/24) |
 | 5 | 027 | Household seed data + engine extensions | ✅ merged | specs/027-household-seed-data | [#25](https://github.com/maxwellbw/household-hq/pull/25) |
 | 6 | 028 | UX fix batch 3 (mobile polish + save speed + event lookahead) | ✅ merged | specs/028-ux-fix-batch-3 | [#27](https://github.com/maxwellbw/household-hq/pull/27) |
-| 7 | 010 | PWA install + web push (promoted 2026-07-13) | ⬜ not started | — | — |
+| 7 | 010 | PWA install + web push (promoted 2026-07-13) | 🔶 implemented (deployed; live editor validation + real-iPhone checks pending) | [specs/010-pwa-and-push](specs/010-pwa-and-push/spec.md) | — |
 | 8 | 026 | Inbound gcal import (personal calendars) | ⬜ not started | — | — |
 | 9 | 011 | Weather-aware dog-walk window finder | ⬜ not started | — | — |
 
@@ -129,7 +129,16 @@ attached in the app. Needs dedupe against our own outbound mirrors from 007
 
 **010 — PWA install + web push** (brief §10 item 11). Installable PWA (manifest + service
 worker on the GitHub Pages deploy) and web-push notifications. Builds on 018's session
-persistence so the installed app opens signed-in.
+persistence so the installed app opens signed-in. **Implemented 2026-07-13**: real PNG/maskable
+icons, hand-written `sw.js` (offline shell + push + notification-click deep-link), per-device
+opt-in in Settings, and full RFC 8291/8292 Web Push crypto (VAPID + payload encryption) via a
+vendored SJCL build (`backend/Sjcl.js`, pinned commit, RFC-vector-verified byte-for-byte in
+Node before ever touching Apps Script). **Web push fully replaces feature 009's ntfy.sh pings**
+per the clarify — `Ntfy.js` is deleted, `ntfyEnabled`/topics are gone from Settings, superseded
+by a single `pushEnabled`. Backend pushed and deployed (refreshes the existing web-app URL, no new deployment).
+`setupDatabase()`/`setupPush()`/`selfTestPush()` run from the Apps Script editor by Jaz —
+confirmed passing. Real-iPhone install/enable/receive/disable checks (quickstart §D–G) remain
+the standing device-gated follow-up.
 
 **011 — Weather-aware dog-walk window finder** (brief §5 item 16; decisions captured there
 2026-07-09). Open-Meteo forecast ∩ mutual-free windows from both work calendars, read as

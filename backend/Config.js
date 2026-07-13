@@ -50,7 +50,9 @@ var TABS = {
   LISTS: 'Lists',
   LIST_ITEMS: 'ListItems',
   // Feature 025 — recurring events.
-  RECURRING_EVENTS: 'RecurringEvents'
+  RECURRING_EVENTS: 'RecurringEvents',
+  // Feature 010 — web push subscriptions.
+  PUSH_SUBSCRIPTIONS: 'PushSubscriptions'
 };
 
 /**
@@ -76,12 +78,15 @@ var HEADERS = {
   // Feature 025 — Recurring events (data-model.md). seedKey added feature 027.
   RecurringEvents: ['id', 'title', 'cadence', 'anchorDate', 'startTime', 'durationMinutes',
                      'defaultOwner', 'templateId', 'location', 'notes', 'seasonStart',
-                     'seasonEnd', 'lastGenerated', 'seedKey']
+                     'seasonEnd', 'lastGenerated', 'seedKey'],
+  // Feature 010 — one row per device enabled for web push (data-model.md).
+  PushSubscriptions: ['id', 'person', 'endpoint', 'p256dh', 'auth', 'deviceLabel',
+                       'createdAt', 'lastUsedAt']
 };
 
 /** Tabs whose rows carry a UUID `id` (eligible for blank-ID adoption, FR-022). */
 var ID_TABS = [TABS.EVENTS, TABS.TASKS, TABS.TEMPLATES, TABS.RECURRING, TABS.LISTS,
-               TABS.LIST_ITEMS, TABS.RECURRING_EVENTS];
+               TABS.LIST_ITEMS, TABS.RECURRING_EVENTS, TABS.PUSH_SUBSCRIPTIONS];
 
 // ---------------------------------------------------------------------------
 // Enumerations (FR-014)
@@ -121,14 +126,14 @@ var ACTION_VERBS = {
   create: 'added', update: 'edited', complete: 'completed', reopen: 'reopened',
   delete: 'deleted', 'adopt-id': 'assigned an id to', provision: 'set up',
   'gcal-sync': 'synced to calendar', 'digest-weekly': 'emailed the week ahead',
-  'digest-monthly': 'emailed the month ahead', 'ntfy-ping': 'sent a completion ping',
+  'digest-monthly': 'emailed the month ahead',
   snooze: 'snoozed', unsnooze: 'un-snoozed', acknowledge: 'committed to',
   'settings-update': 'updated settings', 'rank-someday': 'ranked',
-  'list-item-need': 'marked needed', 'list-item-stocked': 'marked stocked'
+  'list-item-need': 'marked needed', 'list-item-stocked': 'marked stocked',
+  // Feature 010 — web push (retires feature 009's ntfy-ping).
+  'push-subscribe': 'enabled push on a device', 'push-unsubscribe': 'disabled push on a device',
+  'push-notify': 'sent a push notification'
 };
-
-/** feature 009 — free, keyless push-notification host; a platform choice, not household data. */
-var NTFY_BASE_URL = 'https://ntfy.sh';
 
 /**
  * A write action mutates the Sheet. Shared-account callers must confirm an acting-person
@@ -136,7 +141,7 @@ var NTFY_BASE_URL = 'https://ntfy.sh';
  * `*.update`, or `*.delete` counts.
  */
 function isWriteAction_(action) {
-  return /\.(create|update|delete|complete|reopen|snooze|unsnooze|acknowledge|rank|toggle)$/.test(String(action));
+  return /\.(create|update|delete|complete|reopen|snooze|unsnooze|acknowledge|rank|toggle|subscribe|unsubscribe)$/.test(String(action));
 }
 
 /**
@@ -259,9 +264,10 @@ var SETTINGS_SEED = [
   ['digestMonthlyEnabled', 'TRUE', 'feature 008; FALSE turns off the monthly "next month" email'],
   ['digestMonthlyDay', 'last', 'feature 008; day-of-month the monthly digest sends ("last" or 1-28)'],
   ['digestHour', '7', 'feature 008; hour (household tz) the daily digest gate fires; re-run installDigestTrigger() after changing'],
-  ['ntfyTopicMax', '', 'feature 009'],
-  ['ntfyTopicJaz', '', 'feature 009'],
-  ['ntfyEnabled', 'TRUE', 'feature 009; FALSE turns off completion pings'],
+  ['pushEnabled', 'TRUE', 'feature 010; FALSE turns off web push (retires feature 009 ntfyEnabled)'],
+  ['vapidPublicKey', '', 'feature 010; generated once by setupPush(); Sheet-only, not in the Settings editor'],
+  ['vapidPrivateKey', '', 'feature 010; generated once by setupPush(); Sheet-only, not in the Settings editor'],
+  ['vapidSubject', 'mailto:maxandjazmine@gmail.com', 'feature 010; VAPID JWT "sub" contact'],
   ['workIcsUrlMax', '', 'feature 011'],
   ['workIcsUrlJaz', '', 'feature 011'],
   ['householdLat', '', 'feature 011'],
@@ -297,7 +303,7 @@ var SETTINGS_SEED = [
 
 var EDITABLE_SETTINGS = [
   'digestWeeklyEnabled', 'digestWeeklyDay', 'digestMonthlyEnabled', 'digestMonthlyDay',
-  'digestHour', 'ntfyEnabled', 'gcalEventReminderMin', 'timezone',
+  'digestHour', 'pushEnabled', 'gcalEventReminderMin', 'timezone',
   'groceryStapleNudgeThreshold'
 ];
 
