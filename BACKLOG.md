@@ -11,9 +11,7 @@ order confirmed by Jaz 2026-07-11, including 010/011 — definitely a go, slotte
 
 ## The queue — up next, in order
 
-**Next up: 010 — PWA install + web push** (promoted ahead of 026 on 2026-07-13, Jaz's
-feedback round 4 — real iPhone notifications matter more than gcal import right now; 026 →
-011 follow unchanged).
+**Next up: 026 — Inbound gcal import** (010 shipped 2026-07-13; 011 follows).
 
 | Order | # | Feature | Stage | Spec folder | PR |
 |---|---|---|---|---|---|
@@ -23,7 +21,7 @@ feedback round 4 — real iPhone notifications matter more than gcal import righ
 | 4 | 025 | Recurring events | ✅ merged | specs/025-recurring-events | [#24](https://github.com/maxwellbw/household-hq/pull/24) |
 | 5 | 027 | Household seed data + engine extensions | ✅ merged | specs/027-household-seed-data | [#25](https://github.com/maxwellbw/household-hq/pull/25) |
 | 6 | 028 | UX fix batch 3 (mobile polish + save speed + event lookahead) | ✅ merged | specs/028-ux-fix-batch-3 | [#27](https://github.com/maxwellbw/household-hq/pull/27) |
-| 7 | 010 | PWA install + web push (promoted 2026-07-13) | 🔶 implemented (deployed; live editor validation + real-iPhone checks pending) | [specs/010-pwa-and-push](specs/010-pwa-and-push/spec.md) | — |
+| 7 | 010 | PWA install + web push | ✅ merged (real-iPhone checks still pending — see Shipped notes) | specs/010-pwa-and-push | [#28](https://github.com/maxwellbw/household-hq/pull/28) |
 | 8 | 026 | Inbound gcal import (personal calendars) | ⬜ not started | — | — |
 | 9 | 011 | Weather-aware dog-walk window finder | ⬜ not started | — | — |
 
@@ -192,6 +190,7 @@ prep template).
 | 020 | Settings editor under More | [specs/020-settings-editor](specs/020-settings-editor/spec.md) | [#20](https://github.com/maxwellbw/household-hq/pull/20) |
 | 023 | Dog-care recurring seed rows (`sixweekly`/`eightweekly` cadences added) | [specs/023-dog-care-seed-rows](specs/023-dog-care-seed-rows/spec.md) | [#22](https://github.com/maxwellbw/household-hq/pull/22) |
 | 028 | UX fix batch 3 (yearly lookahead, optimistic saves, mobile feel, day peek, ack redesign, selfTest split) | [specs/028-ux-fix-batch-3](specs/028-ux-fix-batch-3/spec.md) | [#27](https://github.com/maxwellbw/household-hq/pull/27) |
+| 010 | PWA install + web push (vendored SJCL for RFC 8291/8292 crypto; ntfy.sh fully retired) | [specs/010-pwa-and-push](specs/010-pwa-and-push/spec.md) | [#28](https://github.com/maxwellbw/household-hq/pull/28) |
 
 **Planning history:** Phase 1 (001–007) + Phase 2 (008–009) per brief §10 · Phase 2.5
 (012–015) planned 2026-07-09, Jaz's feedback round 1 — the backend had outrun the UI ·
@@ -205,7 +204,13 @@ grocery lists + inbound gcal import from the parked list · Phase 2.8 (028) plan
 
 ### Post-merge notes & open follow-ups
 
-**Open follow-ups first:** **028's live validation is still pending** — `clasp run` isn't
+**Open follow-ups first:** **010's real-iPhone checks are still pending** — `setupDatabase()`,
+`setupPush()`, and `selfTestPush()` (RFC 8291 vector + VAPID roundtrip) were run manually from
+the Apps Script editor and confirmed passing; the backend is pushed and the web-app deployment
+refreshed (@24). What's left needs a physical iPhone: home-screen install (icon/splash
+correctness), enabling notifications on the installed PWA, receiving a closed-app push, and
+disabling — see `specs/010-pwa-and-push/quickstart.md` §D–G. **028's live validation is still
+pending** — `clasp run` isn't
 configured as an API executable in this sandbox, so `setupDatabase()`, the four
 `selfTest1Core()` … `selfTest4CalendarAndComms()` chunks, and the one-time
 `generateRecurringEvents()` backfill (the moment the seeded birthdays/anniversaries
