@@ -52,3 +52,14 @@ export function shouldShowGroceryNudge(items: ListItem[], thresholdSetting: stri
   const threshold = Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_GROCERY_NUDGE_THRESHOLD
   return groceryNeededStapleCount(items) >= threshold
 }
+
+/**
+ * Filters items to those whose name contains `query`, case-insensitively, with both sides
+ * trimmed so incidental whitespace never hides an otherwise-matching item (feature 027 US5,
+ * FR-017/018). A blank/whitespace-only query returns every item unchanged.
+ */
+export function filterItemsByName(items: ListItem[], query: string): ListItem[] {
+  const needle = query.trim().toLowerCase()
+  if (!needle) return items
+  return items.filter((item) => item.name.toLowerCase().includes(needle))
+}

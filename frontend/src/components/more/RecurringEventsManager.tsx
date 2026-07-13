@@ -21,6 +21,8 @@ const CADENCE_LABELS: Record<Cadence, string> = {
   eightweekly: 'Every eight weeks',
   quarterly: 'Quarterly',
   annually: 'Annually',
+  semiannually: 'Every 6 months',
+  'thanksgiving-sat': 'Weekend before Thanksgiving',
 }
 
 const MONTH_NAMES = [
@@ -28,7 +30,7 @@ const MONTH_NAMES = [
   'July', 'August', 'September', 'October', 'November', 'December',
 ]
 
-const CADENCES: Cadence[] = ['weekly', 'biweekly', 'monthly', 'sixweekly', 'eightweekly', 'quarterly', 'annually']
+const CADENCES: Cadence[] = ['weekly', 'biweekly', 'monthly', 'sixweekly', 'eightweekly', 'quarterly', 'annually', 'semiannually', 'thanksgiving-sat']
 
 type FormMode = { type: 'create' } | { type: 'edit'; rule: RecurringEventRule }
 

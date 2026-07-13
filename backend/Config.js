@@ -64,18 +64,19 @@ var HEADERS = {
   Tasks: ['id', 'title', 'dueDate', 'owner', 'status', 'eventId', 'recurringId',
           'completedBy', 'completedAt', 'snoozeHistory', 'listItems', 'gcalEventId',
           'notes', 'ackBy', 'ackAt', 'somedayRank'],
-  TaskTemplates: ['id', 'eventType', 'taskTitle', 'offsetDays', 'defaultOwner'],
+  // Feature 027: seedKey added for idempotent household seeding (data-model.md §1).
+  TaskTemplates: ['id', 'eventType', 'taskTitle', 'offsetDays', 'defaultOwner', 'seedKey'],
   Recurring: ['id', 'title', 'cadence', 'anchorDate', 'defaultOwner', 'lastGenerated',
               'seasonStart', 'seasonEnd', 'seedKey'],
   ActivityLog: ['timestamp', 'actor', 'action', 'targetId', 'detail'],
   Settings: ['key', 'value', 'notes'],
-  // Feature 024 — Grocery & household lists (data-model.md).
-  Lists: ['id', 'name'],
-  ListItems: ['id', 'listId', 'name', 'status', 'section', 'staple', 'note'],
-  // Feature 025 — Recurring events (data-model.md).
+  // Feature 024 — Grocery & household lists (data-model.md). seedKey added feature 027.
+  Lists: ['id', 'name', 'seedKey'],
+  ListItems: ['id', 'listId', 'name', 'status', 'section', 'staple', 'note', 'seedKey'],
+  // Feature 025 — Recurring events (data-model.md). seedKey added feature 027.
   RecurringEvents: ['id', 'title', 'cadence', 'anchorDate', 'startTime', 'durationMinutes',
                      'defaultOwner', 'templateId', 'location', 'notes', 'seasonStart',
-                     'seasonEnd', 'lastGenerated']
+                     'seasonEnd', 'lastGenerated', 'seedKey']
 };
 
 /** Tabs whose rows carry a UUID `id` (eligible for blank-ID adoption, FR-022). */
@@ -88,7 +89,11 @@ var ID_TABS = [TABS.EVENTS, TABS.TASKS, TABS.TEMPLATES, TABS.RECURRING, TABS.LIS
 
 var OWNERS = ['max', 'jaz', 'both'];
 var STATUSES = ['open', 'done', 'snoozed'];
-var CADENCES = ['weekly', 'biweekly', 'monthly', 'sixweekly', 'eightweekly', 'quarterly', 'annually'];
+/** Feature 027: `semiannually` mirrors sixweekly/eightweekly's fixed-step precedent (023).
+ *  `thanksgiving-sat` is special-cased in `occurrencesInWindow_` (Recurring.js) to compute
+ *  the Saturday before that year's US Thanksgiving instead of a fixed step. */
+var CADENCES = ['weekly', 'biweekly', 'monthly', 'sixweekly', 'eightweekly', 'quarterly',
+                 'annually', 'semiannually', 'thanksgiving-sat'];
 
 /** Feature 024 — Grocery & household lists (data-model.md). */
 var LIST_ITEM_STATUSES = ['need', 'stocked'];
@@ -269,7 +274,13 @@ var SETTINGS_SEED = [
     'feature 024; count of staple ListItems marked "need" (across all lists) that triggers ' +
     'the Home dashboard shopping nudge'],
   ['recurringEventsLookaheadDays', '60',
-    'feature 025; days ahead the nightly recurring-events generator materializes. Blank/≤0 falls back to 60']
+    'feature 025; days ahead the nightly recurring-events generator materializes. Blank/≤0 falls back to 60'],
+  ['listSeedApplied', '',
+    'feature 027; "; "-delimited seed keys already applied by seedLists(); enables never-resurrect.'],
+  ['templateSeedApplied', '',
+    'feature 027; "; "-delimited seed keys already applied by seedTemplates(); enables never-resurrect.'],
+  ['eventSeedApplied', '',
+    'feature 027; "; "-delimited seed keys already applied by seedEvents(); enables never-resurrect.']
 ];
 
 // ---------------------------------------------------------------------------
@@ -311,5 +322,132 @@ var SEED_PACK = [
   { seedKey: 'flea-tick', title: 'Flea/tick meds', cadence: 'monthly', anchorRule: 'today', defaultOwner: 'both' },
   { seedKey: 'heartworm', title: 'Heartworm meds', cadence: 'monthly', anchorRule: 'today', defaultOwner: 'both' },
   { seedKey: 'nail-trim', title: 'Nail trim', cadence: 'sixweekly', anchorRule: 'today', defaultOwner: 'both' },
-  { seedKey: 'grooming', title: 'Grooming', cadence: 'eightweekly', anchorRule: 'today', defaultOwner: 'both' }
+  { seedKey: 'grooming', title: 'Grooming', cadence: 'eightweekly', anchorRule: 'today', defaultOwner: 'both' },
+  // feature 027 — six-month cleans, staggered so no two land in the same calendar month
+  // (docs/seed-data.md §4); dishwasher owned by Max, washing machine by Jaz, rest both.
+  { seedKey: 'water-filter', title: 'Replace water filter', cadence: 'semiannually', anchorRule: 'today+2mo', defaultOwner: 'both' },
+  { seedKey: 'clean-dishwasher', title: 'Clean dishwasher', cadence: 'semiannually', anchorRule: 'today+3mo', defaultOwner: 'max' },
+  { seedKey: 'deep-clean', title: 'Deep clean', cadence: 'semiannually', anchorRule: 'today+4mo', defaultOwner: 'both' },
+  { seedKey: 'clean-fridge', title: 'Clean fridge', cadence: 'semiannually', anchorRule: 'today+5mo', defaultOwner: 'both' },
+  { seedKey: 'clean-oven', title: 'Clean oven', cadence: 'semiannually', anchorRule: 'today+6mo', defaultOwner: 'both' },
+  { seedKey: 'clean-washing-machine', title: 'Clean washing machine', cadence: 'semiannually', anchorRule: 'today+7mo', defaultOwner: 'jaz' },
+  // feature 027 — yard maintenance (docs/seed-data.md §5).
+  { seedKey: 'leaf-cleanup', title: 'Leaf cleanup', cadence: 'biweekly', anchorRule: 'monthday-10-25', defaultOwner: 'both', seasonStart: 10, seasonEnd: 12 },
+  { seedKey: 'rake-dirt-fence', title: 'Rake dirt away from fence', cadence: 'monthly', anchorRule: 'today', defaultOwner: 'both' },
+  { seedKey: 'tree-trim-winter', title: 'Tree/shrub trim', cadence: 'annually', anchorRule: 'monthday-12-01', defaultOwner: 'both' },
+  { seedKey: 'tree-trim-spring', title: 'Tree/shrub trim', cadence: 'annually', anchorRule: 'monthday-04-01', defaultOwner: 'both' },
+  // feature 027 — holiday/seasonal + vet (docs/seed-data.md §6-§7).
+  { seedKey: 'holiday-shopping', title: 'Start holiday shopping', cadence: 'annually', anchorRule: 'fall-nov1', defaultOwner: 'both' },
+  { seedKey: 'christmas-lights', title: 'Put up Christmas lights', cadence: 'thanksgiving-sat', anchorRule: 'today', defaultOwner: 'both' },
+  { seedKey: 'vet-annual', title: 'Call vet — schedule annual visit + vaccines', cadence: 'annually', anchorRule: 'monthday-10-01', defaultOwner: 'max' }
+];
+
+// ---------------------------------------------------------------------------
+// Feature 027 — household seed data (docs/seed-data.md; data-model.md §5d): shopping
+// lists + items, seeded once by seedLists() (Seed.js). Items carry explicit `status`
+// (need/stocked) — seedLists() writes directly via createRecord_, bypassing
+// createListItem_'s force-to-"need" + name-dedupe (those rules are for user-initiated
+// adds, not a one-time historical load).
+// ---------------------------------------------------------------------------
+
+var LIST_SEED_PACK = {
+  lists: [
+    { seedKey: 'list-groceries', name: 'Groceries' },
+    { seedKey: 'list-notgrocery', name: 'Not grocery' }
+  ],
+  items: [
+    { seedKey: 'item-coffee', listSeedKey: 'list-groceries', name: 'Coffee', section: 'pantry', staple: 'TRUE', status: 'need' },
+    { seedKey: 'item-yasso-bars', listSeedKey: 'list-groceries', name: 'Yasso bars', section: 'frozen', staple: 'TRUE', status: 'need' },
+    { seedKey: 'item-popcorn', listSeedKey: 'list-groceries', name: 'Popcorn', section: 'pantry', staple: 'FALSE', status: 'need' },
+    { seedKey: 'item-tea', listSeedKey: 'list-groceries', name: 'Tea', section: 'pantry', staple: 'FALSE', status: 'need' },
+    { seedKey: 'item-pup-veggies', listSeedKey: 'list-groceries', name: 'Pup veggies', section: 'frozen', staple: 'TRUE', status: 'need' },
+    { seedKey: 'item-ice', listSeedKey: 'list-groceries', name: 'Ice', section: 'frozen', staple: 'FALSE', status: 'need' },
+    { seedKey: 'item-bubbly-water', listSeedKey: 'list-groceries', name: 'Bubbly water', section: 'pantry', staple: 'FALSE', status: 'need' },
+    { seedKey: 'item-eggs', listSeedKey: 'list-groceries', name: 'Eggs', section: 'dairy', staple: 'TRUE', status: 'need' },
+    { seedKey: 'item-yogurt', listSeedKey: 'list-groceries', name: 'Yogurt', section: 'dairy', staple: 'TRUE', status: 'need' },
+    { seedKey: 'item-frozen-berries', listSeedKey: 'list-groceries', name: 'Frozen berries', section: 'frozen', staple: 'TRUE', status: 'need' },
+    { seedKey: 'item-sweet-potato', listSeedKey: 'list-groceries', name: 'Sweet potato', section: 'produce', staple: 'FALSE', status: 'need' },
+    { seedKey: 'item-protein-pastry', listSeedKey: 'list-groceries', name: 'Protein pastry', section: 'pantry', staple: 'FALSE', status: 'need' },
+    { seedKey: 'item-avocado', listSeedKey: 'list-groceries', name: 'Avocado', section: 'produce', staple: 'TRUE', status: 'need' },
+    { seedKey: 'item-pumpkin', listSeedKey: 'list-groceries', name: 'Pumpkin (canned, for pup)', section: 'pantry', staple: 'TRUE', status: 'need' },
+    { seedKey: 'item-windex', listSeedKey: 'list-groceries', name: 'Windex', section: 'household', staple: 'FALSE', status: 'stocked' },
+    { seedKey: 'item-carrots', listSeedKey: 'list-groceries', name: 'Carrots', section: 'produce', staple: 'TRUE', status: 'stocked' },
+    { seedKey: 'item-jaz-protein-bars', listSeedKey: 'list-groceries', name: 'Jaz protein bars', section: 'pantry', staple: 'FALSE', status: 'stocked' },
+    { seedKey: 'item-pepper', listSeedKey: 'list-groceries', name: 'Pepper', section: 'pantry', staple: 'FALSE', status: 'stocked' },
+    { seedKey: 'item-face-lotion', listSeedKey: 'list-groceries', name: 'Face lotion', section: 'household', staple: 'FALSE', status: 'stocked' },
+    { seedKey: 'item-paper-towels', listSeedKey: 'list-groceries', name: 'Paper towels', section: 'household', staple: 'TRUE', status: 'stocked' },
+    { seedKey: 'item-toilet-paper', listSeedKey: 'list-groceries', name: 'Toilet paper', section: 'household', staple: 'TRUE', status: 'stocked' },
+    { seedKey: 'item-eggos', listSeedKey: 'list-groceries', name: 'Eggos', section: 'frozen', staple: 'FALSE', status: 'stocked' },
+    { seedKey: 'item-rice', listSeedKey: 'list-groceries', name: 'Rice', section: 'pantry', staple: 'FALSE', status: 'stocked' },
+    { seedKey: 'item-bachan-bbq', listSeedKey: 'list-groceries', name: 'Hot & spicy Bachan BBQ', section: 'pantry', staple: 'FALSE', status: 'stocked' },
+    { seedKey: 'item-dish-soap', listSeedKey: 'list-groceries', name: 'Dish soap', section: 'household', staple: 'FALSE', status: 'stocked' },
+    { seedKey: 'item-peanut-butter', listSeedKey: 'list-groceries', name: 'Peanut butter', section: 'pantry', staple: 'FALSE', status: 'stocked' },
+    { seedKey: 'item-oatmeal', listSeedKey: 'list-groceries', name: 'Oatmeal', section: 'pantry', staple: 'FALSE', status: 'stocked' },
+    { seedKey: 'item-orange', listSeedKey: 'list-groceries', name: 'Orange', section: 'produce', staple: 'FALSE', status: 'stocked' },
+    { seedKey: 'item-pears', listSeedKey: 'list-groceries', name: 'Pears', section: 'produce', staple: 'FALSE', status: 'stocked' },
+    { seedKey: 'item-body-wash', listSeedKey: 'list-groceries', name: 'Body wash', section: 'household', staple: 'TRUE', status: 'stocked' },
+    { seedKey: 'item-ziploc-sandwich', listSeedKey: 'list-groceries', name: 'Ziploc sandwich', section: 'household', staple: 'FALSE', status: 'stocked' },
+    { seedKey: 'item-hot-sauce-valentina', listSeedKey: 'list-groceries', name: 'Hot sauce (Valentina black label)', section: 'pantry', staple: 'FALSE', status: 'stocked' },
+    { seedKey: 'item-hand-soap-refill', listSeedKey: 'list-groceries', name: 'Hand soap refill', section: 'household', staple: 'FALSE', status: 'stocked' },
+    { seedKey: 'item-king-arthur-flour', listSeedKey: 'list-groceries', name: 'King Arthur all-purpose flour', section: 'pantry', staple: 'FALSE', status: 'stocked' },
+    { seedKey: 'item-tin-fish', listSeedKey: 'list-groceries', name: 'Tin fish', section: 'pantry', staple: 'FALSE', status: 'stocked' },
+    { seedKey: 'item-laundry-detergent', listSeedKey: 'list-groceries', name: 'Laundry detergent', section: 'household', staple: 'TRUE', status: 'stocked' },
+    { seedKey: 'item-butter', listSeedKey: 'list-groceries', name: 'Butter', section: 'dairy', staple: 'TRUE', status: 'stocked' },
+    { seedKey: 'item-dog-food', listSeedKey: 'list-notgrocery', name: 'Dog food', section: 'other', staple: 'TRUE', status: 'stocked' }
+  ]
+};
+
+// ---------------------------------------------------------------------------
+// Feature 027 — birthdays + anniversaries (docs/seed-data.md §2-§3), seeded once by
+// seedEvents() (Seed.js) into RecurringEvents. Each entry carries either a literal
+// historical `anchorDate` (anniversaries — the ordinal base year matters) or an
+// `anchorRule` resolved the same way SEED_PACK's chores are (birthdays — the next future
+// month/day). Birthdays' `templateId` names their own per-person prep row below (research
+// R6); anniversary titles carry the `{nth}` ordinal token (research R4).
+// ---------------------------------------------------------------------------
+
+var EVENT_SEED_PACK = [
+  { seedKey: 'bday-jazmine', title: "Jaz's birthday", cadence: 'annually', anchorRule: 'monthday-XX-XX', defaultOwner: 'both', templateId: 'bday-jazmine' },
+  { seedKey: 'bday-jaz-mom', title: "Jaz's Mom's birthday", cadence: 'annually', anchorRule: 'monthday-XX-XX', defaultOwner: 'both', templateId: 'bday-jaz-mom' },
+  { seedKey: 'bday-max', title: "Max's birthday", cadence: 'annually', anchorRule: 'monthday-XX-XX', defaultOwner: 'both', templateId: 'bday-max' },
+  { seedKey: 'bday-max-dad', title: "Max's Dad's birthday", cadence: 'annually', anchorRule: 'monthday-XX-XX', defaultOwner: 'both', templateId: 'bday-max-dad' },
+  { seedKey: 'bday-jaz-dad', title: "Jaz's Dad's birthday", cadence: 'annually', anchorRule: 'monthday-XX-XX', defaultOwner: 'both', templateId: 'bday-jaz-dad' },
+  { seedKey: 'bday-uncle-joe', title: "Jaz's Uncle's birthday", cadence: 'annually', anchorRule: 'monthday-XX-XX', defaultOwner: 'both', templateId: 'bday-uncle-joe' },
+  { seedKey: 'bday-wyatt', title: "Nephew's birthday", cadence: 'annually', anchorRule: 'monthday-XX-XX', defaultOwner: 'both', templateId: 'bday-wyatt' },
+  { seedKey: 'bday-max-mom', title: "Max's Mom's birthday", cadence: 'annually', anchorRule: 'monthday-XX-XX', defaultOwner: 'both', templateId: 'bday-max-mom' },
+  { seedKey: 'anniv-dating', title: '{nth} dating anniversary', cadence: 'annually', anchorDate: '2020-01-01', defaultOwner: 'both' },
+  { seedKey: 'anniv-engaged', title: '{nth} engagement anniversary', cadence: 'annually', anchorDate: '2022-01-01', defaultOwner: 'both' },
+  { seedKey: 'anniv-married', title: '{nth} wedding anniversary', cadence: 'annually', anchorDate: '2025-01-01', defaultOwner: 'both' },
+  { seedKey: 'anniv-rufus-gotcha', title: "Rufus's {nth} gotcha day", cadence: 'annually', anchorDate: '2022-07-10', defaultOwner: 'both' },
+  { seedKey: 'anniv-cleo-gotcha', title: "Cleo's {nth} gotcha day", cadence: 'annually', anchorDate: '2020-09-27', defaultOwner: 'both' }
+];
+
+// ---------------------------------------------------------------------------
+// Feature 027 — prep templates (docs/seed-data.md §2 prep, §8), seeded once by
+// seedTemplates() (Seed.js) into TaskTemplates. The eight `bday-*` rows are each their own
+// single-row eventType so owner + lead time vary per person (research R6) — matched by the
+// `templateId` on the corresponding EVENT_SEED_PACK row above. `guests-arriving` and
+// `leaving-trip` are ordinary multi-row eventTypes for one-off events the household creates.
+// ---------------------------------------------------------------------------
+
+var TEMPLATE_SEED_PACK = [
+  { seedKey: 'tmpl-bday-jazmine', eventType: 'bday-jazmine', taskTitle: "Buy Jaz's birthday gift", offsetDays: -14, defaultOwner: 'max' },
+  { seedKey: 'tmpl-bday-jaz-mom', eventType: 'bday-jaz-mom', taskTitle: "Buy Jaz's Mom's birthday gift", offsetDays: -21, defaultOwner: 'jaz' },
+  { seedKey: 'tmpl-bday-max', eventType: 'bday-max', taskTitle: "Buy Max's birthday gift", offsetDays: -14, defaultOwner: 'jaz' },
+  { seedKey: 'tmpl-bday-max-dad', eventType: 'bday-max-dad', taskTitle: "Make dinner/wine reservations for Max's Dad's birthday", offsetDays: -14, defaultOwner: 'max' },
+  { seedKey: 'tmpl-bday-jaz-dad', eventType: 'bday-jaz-dad', taskTitle: "Buy Jaz's Dad's birthday gift", offsetDays: -14, defaultOwner: 'jaz' },
+  { seedKey: 'tmpl-bday-uncle-joe', eventType: 'bday-uncle-joe', taskTitle: 'Text Uncle in the family group chat', offsetDays: 0, defaultOwner: 'both' },
+  { seedKey: 'tmpl-bday-wyatt', eventType: 'bday-wyatt', taskTitle: "Buy Nephew's birthday gift", offsetDays: -7, defaultOwner: 'max' },
+  { seedKey: 'tmpl-bday-max-mom', eventType: 'bday-max-mom', taskTitle: "Buy Max's Mom's birthday gift", offsetDays: -21, defaultOwner: 'max' },
+  // "Guests arrive" — attach to a one-off event for a household visitor.
+  { seedKey: 'tmpl-guests-sheets', eventType: 'guests-arriving', taskTitle: 'Fresh sheets', offsetDays: -2, defaultOwner: 'jaz' },
+  { seedKey: 'tmpl-guests-bathroom', eventType: 'guests-arriving', taskTitle: 'Clean guest bathroom', offsetDays: -1, defaultOwner: 'max' },
+  { seedKey: 'tmpl-guests-snacks', eventType: 'guests-arriving', taskTitle: 'Get snacks', offsetDays: -1, defaultOwner: 'max' },
+  { seedKey: 'tmpl-guests-vacuum', eventType: 'guests-arriving', taskTitle: 'Vacuum', offsetDays: 0, defaultOwner: 'jaz' },
+  // "Leaving for a trip" — attach to a one-off event for household travel.
+  { seedKey: 'tmpl-trip-pumpkin', eventType: 'leaving-trip', taskTitle: 'Get enough pumpkin & pup veggies', offsetDays: -1, defaultOwner: 'max' },
+  { seedKey: 'tmpl-trip-plants', eventType: 'leaving-trip', taskTitle: 'Water plants', offsetDays: -1, defaultOwner: 'jaz' },
+  { seedKey: 'tmpl-trip-trash', eventType: 'leaving-trip', taskTitle: 'Take trash out', offsetDays: -1, defaultOwner: 'max' },
+  { seedKey: 'tmpl-trip-pup-instructions', eventType: 'leaving-trip', taskTitle: 'Set out pup instructions', offsetDays: 0, defaultOwner: 'max' },
+  { seedKey: 'tmpl-trip-key', eventType: 'leaving-trip', taskTitle: 'Key under mat for dog sitter', offsetDays: 0, defaultOwner: 'both' }
 ];

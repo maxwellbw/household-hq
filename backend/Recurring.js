@@ -48,7 +48,10 @@ function monthOf_(ymd) {
   return +ymd.substring(5, 7);
 }
 
-/** The step function for a cadence: apply it once to move to the next occurrence. */
+/** The step function for a cadence: apply it once to move to the next occurrence.
+ *  `thanksgiving-sat`'s real dates come from the special branch in `occurrencesInWindow_`
+ *  below; the +12mo here is only a non-throwing fallback so this switch never needs to
+ *  know about that cadence's actual semantics (feature 027). */
 function CADENCE_STEP_(cadence, ymd) {
   switch (cadence) {
     case 'weekly': return addDays_(ymd, 7);
@@ -58,8 +61,28 @@ function CADENCE_STEP_(cadence, ymd) {
     case 'eightweekly': return addDays_(ymd, 56);
     case 'quarterly': return addMonthsClamped_(ymd, 3);
     case 'annually': return addMonthsClamped_(ymd, 12);
+    case 'semiannually': return addMonthsClamped_(ymd, 6);
+    case 'thanksgiving-sat': return addMonthsClamped_(ymd, 12);
     default: fail_('VALIDATION_FAILED', 'Unknown cadence "' + cadence + '".', 'cadence');
   }
+}
+
+// ---------------------------------------------------------------------------
+// Thanksgiving math (feature 027, research R5) — pure, no Sheet/network access
+// ---------------------------------------------------------------------------
+
+/** The `YYYY-11-DD` date of the 4th Thursday of November in `year` (US Thanksgiving):
+ *  the first Thursday of November, plus 21 days. */
+function fourthThursdayOfNovember_(year) {
+  var firstOfNov = new Date(year, 10, 1); // JS months are 0-indexed; 10 = November
+  var firstThursdayDay = 1 + ((4 - firstOfNov.getDay() + 7) % 7); // Thursday = 4
+  return ymd_(year, 11, firstThursdayDay + 21);
+}
+
+/** The Saturday of the weekend before Thanksgiving in `year` — Thanksgiving Thursday
+ *  minus 5 days. */
+function thanksgivingSaturday_(year) {
+  return addDays_(fourthThursdayOfNovember_(year), -5);
 }
 
 /**
@@ -70,6 +93,12 @@ function CADENCE_STEP_(cadence, ymd) {
  * or after a generous iteration cap (defends against a corrupt/degenerate rule).
  */
 function occurrencesInWindow_(anchorDate, cadence, startExclusive, endInclusive) {
+  // Special-cased (research R5): one computed Saturday-before-Thanksgiving per year, rather
+  // than a fixed step from the anchor — a plain annual step would drift off the actual
+  // weekend over time.
+  if (cadence === 'thanksgiving-sat') {
+    return thanksgivingOccurrencesInWindow_(anchorDate, startExclusive, endInclusive);
+  }
   var out = [];
   var occ = anchorDate;
   var guard = 0;
@@ -83,6 +112,20 @@ function occurrencesInWindow_(anchorDate, cadence, startExclusive, endInclusive)
     out.push(occ);
     occ = CADENCE_STEP_(cadence, occ);
     if (++guard > GUARD_MAX) break;
+  }
+  return out;
+}
+
+/** One `thanksgivingSaturday_(year)` per calendar year from the anchor's year through the
+ *  window's end year, filtered to `(startExclusive, endInclusive]` — mirrors the window
+ *  semantics of the general stepping loop above without ever drifting off the real date. */
+function thanksgivingOccurrencesInWindow_(anchorDate, startExclusive, endInclusive) {
+  var out = [];
+  var startYear = +anchorDate.substring(0, 4);
+  var endYear = +endInclusive.substring(0, 4);
+  for (var year = startYear; year <= endYear; year++) {
+    var candidate = thanksgivingSaturday_(year);
+    if (candidate > startExclusive && candidate <= endInclusive) out.push(candidate);
   }
   return out;
 }
