@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { highlights, loadBalance, resolveViewer, sevenDayTiles, smartViews } from './dashboard'
+import { highlights, itemsForDay, loadBalance, resolveViewer, sevenDayTiles, smartViews } from './dashboard'
 import { monthRange, weekRange } from './datetime'
 import type { Event, RecurringRule, Session, Task } from '@/types/domain'
 
@@ -333,14 +333,27 @@ describe('sevenDayTiles', () => {
     expect(tile?.total).toBe(3)
   })
 
-  it('excludes done and snoozed tasks', () => {
+  it('excludes done tasks but includes snoozed tasks on their snoozed-until day (US5)', () => {
     const tasks = [
       task({ id: 't1', owner: 'max', dueDate: '2026-07-11', status: 'done' }),
       task({ id: 't2', owner: 'max', dueDate: '2026-07-11', status: 'snoozed' }),
     ]
     const tiles = sevenDayTiles(tasks, [], TZ)
     const tile = tiles.find((t) => t.dateKey === '2026-07-11')
-    expect(tile?.total).toBe(0)
+    expect(tile?.total).toBe(1)
+    expect(tile?.countsByOwner.max).toBe(1)
+  })
+
+  it('counts a snoozed-until-today task on today (US5)', () => {
+    const tasks = [task({ id: 't1', owner: 'jaz', dueDate: '2026-07-10', status: 'snoozed' })]
+    const tiles = sevenDayTiles(tasks, [], TZ)
+    expect(tiles.find((t) => t.dateKey === '2026-07-10')?.total).toBe(1)
+  })
+
+  it('a snoozed task beyond the 7-day strip is absent (US5)', () => {
+    const tasks = [task({ id: 't1', owner: 'jaz', dueDate: '2026-08-01', status: 'snoozed' })]
+    const tiles = sevenDayTiles(tasks, [], TZ)
+    expect(tiles.every((t) => t.total === 0)).toBe(true)
   })
 
   it('counts a multi-day event on every day it spans', () => {
@@ -356,6 +369,66 @@ describe('sevenDayTiles', () => {
     const tiles = sevenDayTiles([], [], TZ)
     expect(tiles.every((t) => t.total === 0)).toBe(true)
     expect(tiles).toHaveLength(7)
+  })
+})
+
+describe('itemsForDay (US4 day-peek panel — membership must match sevenDayTiles, SC-006)', () => {
+  it('returns the events and open tasks on the given day', () => {
+    const e = event({ id: 'e1', owner: 'max', start: '2026-07-11', end: '2026-07-11' })
+    const t = task({ id: 't1', owner: 'jaz', dueDate: '2026-07-11' })
+    const result = itemsForDay([t], [e], '2026-07-11', TZ)
+    expect(result.events).toEqual([e])
+    expect(result.tasks).toEqual([t])
+  })
+
+  it('includes a multi-day event on every day it spans, same as the strip', () => {
+    const e = event({ id: 'e1', owner: 'both', start: '2026-07-11', end: '2026-07-13' })
+    expect(itemsForDay([], [e], '2026-07-11', TZ).events).toEqual([e])
+    expect(itemsForDay([], [e], '2026-07-12', TZ).events).toEqual([e])
+    expect(itemsForDay([], [e], '2026-07-13', TZ).events).toEqual([e])
+    expect(itemsForDay([], [e], '2026-07-14', TZ).events).toEqual([])
+  })
+
+  it('includes a snoozed task on its snoozed-until day, same as the strip (US5)', () => {
+    const t = task({ id: 't1', owner: 'jaz', dueDate: '2026-07-11', status: 'snoozed' })
+    expect(itemsForDay([t], [], '2026-07-11', TZ).tasks).toEqual([t])
+  })
+
+  it('excludes done tasks and items on other days', () => {
+    const tasks = [
+      task({ id: 't1', dueDate: '2026-07-11', status: 'done' }),
+      task({ id: 't2', dueDate: '2026-07-12' }),
+    ]
+    const events = [event({ id: 'e1', start: '2026-07-12', end: '2026-07-12' })]
+    const result = itemsForDay(tasks, events, '2026-07-11', TZ)
+    expect(result.tasks).toEqual([])
+    expect(result.events).toEqual([])
+  })
+
+  it('returns an explicit empty result for a day with nothing', () => {
+    expect(itemsForDay([], [], '2026-07-11', TZ)).toEqual({ events: [], tasks: [] })
+  })
+
+  it('orders events first (by start), then tasks', () => {
+    const tasks = [task({ id: 't1', dueDate: '2026-07-11' })]
+    const events = [
+      event({ id: 'e2', start: '2026-07-11T14:00', end: '2026-07-11T15:00' }),
+      event({ id: 'e1', start: '2026-07-11T09:00', end: '2026-07-11T10:00' }),
+    ]
+    const result = itemsForDay(tasks, events, '2026-07-11', TZ)
+    expect(result.events.map((e) => e.id)).toEqual(['e1', 'e2'])
+    expect(result.tasks.map((t) => t.id)).toEqual(['t1'])
+  })
+
+  it('agrees with sevenDayTiles counts for the same day (SC-006)', () => {
+    const tasks = [
+      task({ id: 't1', owner: 'max', dueDate: '2026-07-11' }),
+      task({ id: 't2', owner: 'jaz', dueDate: '2026-07-11', status: 'done' }),
+    ]
+    const events = [event({ id: 'e1', owner: 'both', start: '2026-07-11', end: '2026-07-11' })]
+    const tile = sevenDayTiles(tasks, events, TZ).find((t) => t.dateKey === '2026-07-11')
+    const items = itemsForDay(tasks, events, '2026-07-11', TZ)
+    expect(items.events.length + items.tasks.length).toBe(tile?.total)
   })
 })
 

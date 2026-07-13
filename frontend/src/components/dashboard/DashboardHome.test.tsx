@@ -1,6 +1,10 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, fireEvent } from '@testing-library/react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { describe, expect, it, vi } from 'vitest'
 import { DashboardHome } from './DashboardHome'
+import { todayKey } from '@/lib/datetime'
+
+const TZ = 'America/Los_Angeles'
 
 // Stub all data hooks — DashboardHome is tested for section structure and
 // empty states, not for data-fetching logic (covered in dashboard.test.ts).
@@ -32,12 +36,21 @@ const mockUseTasks = vi.fn(
 )
 vi.mock('@/hooks/useTasks', () => ({ useTasks: () => mockUseTasks() }))
 
-vi.mock('@/hooks/useEvents', () => ({
-  useEvents: () => ({ data: [], isPending: false, isError: false }),
-}))
+const mockUseEvents = vi.fn(
+  (): { data: unknown[] | undefined; isPending: boolean; isError: boolean } => ({
+    data: [],
+    isPending: false,
+    isError: false,
+  }),
+)
+vi.mock('@/hooks/useEvents', () => ({ useEvents: () => mockUseEvents() }))
 
 vi.mock('@/hooks/useRecurring', () => ({
   useRecurring: () => ({ data: [], isPending: false, isError: false }),
+}))
+
+vi.mock('@/hooks/useToast', () => ({
+  useToast: () => ({ show: vi.fn() }),
 }))
 
 describe('DashboardHome', () => {
@@ -85,6 +98,71 @@ describe('DashboardHome', () => {
       isError: false,
     })
     render(<DashboardHome onOpenDate={vi.fn()} />)
-    expect(screen.getByText('Max has it: Pick up the dog')).toBeInTheDocument()
+    // The notice text is split across nested <span>s for owner-color styling (feature 028 R7).
+    const status = screen.getByRole('status')
+    expect(status).toHaveTextContent('Max has it:')
+    expect(status).toHaveTextContent('Pick up the dog')
+  })
+
+  describe('day-peek panel (US4/US28)', () => {
+    it('opens the panel on tap, switches to a different day, and closes on a repeat tap', () => {
+      render(<DashboardHome onOpenDate={vi.fn()} />)
+      const group = screen.getByRole('group', { name: 'Next 7 days' })
+      const [firstTile, secondTile] = group.querySelectorAll('button')
+
+      expect(screen.queryByRole('region', { name: /,/ })).not.toBeInTheDocument()
+
+      fireEvent.click(firstTile)
+      expect(screen.getByRole('region', { name: /,/ })).toBeInTheDocument()
+
+      fireEvent.click(secondTile)
+      expect(screen.getAllByRole('region', { name: /,/ })).toHaveLength(1)
+
+      fireEvent.click(secondTile)
+      expect(screen.queryByRole('region', { name: /,/ })).not.toBeInTheDocument()
+    })
+
+    it('passes the tapped day through to the "Open in calendar" callback', () => {
+      const onOpenDate = vi.fn()
+      render(<DashboardHome onOpenDate={onOpenDate} />)
+      const group = screen.getByRole('group', { name: 'Next 7 days' })
+      const [firstTile] = group.querySelectorAll('button')
+      fireEvent.click(firstTile)
+
+      fireEvent.click(screen.getByRole('button', { name: 'Open in calendar' }))
+      expect(onOpenDate).toHaveBeenCalledWith(todayKey(TZ))
+    })
+
+    it("surfaces today's tasks and events inside the panel (SC-006: matches the strip)", () => {
+      // mockReturnValue (not -Once): the state update from the click below re-renders
+      // DashboardHome, which calls useTasks()/useEvents() again.
+      mockUseTasks.mockReturnValue({
+        data: [{ id: 't1', title: 'Water the plants', owner: 'jaz', status: 'open', dueDate: todayKey(TZ) }],
+        isPending: false,
+        isError: false,
+      })
+      mockUseEvents.mockReturnValue({
+        data: [{ id: 'e1', title: 'Team standup', owner: 'max', start: todayKey(TZ), end: todayKey(TZ) }],
+        isPending: false,
+        isError: false,
+      })
+      const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
+      render(
+        <QueryClientProvider client={queryClient}>
+          <DashboardHome onOpenDate={vi.fn()} />
+        </QueryClientProvider>,
+      )
+      const group = screen.getByRole('group', { name: 'Next 7 days' })
+      const [firstTile] = group.querySelectorAll('button')
+      fireEvent.click(firstTile)
+
+      const region = screen.getByRole('region', { name: /,/ })
+      expect(region).toHaveTextContent('Water the plants')
+      expect(region).toHaveTextContent('Team standup')
+
+      // Restore defaults so this mock doesn't leak into other test files' shared module state.
+      mockUseTasks.mockReturnValue({ data: [], isPending: false, isError: false })
+      mockUseEvents.mockReturnValue({ data: [], isPending: false, isError: false })
+    })
   })
 })

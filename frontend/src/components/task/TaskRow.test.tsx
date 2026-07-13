@@ -31,25 +31,25 @@ function task(overrides: Partial<Task> & { id: string }): Task {
   return { title: 'Task', owner: 'both', status: 'open', ...overrides } as Task
 }
 
-describe('TaskRow — acknowledge/commit (019 US2)', () => {
-  it('shows the "Not yet committed" badge and action when the viewer is the uncommitted assignee', () => {
+describe('TaskRow — acknowledge/commit (019 US2, redesigned as a single chip per 028 R7)', () => {
+  it('shows a tappable "I\'ve got it" chip when the viewer is the uncommitted assignee', () => {
     mockIdentity = 'max'
     render(<TaskRow task={task({ id: 't1', owner: 'max', status: 'open' })} timezone="America/Los_Angeles" />)
-    expect(screen.getByText('Not yet committed')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: "I've got it" })).toBeInTheDocument()
+    const chip = screen.getByRole('button', { name: /Not yet committed — tap to confirm/ })
+    expect(chip).toHaveTextContent("I've got it")
   })
 
-  it('shows the badge but no action when the viewer is the assigner', () => {
+  it('shows a non-interactive "Not yet committed" chip when the viewer is the assigner (visibility rule unchanged)', () => {
     mockIdentity = 'jaz'
     render(<TaskRow task={task({ id: 't1', owner: 'max', status: 'open' })} timezone="America/Los_Angeles" />)
     expect(screen.getByText('Not yet committed')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: "I've got it" })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Not yet committed|I've got it/ })).not.toBeInTheDocument()
   })
 
-  it('tapping "I\'ve got it" acknowledges the task', () => {
+  it('tapping the chip acknowledges the task', () => {
     mockIdentity = 'max'
     render(<TaskRow task={task({ id: 't1', owner: 'max', status: 'open' })} timezone="America/Los_Angeles" />)
-    fireEvent.click(screen.getByRole('button', { name: "I've got it" }))
+    fireEvent.click(screen.getByRole('button', { name: /Not yet committed — tap to confirm/ }))
     expect(acknowledgeMutate).toHaveBeenCalledWith('t1', expect.anything())
   })
 

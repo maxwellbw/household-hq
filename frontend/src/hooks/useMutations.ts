@@ -1,16 +1,25 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '@/hooks/useAuth'
-import type { Owner, Task } from '@/types/domain'
+import { useToast } from '@/hooks/useToast'
+import type { Event, Owner, Task } from '@/types/domain'
 import type { NewEventInput, NewOneTimeTaskInput, NewRecurringInput } from '@/lib/quickAdd'
 import { buildEventPayload, buildOneTimeTaskPayload, buildRecurringPayload } from '@/lib/quickAdd'
 import type { ScheduleDraft } from '@/lib/schedule'
 import { buildSchedulePayload } from '@/lib/schedule'
 
-/** Quick-add creates (US5) — invalidate the relevant list on success so the new item appears immediately. */
+const SAVE_ERROR_MESSAGE = "Couldn't save — try again"
+
+type EventCreatePayload = { id: string; title: string; start: string; end: string; owner: Owner; type?: string; notes?: string; location?: string }
+type TaskCreatePayload = { id: string; title: string; owner: Owner; dueDate?: string; notes?: string }
+
+/** Create an event (US5/US2 R2) — optimistic insert using a client-minted id (the
+ *  optimistic row *is* the real row; backend id-replay makes retries duplicate-proof),
+ *  revert + toast on failure, invalidate on settle. */
 export function useCreateEvent() {
   const { authedCall, handleAuthError } = useAuth()
   const queryClient = useQueryClient()
-  return useMutation({
+  const toast = useToast()
+  const mutation = useMutation({
     mutationFn: async (input: NewEventInput) => {
       try {
         return await authedCall('events.create', buildEventPayload(input))
@@ -19,8 +28,36 @@ export function useCreateEvent() {
         throw err
       }
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['events'] }),
+    onMutate: async (input: NewEventInput) => {
+      await queryClient.cancelQueries({ queryKey: ['events'] })
+      const previous = queryClient.getQueryData<Event[]>(['events'])
+      const payload = buildEventPayload(input) as EventCreatePayload
+      const optimistic: Event = {
+        id: payload.id,
+        title: payload.title,
+        start: payload.start,
+        end: payload.end,
+        owner: payload.owner,
+        type: payload.type,
+        notes: payload.notes,
+        location: payload.location,
+      }
+      queryClient.setQueryData<Event[] | undefined>(['events'], (old) => (old ? [...old, optimistic] : [optimistic]))
+      return { previous }
+    },
+    onError: (_err, _input, context) => {
+      if (context?.previous) queryClient.setQueryData(['events'], context.previous)
+      toast.show(SAVE_ERROR_MESSAGE)
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['events'] }),
   })
+
+  const withId = (input: NewEventInput): NewEventInput => ({ ...input, id: input.id ?? crypto.randomUUID() })
+  return {
+    ...mutation,
+    mutate: (input: NewEventInput, options?: Parameters<typeof mutation.mutate>[1]) => mutation.mutate(withId(input), options),
+    mutateAsync: (input: NewEventInput) => mutation.mutateAsync(withId(input)),
+  }
 }
 
 export function useCreateRecurring() {
@@ -39,10 +76,13 @@ export function useCreateRecurring() {
   })
 }
 
+/** Create a one-time task (US5/US2 R2) — optimistic insert using a client-minted id, same
+ *  shape as useCreateEvent above. */
 export function useCreateOneTimeTask(timezone: string) {
   const { authedCall, handleAuthError } = useAuth()
   const queryClient = useQueryClient()
-  return useMutation({
+  const toast = useToast()
+  const mutation = useMutation({
     mutationFn: async (input: NewOneTimeTaskInput) => {
       try {
         return await authedCall('tasks.create', buildOneTimeTaskPayload(input, timezone))
@@ -51,14 +91,42 @@ export function useCreateOneTimeTask(timezone: string) {
         throw err
       }
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tasks'] }),
+    onMutate: async (input: NewOneTimeTaskInput) => {
+      await queryClient.cancelQueries({ queryKey: ['tasks'] })
+      const previous = queryClient.getQueryData<Task[]>(['tasks'])
+      const payload = buildOneTimeTaskPayload(input, timezone) as TaskCreatePayload
+      const optimistic: Task = {
+        id: payload.id,
+        title: payload.title,
+        owner: payload.owner,
+        status: 'open',
+        dueDate: payload.dueDate,
+        notes: payload.notes,
+      }
+      queryClient.setQueryData<Task[] | undefined>(['tasks'], (old) => (old ? [...old, optimistic] : [optimistic]))
+      return { previous }
+    },
+    onError: (_err, _input, context) => {
+      if (context?.previous) queryClient.setQueryData(['tasks'], context.previous)
+      toast.show(SAVE_ERROR_MESSAGE)
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['tasks'] }),
   })
+
+  const withId = (input: NewOneTimeTaskInput): NewOneTimeTaskInput => ({ ...input, id: input.id ?? crypto.randomUUID() })
+  return {
+    ...mutation,
+    mutate: (input: NewOneTimeTaskInput, options?: Parameters<typeof mutation.mutate>[1]) => mutation.mutate(withId(input), options),
+    mutateAsync: (input: NewOneTimeTaskInput) => mutation.mutateAsync(withId(input)),
+  }
 }
 
-/** Update an existing event (US4) — invalidate events on success. */
+/** Update an existing event (US4/US2 R2) — optimistic patch, revert + toast on failure,
+ *  invalidate on settle. */
 export function useUpdateEvent() {
   const { authedCall, handleAuthError } = useAuth()
   const queryClient = useQueryClient()
+  const toast = useToast()
   return useMutation({
     mutationFn: async (payload: {
       id: string
@@ -76,7 +144,19 @@ export function useUpdateEvent() {
         throw err
       }
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['events'] }),
+    onMutate: async (payload) => {
+      await queryClient.cancelQueries({ queryKey: ['events'] })
+      const previous = queryClient.getQueryData<Event[]>(['events'])
+      queryClient.setQueryData<Event[] | undefined>(['events'], (old) =>
+        old?.map((e) => (e.id === payload.id ? { ...e, ...payload } : e)),
+      )
+      return { previous }
+    },
+    onError: (_err, _payload, context) => {
+      if (context?.previous) queryClient.setQueryData(['events'], context.previous)
+      toast.show(SAVE_ERROR_MESSAGE)
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['events'] }),
   })
 }
 
@@ -162,10 +242,12 @@ export function useScheduleTask() {
   })
 }
 
-/** Update a task's title/owner/dueDate/notes (US2) — dueDate: '' clears the date. */
+/** Update a task's title/owner/dueDate/notes (US2 R2) — dueDate: '' clears the date.
+ *  Optimistic patch, revert + toast on failure, invalidate on settle. */
 export function useUpdateTask() {
   const { authedCall, handleAuthError } = useAuth()
   const queryClient = useQueryClient()
+  const toast = useToast()
   return useMutation({
     mutationFn: async (payload: { id: string; title?: string; owner?: Owner; dueDate?: string; notes?: string }) => {
       try {
@@ -175,7 +257,19 @@ export function useUpdateTask() {
         throw err
       }
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tasks'] }),
+    onMutate: async (payload) => {
+      await queryClient.cancelQueries({ queryKey: ['tasks'] })
+      const previous = queryClient.getQueryData<Task[]>(['tasks'])
+      queryClient.setQueryData<Task[] | undefined>(['tasks'], (old) =>
+        old?.map((t) => (t.id === payload.id ? { ...t, ...payload } : t)),
+      )
+      return { previous }
+    },
+    onError: (_err, _payload, context) => {
+      if (context?.previous) queryClient.setQueryData(['tasks'], context.previous)
+      toast.show(SAVE_ERROR_MESSAGE)
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['tasks'] }),
   })
 }
 
