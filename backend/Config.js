@@ -17,7 +17,7 @@
 var SPREADSHEET_ID = '1ypXomTO5s1PHlRMDBJ52kKuvrBzQDz0pXfWQcUBtHqE';
 
 /** Bumped only for shape-level API changes (contracts/api.md §Versioning). */
-var API_VERSION = '1.3.2';
+var API_VERSION = '1.4.0';
 
 /** Returned by the health ping so clients can identify the service. */
 var SERVICE_NAME = 'household-hq';

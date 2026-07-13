@@ -12,6 +12,17 @@
 var TOKENINFO_URL = 'https://oauth2.googleapis.com/tokeninfo?id_token=';
 var GOOGLE_ISSUERS = ['accounts.google.com', 'https://accounts.google.com'];
 
+// Household session tokens (feature 018 rev. 2026-07-12). GIS silent re-auth proved
+// unreliable in the field (iOS Safari ITP, Chrome FedCM declines), so after the first
+// Google sign-in the backend mints its own HMAC-signed, 30-day token; `auth.whoami`
+// re-mints on every call, giving a sliding window. The token carries only email +
+// display name — the allowlist is still resolved live on every request, so removing
+// an email locks that person out immediately. Rotating the SESSION_SECRET script
+// property invalidates every outstanding session at once.
+var SESSION_TOKEN_PREFIX = 'hqs1';
+var SESSION_TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days, renewed on each whoami
+var SESSION_SECRET_PROP = 'SESSION_SECRET';
+
 /** Log a rejection (maintainer-visible only, FR-013) then throw the structured error. */
 function authReject_(code, message, email) {
   console.warn('AUTH_REJECT ' + code + ' ' + (email || '-'));
@@ -45,6 +56,66 @@ function verifyIdToken_(token) {
   if (String(claims.email_verified) !== 'true') authReject_('INVALID_CREDENTIAL', 'Credential email not verified.');
   if (!claims.email) authReject_('INVALID_CREDENTIAL', 'Credential is missing an email.');
   return claims;
+}
+
+/** The signing secret from Script Properties, auto-created on first use. */
+function sessionSecret_() {
+  var props = PropertiesService.getScriptProperties();
+  var secret = props.getProperty(SESSION_SECRET_PROP);
+  if (!secret) {
+    secret = Utilities.getUuid() + Utilities.getUuid();
+    props.setProperty(SESSION_SECRET_PROP, secret);
+  }
+  return secret;
+}
+
+/** URL-safe base64 without padding (token must survive JSON + URL contexts). */
+function b64Url_(data) {
+  return Utilities.base64EncodeWebSafe(data).replace(/=+$/, '');
+}
+
+function signSessionPayload_(payloadB64, secret) {
+  return b64Url_(Utilities.computeHmacSha256Signature(SESSION_TOKEN_PREFIX + '.' + payloadB64, secret));
+}
+
+/** Mint `hqs1.<base64url payload>.<base64url hmac>` expiring TTL from now. */
+function mintSessionToken_(email, displayName) {
+  var payloadB64 = b64Url_(JSON.stringify({
+    e: String(email || '').trim().toLowerCase(),
+    n: String(displayName || ''),
+    x: Date.now() + SESSION_TOKEN_TTL_MS
+  }));
+  return SESSION_TOKEN_PREFIX + '.' + payloadB64 + '.' + signSessionPayload_(payloadB64, sessionSecret_());
+}
+
+function isSessionToken_(token) {
+  return String(token).indexOf(SESSION_TOKEN_PREFIX + '.') === 0;
+}
+
+/**
+ * Verify a household session token and return tokeninfo-shaped claims so the
+ * caller flows through the same resolveIdentity_ path as a Google ID token.
+ * Tampering/garbage → INVALID_CREDENTIAL; a genuine expiry → UNAUTHENTICATED
+ * (both send the client back to the sign-in wall, never a loop).
+ */
+function verifySessionToken_(token, secret) {
+  var parts = String(token).split('.');
+  if (parts.length !== 3 || parts[2] !== signSessionPayload_(parts[1], secret)) {
+    authReject_('INVALID_CREDENTIAL', 'Session is not valid. Please sign in again.');
+  }
+  var payload;
+  try {
+    payload = JSON.parse(Utilities.newBlob(Utilities.base64DecodeWebSafe(parts[1])).getDataAsString());
+  } catch (e) {
+    authReject_('INVALID_CREDENTIAL', 'Session is not valid. Please sign in again.');
+  }
+  if (!payload || !payload.e) {
+    authReject_('INVALID_CREDENTIAL', 'Session is not valid. Please sign in again.');
+  }
+  if (!(Number(payload.x) > Date.now())) {
+    authReject_('UNAUTHENTICATED', 'Session expired. Please sign in again.', payload.e);
+  }
+  return { email: payload.e, name: payload.n || '', email_verified: 'true' };
 }
 
 /**
@@ -118,18 +189,26 @@ function resolveWriteActor_(identity, action, payload) {
  */
 function authenticate_(action, token, payload) {
   if (!token || String(token).trim() === '') authReject_('UNAUTHENTICATED', 'Sign-in required.');
-  var claims = verifyIdToken_(String(token).trim());
+  var trimmed = String(token).trim();
+  var claims = isSessionToken_(trimmed)
+    ? verifySessionToken_(trimmed, sessionSecret_())
+    : verifyIdToken_(trimmed);
   var identity = resolveIdentity_(claims);
   identity.actor = resolveWriteActor_(identity, action, payload);
   return identity;
 }
 
-/** auth.whoami payload (FR-009): who the caller is, and whether the client must ask "Max or Jaz?". */
+/**
+ * auth.whoami payload (FR-009): who the caller is, and whether the client must ask
+ * "Max or Jaz?". Always includes a freshly minted session token (018 rev.) — the client
+ * calls whoami on every boot, so each visit slides the 30-day window forward.
+ */
 function whoami_(identity) {
   return {
     identity: identity.identity,
     displayName: identity.displayName,
     email: identity.email,
-    needsActingPerson: identity.identity === 'shared'
+    needsActingPerson: identity.identity === 'shared',
+    sessionToken: mintSessionToken_(identity.email, identity.displayName)
   };
 }

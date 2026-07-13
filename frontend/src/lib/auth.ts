@@ -1,9 +1,10 @@
-// Google Identity Services (GIS) wiring (research R3, extended by feature
-// 018 research R1/R3). The backend verifies a Google ID token's claims
-// directly — no OAuth access-token flow, no server-side session. The token
-// itself always lives in memory only; auto_select + silent prompt() let the
-// app re-acquire a fresh one without an interactive prompt in the common
-// case (see session-store.ts for what little is persisted).
+// Google Identity Services (GIS) wiring (research R3; feature 018 revised
+// 2026-07-12). GIS is now only the *first* sign-in: the interactive button
+// yields a Google ID token, the backend verifies it and answers with a
+// long-lived household session token (see session-store.ts), and every later
+// visit restores from that token instead of asking Google again. The silent
+// One Tap re-auth path from the original 018 was removed — it failed
+// routinely on iOS Safari (ITP) and Chrome (FedCM declines).
 
 import { apiCall } from './api'
 import type { WhoAmI } from '@/types/domain'
@@ -31,29 +32,6 @@ export async function setupGis(onCredential: (token: string) => void): Promise<v
   google.accounts.id.initialize({
     client_id: CLIENT_ID,
     callback: (response) => onCredential(response.credential),
-    auto_select: true,
-    cancel_on_tap_outside: false,
-  })
-}
-
-/**
- * Ask GIS to silently re-select the previously used account (auto-select /
- * One Tap, feature 018 research R1). Must run after `setupGis` has
- * registered the credential callback — success is observed by that
- * callback firing, not by this promise; this only resolves once GIS has
- * reported a *decline* (not displayed / skipped / dismissed) so the caller
- * can race it against the callback and fall back to interactive sign-in.
- * If GIS never reports a moment outcome (rare), this promise simply never
- * resolves — callers must race it with their own timeout.
- */
-export async function promptSilent(): Promise<'declined'> {
-  const google = await waitForGis()
-  return new Promise((resolve) => {
-    google.accounts.id.prompt((notification) => {
-      if (notification.isNotDisplayed() || notification.isSkippedMoment() || notification.isDismissedMoment()) {
-        resolve('declined')
-      }
-    })
   })
 }
 
