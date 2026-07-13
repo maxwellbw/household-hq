@@ -113,9 +113,17 @@ export function TaskDetailSheet({ task, onClose, initialEdit = false }: TaskDeta
                 </>
               )}
             </p>
-            {uncommitted && (
+            {/* Shown only when the viewer can't act (the full-width action below already
+                states the status for the assignee — no need to say it twice, R7 critique). */}
+            {uncommitted && !canCommit && (
               <p className="mt-2">
-                <span className="inline-flex items-center rounded-full bg-danger px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-surface">
+                <span
+                  className={cn(
+                    'inline-flex items-center rounded-control border-2 px-2.5 py-1 text-xs font-medium',
+                    task.owner === 'max' && 'border-owner-max text-owner-max',
+                    task.owner === 'jaz' && 'border-owner-jaz text-owner-jaz',
+                  )}
+                >
                   Not yet committed
                 </span>
               </p>
@@ -157,14 +165,19 @@ export function TaskDetailSheet({ task, onClose, initialEdit = false }: TaskDeta
           </div>
         )}
 
-        {/* Acknowledge / commit */}
+        {/* Acknowledge / commit — full-width action preserved here (R7); TaskRow collapses
+            this into a single card-level chip, but the detail sheet has room to spare. */}
         {canCommit && (
           <div className="mb-5">
             <button
               type="button"
               onClick={handleAcknowledge}
               disabled={acknowledge.isPending}
-              className="min-h-[44px] w-full rounded-control bg-accent px-4 text-sm font-medium text-surface hover:bg-accent-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:opacity-50"
+              className={cn(
+                'min-h-[44px] w-full rounded-control border-2 px-4 text-sm font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:opacity-50',
+                task.owner === 'max' && 'border-owner-max text-owner-max hover:bg-owner-max-soft',
+                task.owner === 'jaz' && 'border-owner-jaz text-owner-jaz hover:bg-owner-jaz-soft',
+              )}
             >
               {acknowledge.isPending ? 'Committing…' : "I've got it"}
             </button>
@@ -198,7 +211,7 @@ export function TaskDetailSheet({ task, onClose, initialEdit = false }: TaskDeta
             <button
               type="button"
               onClick={() => setShowSnooze(true)}
-              className="flex-1 rounded-control border border-border bg-surface px-4 py-2.5 text-sm font-medium text-ink hover:bg-surface-alt focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+              className="min-h-[44px] flex-1 rounded-control border border-border bg-surface px-4 text-sm font-medium text-ink hover:bg-surface-alt focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
             >
               Snooze
             </button>
@@ -208,7 +221,7 @@ export function TaskDetailSheet({ task, onClose, initialEdit = false }: TaskDeta
               type="button"
               onClick={handleUnsnooze}
               disabled={unsnooze.isPending}
-              className="flex-1 rounded-control border border-border bg-surface px-4 py-2.5 text-sm font-medium text-ink hover:bg-surface-alt focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-50"
+              className="min-h-[44px] flex-1 rounded-control border border-border bg-surface px-4 text-sm font-medium text-ink hover:bg-surface-alt focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-50"
             >
               {unsnooze.isPending ? 'Removing snooze…' : 'Un-snooze'}
             </button>

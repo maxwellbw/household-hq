@@ -9,7 +9,7 @@ const deleteMutate = vi.fn((_id: string, opts?: { onSuccess?: () => void }) => o
 const acknowledgeMutate = vi.fn((_id: string, opts?: { onSuccess?: () => void }) => opts?.onSuccess?.())
 vi.mock('@/hooks/useMutations', () => ({
   useUnsnoozeTask: () => ({ mutate: unsnoozeMutate, isPending: false }),
-  useUpdateTask: () => ({ mutateAsync: vi.fn().mockResolvedValue({}), isPending: false }),
+  useUpdateTask: () => ({ mutate: vi.fn(), mutateAsync: vi.fn().mockResolvedValue({}), isPending: false }),
   useSnoozeTask: () => ({ mutate: snoozeMutate, isPending: false }),
   useDeleteTask: () => ({ mutate: deleteMutate, isPending: false }),
   useAcknowledgeTask: () => ({ mutate: acknowledgeMutate, isPending: false }),
@@ -192,9 +192,9 @@ describe('TaskDetailSheet', () => {
     expect(screen.queryByText('Notes')).not.toBeInTheDocument()
   })
 
-  it('shows "Not yet committed" and "I\'ve got it" when the viewer is the uncommitted assignee', () => {
+  it('shows only the "I\'ve got it" action (no redundant badge) when the viewer is the uncommitted assignee (028 R7)', () => {
     render(<TaskDetailSheet task={uncommittedForViewer} onClose={vi.fn()} />)
-    expect(screen.getByText('Not yet committed')).toBeInTheDocument()
+    expect(screen.queryByText('Not yet committed')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: "I've got it" })).toBeInTheDocument()
   })
 

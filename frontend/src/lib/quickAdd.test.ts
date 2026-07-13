@@ -45,6 +45,21 @@ describe('buildEventPayload', () => {
     expect('notes' in payload).toBe(false)
     expect('location' in payload).toBe(false)
   })
+
+  it('passes a client-minted id through when provided', () => {
+    const payload = buildEventPayload({
+      id: 'abc-123',
+      title: 'Dentist',
+      start: '2026-07-20T14:30',
+      owner: 'jaz',
+    })
+    expect(payload.id).toBe('abc-123')
+  })
+
+  it('omits id when not provided', () => {
+    const payload = buildEventPayload({ title: 'Dentist', start: '2026-07-20T14:30', owner: 'jaz' })
+    expect('id' in payload).toBe(false)
+  })
 })
 
 describe('buildRecurringPayload', () => {
@@ -88,5 +103,12 @@ describe('buildOneTimeTaskPayload', () => {
     expect(withNotes.notes).toBe('https://ex.com')
     const withoutNotes = buildOneTimeTaskPayload({ title: 'Buy filter', owner: 'max' }, TZ)
     expect('notes' in withoutNotes).toBe(false)
+  })
+
+  it('passes a client-minted id through when provided, omits when not', () => {
+    const withId = buildOneTimeTaskPayload({ id: 'abc-123', title: 'Buy milk', owner: 'max' }, TZ)
+    expect(withId.id).toBe('abc-123')
+    const withoutId = buildOneTimeTaskPayload({ title: 'Buy milk', owner: 'max' }, TZ)
+    expect('id' in withoutId).toBe(false)
   })
 })

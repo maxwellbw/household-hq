@@ -2,7 +2,6 @@ import { useRef, useState } from 'react'
 import { useUpdateTask } from '@/hooks/useMutations'
 import { useDialogA11y } from '@/hooks/useDialogA11y'
 import { ownerStyle, ALL_OWNERS } from '@/lib/owners'
-import { ApiError } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import type { Owner, Task } from '@/types/domain'
 
@@ -23,7 +22,7 @@ export function TaskEditSheet({ task, onClose }: TaskEditSheetProps) {
   const [notes, setNotes] = useState(task.notes ?? '')
   const [fieldError, setFieldError] = useState<{ field?: string; message: string } | null>(null)
 
-  async function handleSubmit(e: React.FormEvent) {
+  function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setFieldError(null)
 
@@ -32,16 +31,8 @@ export function TaskEditSheet({ task, onClose }: TaskEditSheetProps) {
       return
     }
 
-    try {
-      await updateTask.mutateAsync({ id: task.id, title: title.trim(), owner, dueDate, notes })
-      onClose()
-    } catch (err) {
-      if (err instanceof ApiError) {
-        setFieldError({ field: err.field, message: err.message })
-      } else {
-        setFieldError({ message: 'Something went wrong. Please try again.' })
-      }
-    }
+    updateTask.mutate({ id: task.id, title: title.trim(), owner, dueDate, notes })
+    onClose()
   }
 
   return (
