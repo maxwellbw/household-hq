@@ -11,20 +11,9 @@ order confirmed by Jaz 2026-07-11, including 010/011 — definitely a go, slotte
 
 ## The queue — up next, in order
 
-**Next up: 028 — UX fix batch 3** (queue revised 2026-07-13, Jaz's feedback round 4:
-028 inserted first and **010 promoted ahead of 026** — real iPhone notifications matter
-more than gcal import right now; 026 → 011 follow unchanged).
-
-**027 follow-up: ✅ done** (confirmed by Jaz 2026-07-13) — `setupDatabase()`, self-test,
-`seedHousehold()`, both generators, **and the trigger installers** were all run from the
-Apps Script editor; the nightly jobs are live. This also supersedes the old 024 follow-up
-(same `setupDatabase()`/`selfTest()` steps). Two residues, both folded into 028: (1) most
-seeded birthdays/anniversaries aren't on the calendar yet — root-caused to the 60-day
-`recurringEventsLookaheadDays` window, **not** a seeding bug (the rows are in
-`RecurringEvents`; yearly occurrences beyond ~60 days just haven't materialized); (2) the
-full `selfTest()` exceeds the 6-min execution limit and never finishes. Live browser
-click-throughs of the Lists search box and quickstart scenarios remain recommended (see
-follow-up notes below).
+**Next up: 010 — PWA install + web push** (promoted ahead of 026 on 2026-07-13, Jaz's
+feedback round 4 — real iPhone notifications matter more than gcal import right now; 026 →
+011 follow unchanged).
 
 | Order | # | Feature | Stage | Spec folder | PR |
 |---|---|---|---|---|---|
@@ -33,7 +22,7 @@ follow-up notes below).
 | 3 | 024 | Grocery & household lists | ✅ merged | specs/024-grocery-household-lists | [#23](https://github.com/maxwellbw/household-hq/pull/23) |
 | 4 | 025 | Recurring events | ✅ merged | specs/025-recurring-events | [#24](https://github.com/maxwellbw/household-hq/pull/24) |
 | 5 | 027 | Household seed data + engine extensions | ✅ merged | specs/027-household-seed-data | [#25](https://github.com/maxwellbw/household-hq/pull/25) |
-| 6 | 028 | UX fix batch 3 (mobile polish + save speed + event lookahead) | 🔧 implemented, pending PR | specs/028-ux-fix-batch-3 | — |
+| 6 | 028 | UX fix batch 3 (mobile polish + save speed + event lookahead) | ✅ merged | specs/028-ux-fix-batch-3 | [#27](https://github.com/maxwellbw/household-hq/pull/27) |
 | 7 | 010 | PWA install + web push (promoted 2026-07-13) | ⬜ not started | — | — |
 | 8 | 026 | Inbound gcal import (personal calendars) | ⬜ not started | — | — |
 | 9 | 011 | Weather-aware dog-walk window finder | ⬜ not started | — | — |
@@ -122,19 +111,11 @@ findings; all scope questions clarified same day). Eight items:
    chunked runners that each finish inside Apps Script's 6-minute limit (the file itself
    already documents the overrun), keeping `selfTestSeedPack()`/`selfTestSessionTokens()`.
 Notification quality (round-4 item 7) is **not** in 028 — it *is* feature 010, hence the
-promotion. Stopgap available before 028 ships: hand-edit Settings
-`recurringEventsLookaheadDays` to 366 and run `generateRecurringEvents()` once — safe
-today because every current RecurringEvents rule is yearly.
-
-**028 status (2026-07-13): implemented, pending PR.** All 7 user stories + polish done;
-frontend gate green (379/379 tests, up from a 346-test baseline — the spec's "322" was
-stale; build clean). Backend (`clasp push`/`deploy` + live `selfTest1Core()` …
-`selfTest4CalendarAndComms()` + the `generateRecurringEvents()` backfill) and the
-real-iPhone passes (zoom lock, safe-area, day-peek touch) are the remaining steps —
-tracked as T027 in `specs/028-ux-fix-batch-3/tasks.md`; some of that needs Jaz's phone and
-Google OAuth, which this sandbox can't do. See tasks.md for the couple of implementation
-deviations from plan (all presentation-only, written back inline next to the relevant
-task; also research.md R7/R8 addenda).
+promotion. **Shipped as PR #27** (see the Shipped section below for the summary and
+`specs/028-ux-fix-batch-3/` for the couple of implementation deviations from plan, all
+presentation-level and written back inline in `tasks.md` + `research.md` R7/R8 addenda).
+Live validation (self-test chunks, the recurring-events backfill, and the real-iPhone
+checks) is still pending — see the open follow-up below.
 
 **026 — Inbound gcal import (personal calendars).** Pull externally-created events
 (reservations, appointments) from **Max's and Jaz's personal gmail calendars** (shared to
@@ -201,6 +182,7 @@ prep template).
 | 019 | Task & event details + collaboration | [specs/019-details-collaboration](specs/019-details-collaboration/spec.md) | [#19](https://github.com/maxwellbw/household-hq/pull/19) |
 | 020 | Settings editor under More | [specs/020-settings-editor](specs/020-settings-editor/spec.md) | [#20](https://github.com/maxwellbw/household-hq/pull/20) |
 | 023 | Dog-care recurring seed rows (`sixweekly`/`eightweekly` cadences added) | [specs/023-dog-care-seed-rows](specs/023-dog-care-seed-rows/spec.md) | [#22](https://github.com/maxwellbw/household-hq/pull/22) |
+| 028 | UX fix batch 3 (yearly lookahead, optimistic saves, mobile feel, day peek, ack redesign, selfTest split) | [specs/028-ux-fix-batch-3](specs/028-ux-fix-batch-3/spec.md) | [#27](https://github.com/maxwellbw/household-hq/pull/27) |
 
 **Planning history:** Phase 1 (001–007) + Phase 2 (008–009) per brief §10 · Phase 2.5
 (012–015) planned 2026-07-09, Jaz's feedback round 1 — the backend had outrun the UI ·
@@ -214,7 +196,15 @@ grocery lists + inbound gcal import from the parked list · Phase 2.8 (028) plan
 
 ### Post-merge notes & open follow-ups
 
-**Open follow-ups first:** **023's `selfTestSeedPack()` live run is still pending** — the
+**Open follow-ups first:** **028's live validation is still pending** — `clasp run` isn't
+configured as an API executable in this sandbox, so `setupDatabase()`, the four
+`selfTest1Core()` … `selfTest4CalendarAndComms()` chunks, and the one-time
+`generateRecurringEvents()` backfill (the moment the seeded birthdays/anniversaries
+actually appear on the calendar) all need to be run manually from the Apps Script editor;
+the real-iPhone checks (zoom lock, safe-area, day-peek touch, ack redesign at phone width)
+also need a real device. Backend code is pushed and the web-app deployment refreshed
+(@23) either way — see `specs/028-ux-fix-batch-3/quickstart.md` §A–H. **023's
+`selfTestSeedPack()` live run is still pending** — the
 sandbox can't execute Apps Script, so `selfTestSeedPack()` (updated for the 12-chore pack
 and the two new `sixweekly`/`eightweekly` cadences) needs to be run manually from the Apps
 Script editor to confirm `SEED PACK: ALL PASS`, and `seedRecurringPack()` needs a real run to
@@ -237,6 +227,26 @@ especially, since its core value (silent restore/refresh) is exactly what the sa
 exercise** — see `specs/018-stay-signed-in/quickstart.md`. 006's T057 live sign-in
 walkthrough was never formally run. 013's US3 (desktop drag-onto-day) is deferred until
 Schedule-X exposes stable `data-date` on month-grid cells.
+
+_028 (PR #27). Seven pre-clarified fixes from Jaz's feedback round 4 (first real-device
+pass after the 027 seed). `generateRecurringEvents()`'s window is now per-cadence: annual
+rules (birthdays/anniversaries) get 366 days instead of 60, so seeded yearly occurrences
+actually materialize; new Settings key `recurringEventsYearlyLookaheadDays`. Task/event
+create+edit go optimistic (client-minted id, instant cache insert/patch, revert+toast on
+failure) via `useMutations.ts`'s existing onMutate/onError/onSettled pattern — sheets close
+immediately instead of awaiting the network; recurring-rule creates stay awaited. Viewport
+meta + `touch-action` + 16px coarse-pointer inputs kill iOS zoom; bottom nav/FAB/main
+padding respect `env(safe-area-inset-bottom)`. New `DayPeekPanel` opens inline below the
+dashboard's 7-day strip on tap (shared `itemsForDay()` selector keeps panel contents and
+strip counts from disagreeing); snoozed tasks now show there too. Acknowledge UI collapsed
+into a single owner-colored chip (was a stacked badge + button); a critique pass caught and
+fixed a real contrast bug (snoozed-row dimming was washing out the chip) plus a copy/
+redundancy issue. Backend `selfTest()` split into four chunked runners
+(`selfTest1Core()`…`selfTest4CalendarAndComms()`) under the 6-minute Apps Script limit, with
+a verified coverage audit (all 42 suites, none dropped/duplicated) and a fail-loud guard on
+the old entry point. 379 tests green (up from 346 — the spec's stated 322 was stale); build
+clean. Backend pushed and the web-app deployment refreshed (@23); live validation still
+pending (see follow-up above)._
 
 _023 (PR #22). Extends 015's seed pack with four dog-care chores (flea/tick meds,
 heartworm meds, nail trim, grooming), all owned by `both`, year-round — reuses
