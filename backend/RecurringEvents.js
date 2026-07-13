@@ -65,6 +65,40 @@ function addMinutesToDateTime_(datetime, minutes) {
 }
 
 // ---------------------------------------------------------------------------
+// Ordinal "{nth}" title token (feature 027, research R4) — pure, no Sheet/network access
+// ---------------------------------------------------------------------------
+
+/** The English ordinal string for a positive integer: 1→"1st", 2→"2nd", 3→"3rd", 4→"4th",
+ *  11→"11th"/12→"12th"/13→"13th" (the teens are always "th"), 21→"21st", etc. */
+function ordinal_(n) {
+  var rem100 = n % 100;
+  if (rem100 >= 11 && rem100 <= 13) return n + 'th';
+  switch (n % 10) {
+    case 1: return n + 'st';
+    case 2: return n + 'nd';
+    case 3: return n + 'rd';
+    default: return n + 'th';
+  }
+}
+
+/**
+ * A rule's `title` may contain the literal token `{nth}` (e.g. `"{nth} dating
+ * anniversary"`, `"Rufus's {nth} gotcha day"`). Renders it as the ordinal count of years
+ * from the rule's anchor year to the occurrence's year — baked into each generated
+ * occurrence's stored title so it's correct everywhere that title is read (calendar,
+ * dashboard, the 007 Google Calendar mirror) with no frontend involvement. A title with no
+ * token, or a non-positive year delta, is returned unchanged (a birthday's plain title
+ * passes straight through; see research R4 for why a delta ≤ 0 isn't expected in practice).
+ */
+function renderOccurrenceTitle_(ruleTitle, anchorDate, occurrenceDate) {
+  var title = String(ruleTitle || '');
+  if (title.indexOf('{nth}') < 0) return title;
+  var n = (+occurrenceDate.substring(0, 4)) - (+anchorDate.substring(0, 4));
+  if (n < 1) return title;
+  return title.split('{nth}').join(ordinal_(n));
+}
+
+// ---------------------------------------------------------------------------
 // The nightly generator (FR-004/005/006/007/009/010/011/012/013/018)
 // ---------------------------------------------------------------------------
 
@@ -108,7 +142,7 @@ function generateForEventRule_(rule, today, windowEnd) {
     var timing = occurrenceStartEnd_(due, rule.startTime, rule.durationMinutes);
     var occ = {
       id: recurringEventOccurrenceId_(rule.id, due),
-      title: rule.title,
+      title: renderOccurrenceTitle_(rule.title, rule.anchorDate, due),
       start: timing.start,
       end: timing.end,
       owner: rule.defaultOwner,

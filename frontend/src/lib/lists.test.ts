@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   DEFAULT_GROCERY_NUDGE_THRESHOLD,
+  filterItemsByName,
   groceryNeededStapleCount,
   groupNeededBySection,
   shouldShowGroceryNudge,
@@ -91,5 +92,31 @@ describe('shouldShowGroceryNudge', () => {
 
   it('falls back to the default threshold when the setting is invalid', () => {
     expect(shouldShowGroceryNudge(staples(DEFAULT_GROCERY_NUDGE_THRESHOLD), 'not-a-number')).toBe(true)
+  })
+})
+
+describe('filterItemsByName', () => {
+  const items = [
+    item({ id: '1', name: 'Coffee' }),
+    item({ id: '2', name: 'Pumpkin (canned, for pup)' }),
+    item({ id: '3', name: 'Frozen berries' }),
+  ]
+
+  it('matches case-insensitively on a substring', () => {
+    expect(filterItemsByName(items, 'pump').map((i) => i.id)).toEqual(['2'])
+    expect(filterItemsByName(items, 'PUMP').map((i) => i.id)).toEqual(['2'])
+  })
+
+  it('ignores leading/trailing whitespace in the query', () => {
+    expect(filterItemsByName(items, '  coffee  ').map((i) => i.id)).toEqual(['1'])
+  })
+
+  it('returns every item when the query is blank', () => {
+    expect(filterItemsByName(items, '')).toEqual(items)
+    expect(filterItemsByName(items, '   ')).toEqual(items)
+  })
+
+  it('returns no items when nothing matches', () => {
+    expect(filterItemsByName(items, 'xyz not present')).toEqual([])
   })
 })
