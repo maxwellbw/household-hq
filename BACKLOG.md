@@ -33,7 +33,7 @@ follow-up notes below).
 | 3 | 024 | Grocery & household lists | ✅ merged | specs/024-grocery-household-lists | [#23](https://github.com/maxwellbw/household-hq/pull/23) |
 | 4 | 025 | Recurring events | ✅ merged | specs/025-recurring-events | [#24](https://github.com/maxwellbw/household-hq/pull/24) |
 | 5 | 027 | Household seed data + engine extensions | ✅ merged | specs/027-household-seed-data | [#25](https://github.com/maxwellbw/household-hq/pull/25) |
-| 6 | 028 | UX fix batch 3 (mobile polish + save speed + event lookahead) | ⬜ not started | — | — |
+| 6 | 028 | UX fix batch 3 (mobile polish + save speed + event lookahead) | ⏸ tasks generated (awaiting go-ahead) | specs/028-ux-fix-batch-3 | — |
 | 7 | 010 | PWA install + web push (promoted 2026-07-13) | ⬜ not started | — | — |
 | 8 | 026 | Inbound gcal import (personal calendars) | ⬜ not started | — | — |
 | 9 | 011 | Weather-aware dog-walk window finder | ⬜ not started | — | — |
