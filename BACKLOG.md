@@ -11,25 +11,20 @@ order confirmed by Jaz 2026-07-11, including 010/011 — definitely a go, slotte
 
 ## The queue — up next, in order
 
-**Next up: 026 — Inbound gcal import** (027 merged 2026-07-12; 026 resumes as next in the
-confirmed order).
+**Next up: 028 — UX fix batch 3** (queue revised 2026-07-13, Jaz's feedback round 4:
+028 inserted first and **010 promoted ahead of 026** — real iPhone notifications matter
+more than gcal import right now; 026 → 011 follow unchanged).
 
-**027 follow-up still needed (blocks any household use of the seeded data):** run, in
-order, from the Apps Script editor — `setupDatabase()` (migrates `seedKey` onto
-`Lists`/`ListItems`/`TaskTemplates`/`RecurringEvents` + adds the three new Settings
-ledgers) → `selfTest()` or the faster `selfTestSeedPack()` (confirm `ALL PASS`) →
-`seedHousehold()` (the real one-time load) → `generateRecurringEvents()` +
-`generateRecurringTasks()` (materialize the first occurrences without waiting for the
-nightly triggers). See `specs/027-household-seed-data/quickstart.md` §A–§H for the full
-live-verification walkthrough. Code is pushed and the web-app deployment refreshed (@21)
-either way. A manual browser click-through of the new Lists search box is also
-recommended — the sandboxed preview hit the real Google sign-in wall (see follow-up notes
-below).
-
-**024 follow-up still needed:** run `setupDatabase()` then `selfTest()` from the Apps
-Script editor to provision the `Lists`/`ListItems` tabs and confirm `ALL PASS` (not done
-as part of the merge — no API-executable deployment configured for `clasp run`), then
-walk through `specs/024-grocery-household-lists/quickstart.md` scenarios A–G live.
+**027 follow-up: ✅ done** (confirmed by Jaz 2026-07-13) — `setupDatabase()`, self-test,
+`seedHousehold()`, both generators, **and the trigger installers** were all run from the
+Apps Script editor; the nightly jobs are live. This also supersedes the old 024 follow-up
+(same `setupDatabase()`/`selfTest()` steps). Two residues, both folded into 028: (1) most
+seeded birthdays/anniversaries aren't on the calendar yet — root-caused to the 60-day
+`recurringEventsLookaheadDays` window, **not** a seeding bug (the rows are in
+`RecurringEvents`; yearly occurrences beyond ~60 days just haven't materialized); (2) the
+full `selfTest()` exceeds the 6-min execution limit and never finishes. Live browser
+click-throughs of the Lists search box and quickstart scenarios remain recommended (see
+follow-up notes below).
 
 | Order | # | Feature | Stage | Spec folder | PR |
 |---|---|---|---|---|---|
@@ -38,9 +33,10 @@ walk through `specs/024-grocery-household-lists/quickstart.md` scenarios A–G l
 | 3 | 024 | Grocery & household lists | ✅ merged | specs/024-grocery-household-lists | [#23](https://github.com/maxwellbw/household-hq/pull/23) |
 | 4 | 025 | Recurring events | ✅ merged | specs/025-recurring-events | [#24](https://github.com/maxwellbw/household-hq/pull/24) |
 | 5 | 027 | Household seed data + engine extensions | ✅ merged | specs/027-household-seed-data | [#25](https://github.com/maxwellbw/household-hq/pull/25) |
-| 6 | 026 | Inbound gcal import (personal calendars) | ⬜ not started | — | — |
-| 7 | 010 | PWA install + web push | ⬜ not started | — | — |
-| 8 | 011 | Weather-aware dog-walk window finder | ⬜ not started | — | — |
+| 6 | 028 | UX fix batch 3 (mobile polish + save speed + event lookahead) | ⬜ not started | — | — |
+| 7 | 010 | PWA install + web push (promoted 2026-07-13) | ⬜ not started | — | — |
+| 8 | 026 | Inbound gcal import (personal calendars) | ⬜ not started | — | — |
+| 9 | 011 | Weather-aware dog-walk window finder | ⬜ not started | — | — |
 
 **021 — Someday force-rank + Tasks-tab Someday section.** "This or that?" pairwise session
 through the Someday list producing **one shared household ranking** (clarified: not
@@ -97,6 +93,38 @@ Christmas lights" never drifts off the actual weekend, and a `{nth}` title token
 anniversary occurrences bake a live ordinal ("6th dating anniversary") with no schema
 change. Also ships the list-item search box (US5) that the now much-longer Groceries list
 needed. See specs/027-household-seed-data/.
+
+**028 — UX fix batch 3** (Jaz's feedback round 4, 2026-07-13 — mostly real-device mobile
+findings; all scope questions clarified same day). Eight items:
+1. **Recurring-events lookahead by cadence** (backend): yearly rules materialize **12+
+   months ahead** (366 days) so all seeded birthdays/anniversaries appear now; other
+   cadences keep the 60-day `recurringEventsLookaheadDays` window (clarified — don't flood
+   the calendar/gcal mirror with ~52 occurrences per weekly rule). One-time
+   `generateRecurringEvents()` re-run after deploy to backfill.
+2. **Fast saves**: creates and edits (Quick Add, task/event edit sheets) go optimistic —
+   sheet closes immediately, background sync, revert + toast on failure (clarified: only
+   creates/edits feel slow; the already-optimistic one-tap actions are fine). The pattern
+   `useMutations.ts` already uses for complete/snooze/acknowledge, extended.
+3. **No mobile zoom**: viewport meta (`maximum-scale=1, user-scalable=no`,
+   `viewport-fit=cover`) + ≥16px input font-size so iOS stops auto-zooming on focus.
+4. **Bottom nav safe area**: `env(safe-area-inset-bottom)` padding so the nav clears the
+   iPhone home-indicator swipe zone (currently zero safe-area handling anywhere).
+5. **Dashboard day peek**: tapping a day on the `SevenDayStrip` shows that day's
+   events/tasks inline **below the strip**, with an "open in calendar" link in the panel
+   (clarified: inline + link, replacing the current direct deep-link).
+6. **Acknowledge UI redesign**: keep the commit/ack concept (clarified), restyle the
+   "not yet committed" badge + "I've got it" button so they sit cleanly on task cards,
+   especially mobile.
+7. **Snoozed tasks on the 7-day strip**: include them on their snoozed-until day, styled
+   identically to other items (clarified — no special marker); flips the deliberate
+   exclusion in `lib/dashboard.ts`.
+8. **selfTest split** (backend): break the 40+-suite `selfTest()` into a few public
+   chunked runners that each finish inside Apps Script's 6-minute limit (the file itself
+   already documents the overrun), keeping `selfTestSeedPack()`/`selfTestSessionTokens()`.
+Notification quality (round-4 item 7) is **not** in 028 — it *is* feature 010, hence the
+promotion. Stopgap available before 028 ships: hand-edit Settings
+`recurringEventsLookaheadDays` to 366 and run `generateRecurringEvents()` once — safe
+today because every current RecurringEvents rule is yearly.
 
 **026 — Inbound gcal import (personal calendars).** Pull externally-created events
 (reservations, appointments) from **Max's and Jaz's personal gmail calendars** (shared to
@@ -169,7 +197,10 @@ prep template).
 Phase 2.6 (016–021) planned 2026-07-10, feedback round 2 — confirmed bugs + fix & flow ·
 Phase 2.7 (022–026) planned 2026-07-11, feedback round 3 — gap review found snooze
 unreachable from the calendar, delete APIs with no UI, tasks-only recurrence, and promoted
-grocery lists + inbound gcal import from the parked list.
+grocery lists + inbound gcal import from the parked list · Phase 2.8 (028) planned
+2026-07-13, feedback round 4 — first real-device findings after the 027 seed: mobile polish
+(zoom, safe area, ack UI), optimistic saves, per-cadence event lookahead, selfTest split;
+010 promoted ahead of 026 for iPhone push.
 
 ### Post-merge notes & open follow-ups
 
