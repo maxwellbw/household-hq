@@ -12,6 +12,7 @@ var SELFTEST_PREFIX = 'selftest-';
 function selfTest() {
   unitValidators_();
   unitAuth_();
+  unitSessionTokens_();
   unitOccurrenceMath_();
   unitThanksgivingAndOrdinals_();
   liveCrudRoundTrip_();
@@ -66,6 +67,16 @@ function selfTestSeedPack() {
   liveSeedPack_();
   unitAlternatingBins_();
   Logger.log('SEED PACK: ALL PASS');
+}
+
+/**
+ * Feature-018-revision targeted runner (seconds, not minutes): auth resolution plus the
+ * session-token mint/verify unit checks. Public name so it appears in the editor Run menu.
+ */
+function selfTestSessionTokens() {
+  unitAuth_();
+  unitSessionTokens_();
+  Logger.log('SESSION TOKENS: ALL PASS');
 }
 
 function assert_(cond, message) {
@@ -180,6 +191,53 @@ function unitAuth_() {
   assert_(isWriteAction_('tasks.create') && isWriteAction_('events.delete'), 'writes classified');
   assert_(!isWriteAction_('tasks.list') && !isWriteAction_('auth.whoami'), 'reads not writes');
   Logger.log('unit auth: pass');
+}
+
+// ---------------------------------------------------------------------------
+// Unit: household session tokens (feature 018 rev. — mint/verify; touches only
+// Script Properties, no Sheet). Public targeted runner: selfTestSessionTokens.
+// ---------------------------------------------------------------------------
+
+function unitSessionTokens_() {
+  var secret = sessionSecret_(); // auto-creates the script property on first run
+  var token = mintSessionToken_('Max@X.com', 'Max');
+
+  assert_(isSessionToken_(token), 'minted token carries the hqs1 prefix');
+  assert_(!isSessionToken_('eyJhbGciOi.fake.idtoken'), 'a Google ID token is not a session token');
+
+  var claims = verifySessionToken_(token, secret);
+  assert_(claims.email === 'max@x.com', 'round-trip lowercases and returns the email');
+  assert_(claims.name === 'Max', 'round-trip preserves the display name');
+  assert_(String(claims.email_verified) === 'true', 'session claims count as verified');
+
+  // Tampered payload, wrong secret, and garbage are all INVALID_CREDENTIAL.
+  var parts = token.split('.');
+  var tamperedPayload = b64Url_(JSON.stringify({ e: 'stranger@x.com', n: '', x: Date.now() + 60000 }));
+  assertFails_('INVALID_CREDENTIAL', function () {
+    verifySessionToken_(parts[0] + '.' + tamperedPayload + '.' + parts[2], secret);
+  }, 'tampered payload rejected');
+  assertFails_('INVALID_CREDENTIAL', function () {
+    verifySessionToken_(token, secret + '-rotated');
+  }, 'rotated secret invalidates outstanding tokens');
+  assertFails_('INVALID_CREDENTIAL', function () {
+    verifySessionToken_('hqs1.garbage', secret);
+  }, 'malformed token rejected');
+
+  // A genuinely expired token is UNAUTHENTICATED (client falls back to the wall).
+  var expiredPayload = b64Url_(JSON.stringify({ e: 'max@x.com', n: 'Max', x: Date.now() - 1000 }));
+  var expiredToken = SESSION_TOKEN_PREFIX + '.' + expiredPayload + '.' +
+    signSessionPayload_(expiredPayload, secret);
+  assertFails_('UNAUTHENTICATED', function () {
+    verifySessionToken_(expiredToken, secret);
+  }, 'expired token rejected as UNAUTHENTICATED');
+
+  // whoami now mints a sliding token for the resolved identity.
+  var who = whoami_({ identity: 'max', actor: 'max', email: 'max@x.com', displayName: 'Max' });
+  assert_(isSessionToken_(who.sessionToken), 'whoami includes a fresh session token');
+  assert_(verifySessionToken_(who.sessionToken, secret).email === 'max@x.com',
+    'whoami session token verifies for the same email');
+
+  Logger.log('unit session tokens: pass');
 }
 
 // ---------------------------------------------------------------------------
