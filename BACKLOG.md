@@ -158,7 +158,7 @@ prep template).
 | 015 | Recurring seed pack & alternating weeks | [specs/015-recurring-seed-pack](specs/015-recurring-seed-pack/spec.md) | [#14](https://github.com/maxwellbw/household-hq/pull/14) |
 | 016 | UX fix batch (task editing + dead controls) | [specs/016-ux-fix-batch](specs/016-ux-fix-batch/spec.md) | [#15](https://github.com/maxwellbw/household-hq/pull/15) |
 | 017 | Calendar views & 7-day surfaces | [specs/017-calendar-views](specs/017-calendar-views/spec.md) | [#16](https://github.com/maxwellbw/household-hq/pull/16) |
-| 018 | Stay signed in (session persistence) | [specs/018-stay-signed-in](specs/018-stay-signed-in/spec.md) | [#17](https://github.com/maxwellbw/household-hq/pull/17) |
+| 018 | Stay signed in (session persistence; revised → session tokens) | [specs/018-stay-signed-in](specs/018-stay-signed-in/spec.md) | [#17](https://github.com/maxwellbw/household-hq/pull/17), rev [#26](https://github.com/maxwellbw/household-hq/pull/26) |
 | 022 | UX fix batch 2 (snooze on calendar, delete, collapsible Open) | [specs/022-ux-fix-batch-2](specs/022-ux-fix-batch-2/spec.md) | [#18](https://github.com/maxwellbw/household-hq/pull/18) |
 | 019 | Task & event details + collaboration | [specs/019-details-collaboration](specs/019-details-collaboration/spec.md) | [#19](https://github.com/maxwellbw/household-hq/pull/19) |
 | 020 | Settings editor under More | [specs/020-settings-editor](specs/020-settings-editor/spec.md) | [#20](https://github.com/maxwellbw/household-hq/pull/20) |
@@ -244,7 +244,14 @@ persisted**. Shared-account returns show a dismissible `ActingPersonAffirm` ("Si
 X — switch?") instead of the blocking prompt. Sign-out clears both storage keys and
 disables auto-select. 202 tests green (17 new); `/impeccable audit` fixed one WCAG 2.4.7
 gap (missing focus ring). Merged without the real-device quickstart pass (Jaz's call,
-2026-07-11) — see the follow-up note above._
+2026-07-11) — see the follow-up note above.
+**Revised in PR #26 (2026-07-12)** after the silent-GIS approach failed on real devices
+(iOS Safari ITP / Chrome FedCM declines — 4s stall, then the wall + popup anyway): the
+backend now mints an HMAC-signed 30-day sliding **household session token** on every
+`auth.whoami`; the client persists it (`hq.sessionToken`) and boots with one whoami
+round-trip. Google is only the first-ever sign-in / post-sign-out. Allowlist still checked
+live per request; rotating the `SESSION_SECRET` script property revokes all sessions.
+Silent-prompt machinery deleted. API 1.4.0, deployment @22._
 
 _022 (PR #18). Frontend-only; every backend piece (`tasks.snooze`, `tasks.delete`,
 `events.delete`) already existed. `TaskDetailSheet` gained a persistent Snooze action
