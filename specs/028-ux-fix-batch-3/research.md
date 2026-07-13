@@ -155,6 +155,17 @@ phone-width cards; collapsing state+action into one control removes a whole row 
 card. Exact visual treatment is an implement-time design task under DESIGN.md — the
 plan pins scope (three surfaces, zero mechanics changes) not pixels.
 
+**Implementation addendum (deviations, `/impeccable critique` findings)**:
+- The card-level chip is genuinely a single control only for the assignee (tappable,
+  labelled "I've got it"); the assigner still sees a same-styled but non-interactive twin
+  labelled "Not yet committed" — dropping it for the assigner would have removed the only
+  signal they get that the task isn't committed yet, which no other surface provides.
+- `TaskDetailSheet` no longer shows the small status badge when the viewer can act (the
+  full-width button already states it) — only the assigner sees the badge there.
+- Chip/button copy is action-oriented ("I've got it") rather than restating the state
+  ("Not yet committed") as the tappable label, so the control never asks the user to tap a
+  sentence describing the problem.
+
 ## R8 — Splitting selfTest under the 6-minute limit
 
 **Decision**: Replace the `selfTest()` monolith with four public chunked runners, split
@@ -192,3 +203,12 @@ gotcha) and sort in run order in the editor's Run menu.
 **Alternatives rejected**: a time-checking resumable runner persisting progress in
 Script Properties (clever, stateful, violates Boring and Debuggable for zero benefit);
 keeping `selfTest()` running chunk 1 only (silently misleading).
+
+**Implementation addendum (deviation)**: the prose above lists chunk 3 as `unitSeedPack_,
+liveSeedPack_, unitAlternatingBins_, liveSeedEventsAndTemplates_, ...` and puts
+`liveCalendarLocationSync_` in the middle of chunk 4 — neither matches the actual monolith's
+call order (`liveSeedEventsAndTemplates_` runs *before* the seed-pack trio;
+`liveCalendarLocationSync_` runs last, after `unitNtfy_`). tasks.md T022 requires the four
+chunks to preserve the monolith's *original relative order* within each chunk, which the
+implementation does — only this file's prose ordering was inaccurate. Chunk *membership*
+(which suite belongs to which chunk) is unchanged and matches exactly.

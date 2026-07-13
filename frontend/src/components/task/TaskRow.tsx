@@ -92,18 +92,16 @@ export function TaskRow({ task, timezone, eventStartKey, onSnooze, onEditDue, on
   }
 
   return (
-    <div
-      className={cn(
-        'flex min-h-[44px] items-center gap-3 border-b border-border px-1 py-2 last:border-b-0',
-        isSnoozed && 'opacity-60',
-      )}
-    >
+    <div className="flex min-h-[44px] items-center gap-3 border-b border-border px-1 py-2 last:border-b-0">
       <button
         type="button"
         onClick={toggle}
         aria-pressed={isDone}
         aria-label={isDone ? `Reopen ${task.title}` : `Mark ${task.title} done`}
-        className="flex h-11 w-11 shrink-0 -m-2.5 items-center justify-center rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+        className={cn(
+          'flex h-11 w-11 shrink-0 -m-2.5 items-center justify-center rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
+          isSnoozed && 'opacity-60',
+        )}
       >
         <span
           className={cn(
@@ -124,8 +122,8 @@ export function TaskRow({ task, timezone, eventStartKey, onSnooze, onEditDue, on
         onClick={onDetail}
         disabled={!onDetail}
         className={cn(
-          'flex-1 text-left text-sm transition-all duration-200',
-          isDone ? 'text-ink-faint line-through' : 'text-ink',
+          'flex min-h-[44px] flex-1 items-center text-left text-sm transition-all duration-200',
+          isDone ? 'text-ink-faint line-through' : isSnoozed ? 'text-ink opacity-60' : 'text-ink',
           onDetail && 'hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
         )}
       >
@@ -133,30 +131,46 @@ export function TaskRow({ task, timezone, eventStartKey, onSnooze, onEditDue, on
         {isSnoozed && task.dueDate && (
           <span className="ml-2 text-xs text-ink-muted">snoozed until {task.dueDate}</span>
         )}
-        {uncommitted && (
-          <span className="ml-2 inline-flex items-center rounded-full bg-danger px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-surface">
-            Not yet committed
-          </span>
-        )}
       </button>
 
-      {canCommit && (
+      {/* Ack chip (feature 028 R7): state + tap-to-commit collapsed into one owner-colored
+          outline control for the assignee; a quiet non-interactive twin for anyone else,
+          same visibility/eligibility rules as before (isUncommitted/canAcknowledge unchanged).
+          Deliberately excluded from the row's snoozed dimming above — this is the one thing
+          on the row that still needs full-contrast legibility. */}
+      {uncommitted && (canCommit ? (
         <button
           type="button"
           onClick={() => acknowledge.mutate(task.id, { onSuccess: () => toast.show("Got it — you're on it") })}
           disabled={acknowledge.isPending}
-          className="min-h-[44px] shrink-0 rounded-control bg-accent px-2 text-xs font-medium text-surface hover:bg-accent-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:opacity-50"
+          aria-label={`Not yet committed — tap to confirm you've got ${task.title}`}
+          className={cn(
+            'flex min-h-[44px] shrink-0 items-center rounded-control border-2 px-2.5 text-xs font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:opacity-50',
+            task.owner === 'max' && 'border-owner-max text-owner-max hover:bg-owner-max-soft',
+            task.owner === 'jaz' && 'border-owner-jaz text-owner-jaz hover:bg-owner-jaz-soft',
+          )}
         >
           {acknowledge.isPending ? 'Committing…' : "I've got it"}
         </button>
-      )}
+      ) : (
+        <span
+          className={cn(
+            'flex min-h-[44px] shrink-0 items-center rounded-control border-2 px-2.5 text-xs font-medium',
+            task.owner === 'max' && 'border-owner-max text-owner-max',
+            task.owner === 'jaz' && 'border-owner-jaz text-owner-jaz',
+          )}
+        >
+          Not yet committed
+        </span>
+      ))}
 
       <span
         className={cn(
           'flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-medium text-surface',
           task.owner === 'max' && 'bg-owner-max',
           task.owner === 'jaz' && 'bg-owner-jaz',
-          task.owner === 'both' && 'bg-accent-hover',
+          task.owner === 'both' && 'bg-owner-both',
+          isSnoozed && 'opacity-60',
         )}
         aria-label={style.label}
       >

@@ -79,6 +79,23 @@ export interface DayTileSummary {
   total: number
 }
 
+/** True if event `e` spans day `k` (inclusive of multi-day events) — the single source of
+ *  truth for "does this event belong to this day," shared by `sevenDayTiles` (counts) and
+ *  `itemsForDay` (the day-peek panel's contents) so they cannot disagree (spec SC-006). */
+function eventOnDay(e: Event, k: string, timezone: string): boolean {
+  const startK = dayKey(e.start, timezone)
+  const endK = dayKey(e.end, timezone)
+  return k >= startK && k <= endK
+}
+
+/** True if task `t` is due on day `k` and open or snoozed (feature 028 US5: a snoozed
+ *  task's `dueDate` holds its wake day, so it shows on the strip/panel that day like any
+ *  other open task; `done` stays excluded) — shared by `sevenDayTiles` and `itemsForDay`. */
+function taskOnDay(t: Task, k: string, timezone: string): boolean {
+  if ((t.status !== 'open' && t.status !== 'snoozed') || !t.dueDate) return false
+  return dayKey(t.dueDate, timezone) === k
+}
+
 /**
  * Seven day-tiles, today first, for the dashboard's rolling week strip
  * (feature 017 FR-015–018). Counts open dated tasks + spanning events by
@@ -94,14 +111,11 @@ export function sevenDayTiles(tasks: Task[], events: Event[], timezone: string):
     const countsByOwner: Record<Owner, number> = { max: 0, jaz: 0, both: 0 }
 
     for (const e of events) {
-      const startK = dayKey(e.start, timezone)
-      const endK = dayKey(e.end, timezone)
-      if (k >= startK && k <= endK) countsByOwner[e.owner]++
+      if (eventOnDay(e, k, timezone)) countsByOwner[e.owner]++
     }
 
     for (const t of tasks) {
-      if (t.status !== 'open' || !t.dueDate) continue
-      if (dayKey(t.dueDate, timezone) === k) countsByOwner[t.owner]++
+      if (taskOnDay(t, k, timezone)) countsByOwner[t.owner]++
     }
 
     return {
@@ -111,6 +125,26 @@ export function sevenDayTiles(tasks: Task[], events: Event[], timezone: string):
       total: countsByOwner.max + countsByOwner.jaz + countsByOwner.both,
     }
   })
+}
+
+// ── Day peek panel (US4) ─────────────────────────────────────────────────────
+
+export interface DayItems {
+  events: Event[]
+  tasks: Task[]
+}
+
+/**
+ * The events + tasks that belong to `dateKey`, in the same membership rules as
+ * `sevenDayTiles`'s counts (`eventOnDay`/`taskOnDay` above) so the strip's counts and the
+ * day-peek panel's contents can never disagree (spec SC-006). Events first, then tasks;
+ * events sorted by start so an all-day/early item leads.
+ */
+export function itemsForDay(tasks: Task[], events: Event[], dateKey: string, timezone: string): DayItems {
+  return {
+    events: events.filter((e) => eventOnDay(e, dateKey, timezone)).sort((a, b) => a.start.localeCompare(b.start)),
+    tasks: tasks.filter((t) => taskOnDay(t, dateKey, timezone)),
+  }
 }
 
 export function resolveViewer(session: Session | null): 'max' | 'jaz' | null {

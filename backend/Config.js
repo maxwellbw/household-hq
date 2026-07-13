@@ -177,6 +177,11 @@ var REQUIRED_ON_CREATE = {
 /** Fallback lookahead (days) when Settings' recurringEventsLookaheadDays is blank/≤0. */
 var RECURRING_EVENTS_LOOKAHEAD_DEFAULT_DAYS = 60;
 
+/** Fallback lookahead (days) when Settings' recurringEventsYearlyLookaheadDays is
+ *  blank/≤0. Applies only to annual-class cadences (`annually`, `thanksgiving-sat`) —
+ *  feature 028, so birthdays/anniversaries materialize a full year ahead. */
+var RECURRING_EVENTS_YEARLY_LOOKAHEAD_DEFAULT_DAYS = 366;
+
 /** Hour (household tz) the nightly recurring-events generator trigger runs at; ahead of
  *  004's/005's hours so occurrences (and their prep) exist before every downstream job. */
 var RECURRING_EVENTS_TRIGGER_HOUR = 2;
@@ -275,6 +280,8 @@ var SETTINGS_SEED = [
     'the Home dashboard shopping nudge'],
   ['recurringEventsLookaheadDays', '60',
     'feature 025; days ahead the nightly recurring-events generator materializes. Blank/≤0 falls back to 60'],
+  ['recurringEventsYearlyLookaheadDays', '366',
+    'feature 028; days ahead the generator materializes annual-class rules (annually, thanksgiving-sat). Blank/≤0 falls back to 366'],
   ['listSeedApplied', '',
     'feature 027; "; "-delimited seed keys already applied by seedLists(); enables never-resurrect.'],
   ['templateSeedApplied', '',

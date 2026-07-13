@@ -95,6 +95,27 @@ h3 {
   font-variant-numeric: tabular-nums;
 }
 
+/* Feature 028 US3: kill double-tap zoom on interactive elements (mobile "app, not web page" feel). */
+a,
+button,
+input,
+select,
+textarea,
+[role='button'] {
+  touch-action: manipulation;
+}
+
+/* Feature 028 US3: iOS Safari auto-zooms on focus of any control under 16px — belt-and-braces
+ * even though the viewport meta's maximum-scale already blocks it (research R3). Touch-only so
+ * desktop's smaller form-control text is unaffected. */
+@media (pointer: coarse) {
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

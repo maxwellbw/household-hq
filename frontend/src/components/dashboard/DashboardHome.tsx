@@ -1,20 +1,25 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useTasks } from '@/hooks/useTasks'
 import { useEvents } from '@/hooks/useEvents'
 import { useRecurring } from '@/hooks/useRecurring'
 import { useSettings } from '@/hooks/useSettings'
 import { useListItems } from '@/hooks/useLists'
 import { useAuth } from '@/hooks/useAuth'
-import { highlights, loadBalance, resolveViewer, sevenDayTiles, smartViews } from '@/lib/dashboard'
+import { highlights, itemsForDay, loadBalance, resolveViewer, sevenDayTiles, smartViews } from '@/lib/dashboard'
 import { ackNotices } from '@/lib/ackNotices'
 import { shouldShowGroceryNudge } from '@/lib/lists'
+import { buildCalendarModel } from '@/lib/tether'
 import { monthRange, weekRange } from '@/lib/datetime'
 import { SmartViews } from '@/components/dashboard/SmartViews'
 import { LoadBalance } from '@/components/dashboard/LoadBalance'
 import { Highlights } from '@/components/dashboard/Highlights'
 import { SevenDayStrip } from '@/components/dashboard/SevenDayStrip'
+import { DayPeekPanel } from '@/components/dashboard/DayPeekPanel'
 import { AckNotices } from '@/components/dashboard/AckNotices'
 import { GroceryNudge } from '@/components/dashboard/GroceryNudge'
+import { TaskDetailSheet } from '@/components/task/TaskDetailSheet'
+import { EventDetailSheet } from '@/components/event/EventDetailSheet'
+import type { Task } from '@/types/domain'
 
 interface DashboardHomeProps {
   onOpenDate: (dateKey: string) => void
@@ -27,6 +32,9 @@ export function DashboardHome({ onOpenDate }: DashboardHomeProps) {
   const { timezone, data: settingsData } = useSettings()
   const listItemsQuery = useListItems()
   const { session } = useAuth()
+  const [peekDateKey, setPeekDateKey] = useState<string | null>(null)
+  const [detailTask, setDetailTask] = useState<Task | null>(null)
+  const [detailEventId, setDetailEventId] = useState<string | null>(null)
 
   const isPending = tasksQuery.isPending || eventsQuery.isPending || recurringQuery.isPending
   const isError = tasksQuery.isError || eventsQuery.isError || recurringQuery.isError
@@ -60,6 +68,24 @@ export function DashboardHome({ onOpenDate }: DashboardHomeProps) {
     [tasksQuery.data, eventsQuery.data, timezone],
   )
 
+  const peekItems = useMemo(
+    () => (peekDateKey ? itemsForDay(tasksQuery.data ?? [], eventsQuery.data ?? [], peekDateKey, timezone) : null),
+    [peekDateKey, tasksQuery.data, eventsQuery.data, timezone],
+  )
+
+  const calendarModel = useMemo(
+    () => buildCalendarModel(eventsQuery.data ?? [], tasksQuery.data ?? []),
+    [eventsQuery.data, tasksQuery.data],
+  )
+  const detailEvent = useMemo(
+    () => (detailEventId ? (calendarModel.events.find((e) => e.id === detailEventId) ?? null) : null),
+    [detailEventId, calendarModel],
+  )
+
+  function toggleDate(dateKey: string) {
+    setPeekDateKey((prev) => (prev === dateKey ? null : dateKey))
+  }
+
   const showGroceryNudge = useMemo(
     () => shouldShowGroceryNudge(listItemsQuery.data ?? [], settingsData?.settings.groceryStapleNudgeThreshold),
     [listItemsQuery.data, settingsData],
@@ -91,10 +117,23 @@ export function DashboardHome({ onOpenDate }: DashboardHomeProps) {
     <div className="flex flex-col py-2">
       <AckNotices notices={notices} />
       <GroceryNudge show={showGroceryNudge} />
-      <SevenDayStrip tiles={strip} onOpenDate={onOpenDate} />
+      <SevenDayStrip tiles={strip} activeDateKey={peekDateKey} onToggleDate={toggleDate} />
+      {peekDateKey && peekItems && (
+        <DayPeekPanel
+          dateKey={peekDateKey}
+          events={peekItems.events}
+          tasks={peekItems.tasks}
+          timezone={timezone}
+          onOpenCalendar={onOpenDate}
+          onOpenTask={setDetailTask}
+          onOpenEvent={(event) => setDetailEventId(event.id)}
+        />
+      )}
       <SmartViews views={views} timezone={timezone} />
       <LoadBalance weekBalance={weekBal} monthBalance={monthBal} viewer={viewer} />
       <Highlights items={highlightItems} />
+      {detailTask && <TaskDetailSheet task={detailTask} onClose={() => setDetailTask(null)} />}
+      {detailEvent && <EventDetailSheet event={detailEvent} timezone={timezone} onClose={() => setDetailEventId(null)} />}
     </div>
   )
 }
