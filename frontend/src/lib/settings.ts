@@ -28,7 +28,7 @@ export const DIGEST_HOUR_OPTIONS = Array.from({ length: 24 }, (_, i) => String(i
 /** The eight Settings-tab keys this editor may write; must match backend EDITABLE_SETTINGS. */
 export const EDITABLE_SETTINGS_KEYS = [
   'digestWeeklyEnabled', 'digestWeeklyDay', 'digestMonthlyEnabled', 'digestMonthlyDay',
-  'digestHour', 'ntfyEnabled', 'gcalEventReminderMin', 'timezone',
+  'digestHour', 'pushEnabled', 'gcalEventReminderMin', 'timezone',
 ] as const
 
 export type EditableSettingsKey = (typeof EDITABLE_SETTINGS_KEYS)[number]
@@ -40,7 +40,7 @@ export function validateSettingField(key: EditableSettingsKey, value: string): s
   switch (key) {
     case 'digestWeeklyEnabled':
     case 'digestMonthlyEnabled':
-    case 'ntfyEnabled':
+    case 'pushEnabled':
       return value === 'TRUE' || value === 'FALSE' ? null : 'Must be on or off.'
     case 'digestWeeklyDay':
       return WEEKDAYS.some((d) => d.toLowerCase() === value.toLowerCase())

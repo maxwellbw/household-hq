@@ -1,8 +1,17 @@
 import { useEffect, useState } from 'react'
 import { useSettings, useUpdateSettings } from '@/hooks/useSettings'
 import { useToast } from '@/hooks/useToast'
+import { useAuth } from '@/hooks/useAuth'
 import { ApiError } from '@/lib/api'
 import { cn } from '@/lib/utils'
+import {
+  getCapability,
+  isIos,
+  isSubscribedThisDevice,
+  subscribeThisDevice,
+  unsubscribeThisDevice,
+  type PushCapability,
+} from '@/lib/push'
 import {
   DIGEST_HOUR_OPTIONS,
   MONTHLY_DAY_OPTIONS,
@@ -19,7 +28,7 @@ const DEFAULTS: EditableSettings = {
   digestMonthlyEnabled: 'TRUE',
   digestMonthlyDay: 'last',
   digestHour: '7',
-  ntfyEnabled: 'TRUE',
+  pushEnabled: 'TRUE',
   gcalEventReminderMin: '30',
   timezone: 'America/Los_Angeles',
 }
@@ -89,9 +98,111 @@ function FieldRow({
 const selectClass =
   'min-h-[40px] rounded-control border border-border bg-surface px-2 text-sm text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent'
 
+/** Per-device push opt-in (feature 010 US2). Reflects the true capability state — on /
+ *  off / blocked-by-OS / unsupported-on-this-platform — and explains the next step rather
+ *  than offering a dead button (FR-012). Household-wide on/off lives in the toggle above,
+ *  in the generic settings.update flow; this is a separate, device-scoped action. */
+function DeviceNotificationControl() {
+  const { authedCall } = useAuth()
+  const toast = useToast()
+  const [capability, setCapability] = useState<PushCapability | 'checking'>('checking')
+  const [subscribed, setSubscribed] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const cap = getCapability()
+    setCapability(cap)
+    if (cap === 'granted') {
+      isSubscribedThisDevice().then(setSubscribed).catch(() => setSubscribed(false))
+    }
+  }, [])
+
+  async function handleEnable() {
+    setBusy(true)
+    setError(null)
+    try {
+      await subscribeThisDevice(authedCall)
+      setCapability(getCapability())
+      setSubscribed(true)
+      toast.show('Notifications enabled on this device')
+    } catch (err) {
+      setCapability(getCapability())
+      setError(err instanceof Error ? err.message : 'Could not enable notifications.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handleDisable() {
+    setBusy(true)
+    setError(null)
+    try {
+      await unsubscribeThisDevice(authedCall)
+      setSubscribed(false)
+      toast.show('Notifications disabled on this device')
+    } catch {
+      setError('Could not disable notifications. Please try again.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  let body: React.ReactNode
+  if (capability === 'checking') {
+    body = <span className="text-sm text-ink-muted">Checking…</span>
+  } else if (capability === 'unsupported') {
+    body = (
+      <p className="text-sm text-ink-muted">
+        {isIos()
+          ? 'Add Household HQ to your Home Screen first, then open it from there to enable notifications.'
+          : 'Notifications aren’t supported in this browser.'}
+      </p>
+    )
+  } else if (capability === 'blocked') {
+    body = (
+      <p className="text-sm text-ink-muted">
+        Notifications are blocked for this app. Re-enable them in your device’s notification
+        settings, then reopen Household HQ.
+      </p>
+    )
+  } else if (subscribed) {
+    body = (
+      <button
+        type="button"
+        onClick={handleDisable}
+        disabled={busy}
+        className="min-h-[36px] rounded-control border border-border bg-surface px-3 text-sm text-ink hover:bg-canvas disabled:opacity-50"
+      >
+        {busy ? 'Disabling…' : 'Disable'}
+      </button>
+    )
+  } else {
+    body = (
+      <button
+        type="button"
+        onClick={handleEnable}
+        disabled={busy}
+        className="min-h-[36px] rounded-control bg-accent px-3 text-sm font-medium text-surface hover:bg-accent-hover disabled:opacity-50"
+      >
+        {busy ? 'Enabling…' : 'Enable notifications'}
+      </button>
+    )
+  }
+
+  return (
+    <FieldRow label="Notifications on this device">
+      <div className="flex flex-col items-end gap-1">
+        {body}
+        {error && <p role="alert" className="text-xs text-danger">{error}</p>}
+      </div>
+    </FieldRow>
+  )
+}
+
 /** Curated Settings editor under More (feature 020) — labeled controls, not a raw
- *  key-value editor. Only the eight household-preference fields are exposed; emails, ntfy
- *  topics, calendar IDs, and weather keys stay Sheet-only (FR-013). */
+ *  key-value editor. Only the eight household-preference fields are exposed; emails, VAPID
+ *  keys, calendar IDs, and weather keys stay Sheet-only (FR-013). */
 export function SettingsView() {
   const { data, isPending, isError } = useSettings()
   const update = useUpdateSettings()
@@ -227,13 +338,14 @@ export function SettingsView() {
           Notifications
         </h2>
         <div className="rounded-card bg-surface shadow-card">
-          <FieldRow label="Instant completion pings">
+          <FieldRow label="Push notifications">
             <Toggle
-              checked={form.ntfyEnabled === 'TRUE'}
-              onChange={(checked) => setField('ntfyEnabled', checked ? 'TRUE' : 'FALSE')}
-              label="Instant completion pings"
+              checked={form.pushEnabled === 'TRUE'}
+              onChange={(checked) => setField('pushEnabled', checked ? 'TRUE' : 'FALSE')}
+              label="Push notifications"
             />
           </FieldRow>
+          <DeviceNotificationControl />
           <FieldRow label="Calendar reminder minutes" error={fieldErrors.gcalEventReminderMin}>
             <input
               type="number"
