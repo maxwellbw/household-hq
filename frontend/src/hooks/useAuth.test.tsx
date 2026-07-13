@@ -1,12 +1,11 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AuthProvider, useAuth } from './useAuth'
 import { ApiError } from '@/lib/api'
 import * as sessionStore from '@/lib/session-store'
 
-const { fetchWhoAmIMock, promptSilentMock, setupGisMock, signOutMock, apiCallMock } = vi.hoisted(() => ({
+const { fetchWhoAmIMock, setupGisMock, signOutMock, apiCallMock } = vi.hoisted(() => ({
   fetchWhoAmIMock: vi.fn(),
-  promptSilentMock: vi.fn(),
   setupGisMock: vi.fn(),
   signOutMock: vi.fn(),
   apiCallMock: vi.fn(),
@@ -14,7 +13,6 @@ const { fetchWhoAmIMock, promptSilentMock, setupGisMock, signOutMock, apiCallMoc
 
 vi.mock('@/lib/auth', () => ({
   fetchWhoAmI: fetchWhoAmIMock,
-  promptSilent: promptSilentMock,
   setupGis: setupGisMock,
   renderSignInButton: vi.fn(),
   signOut: signOutMock,
@@ -25,8 +23,20 @@ vi.mock('@/lib/api', async () => {
   return { ...actual, apiCall: apiCallMock }
 })
 
-const PERSONAL_WHO = { identity: 'max' as const, displayName: 'Max', email: 'max@x.com', needsActingPerson: false }
-const SHARED_WHO = { identity: 'shared' as const, displayName: 'Household', email: 'h@x.com', needsActingPerson: true }
+const PERSONAL_WHO = {
+  identity: 'max' as const,
+  displayName: 'Max',
+  email: 'max@x.com',
+  needsActingPerson: false,
+  sessionToken: 'hqs1.fresh.sig',
+}
+const SHARED_WHO = {
+  identity: 'shared' as const,
+  displayName: 'Household',
+  email: 'h@x.com',
+  needsActingPerson: true,
+  sessionToken: 'hqs1.fresh.sig',
+}
 
 function wrapper({ children }: { children: React.ReactNode }) {
   return <AuthProvider>{children}</AuthProvider>
@@ -35,152 +45,139 @@ function wrapper({ children }: { children: React.ReactNode }) {
 beforeEach(() => {
   localStorage.clear()
   fetchWhoAmIMock.mockReset()
-  promptSilentMock.mockReset()
   setupGisMock.mockReset()
   signOutMock.mockReset()
   apiCallMock.mockReset()
-  // Default: setupGis never fires its callback unless a test triggers it.
   setupGisMock.mockImplementation(async () => {})
-  // Default: silent prompt never resolves (simulates "still deciding") unless overridden.
-  promptSilentMock.mockImplementation(() => new Promise(() => {}))
-})
-
-afterEach(() => {
-  vi.useRealTimers()
 })
 
 describe('boot restore', () => {
-  it('goes straight to signed-out when no auto-sign-in hint is stored', async () => {
+  it('goes straight to signed-out when no session token is stored', async () => {
     const { result } = renderHook(() => useAuth(), { wrapper })
     await waitFor(() => expect(result.current.status).toBe('signed-out'))
+    expect(fetchWhoAmIMock).not.toHaveBeenCalled()
   })
 
-  it('restores to signed-in via silent callback when the hint is set', async () => {
-    sessionStore.setAutoSignIn()
+  it('restores to signed-in from the stored session token and persists the renewed one', async () => {
+    sessionStore.setSessionToken('hqs1.stored.sig')
     fetchWhoAmIMock.mockResolvedValue(PERSONAL_WHO)
-    setupGisMock.mockImplementation(async (onCredential: (token: string) => void) => {
-      onCredential('fresh-token')
-    })
 
     const { result } = renderHook(() => useAuth(), { wrapper })
     await waitFor(() => expect(result.current.status).toBe('signed-in'))
-    expect(result.current.session?.token).toBe('fresh-token')
+    expect(fetchWhoAmIMock).toHaveBeenCalledWith('hqs1.stored.sig')
+    // The freshly minted token from whoami replaces the presented one everywhere.
+    expect(result.current.session?.token).toBe('hqs1.fresh.sig')
+    expect(sessionStore.getSessionToken()).toBe('hqs1.fresh.sig')
   })
 
   it('seeds the remembered acting person on restore for the shared account', async () => {
-    sessionStore.setAutoSignIn()
+    sessionStore.setSessionToken('hqs1.stored.sig')
     sessionStore.setActingPerson('jaz')
     fetchWhoAmIMock.mockResolvedValue(SHARED_WHO)
-    setupGisMock.mockImplementation(async (onCredential: (token: string) => void) => {
-      onCredential('fresh-token')
-    })
 
     const { result } = renderHook(() => useAuth(), { wrapper })
     await waitFor(() => expect(result.current.status).toBe('signed-in'))
     expect(result.current.session?.actingPerson).toBe('jaz')
   })
 
-  it('falls back to signed-out once when GIS declines silently (no loop)', async () => {
-    sessionStore.setAutoSignIn()
-    promptSilentMock.mockResolvedValue('declined')
+  it('clears an expired stored token and lands on the wall (no loop, no Google prompt)', async () => {
+    sessionStore.setSessionToken('hqs1.expired.sig')
+    fetchWhoAmIMock.mockRejectedValue(new ApiError('UNAUTHENTICATED', 'Session expired.'))
 
     const { result } = renderHook(() => useAuth(), { wrapper })
     await waitFor(() => expect(result.current.status).toBe('signed-out'))
-    expect(setupGisMock).toHaveBeenCalledTimes(1)
+    expect(sessionStore.getSessionToken()).toBeNull()
+    expect(fetchWhoAmIMock).toHaveBeenCalledTimes(1)
   })
 
-  it('lands on forbidden when whoami reports the account is not on the allowlist', async () => {
-    sessionStore.setAutoSignIn()
+  it('lands on forbidden (and clears the token) when the account left the allowlist', async () => {
+    sessionStore.setSessionToken('hqs1.stored.sig')
     fetchWhoAmIMock.mockRejectedValue(new ApiError('FORBIDDEN', 'Not allowed'))
-    setupGisMock.mockImplementation(async (onCredential: (token: string) => void) => {
-      onCredential('fresh-token')
-    })
 
     const { result } = renderHook(() => useAuth(), { wrapper })
     await waitFor(() => expect(result.current.status).toBe('forbidden'))
+    expect(sessionStore.getSessionToken()).toBeNull()
+  })
+
+  it('keeps the stored token on a transient network failure so the next launch can retry', async () => {
+    sessionStore.setSessionToken('hqs1.stored.sig')
+    fetchWhoAmIMock.mockRejectedValue(new ApiError('NETWORK_ERROR', 'offline'))
+
+    const { result } = renderHook(() => useAuth(), { wrapper })
+    await waitFor(() => expect(result.current.status).toBe('signed-out'))
+    expect(sessionStore.getSessionToken()).toBe('hqs1.stored.sig')
   })
 })
 
-describe('authedCall reactive refresh', () => {
-  function renderSignedIn() {
-    sessionStore.setAutoSignIn()
+describe('interactive sign-in', () => {
+  it('persists the minted session token after a Google button sign-in', async () => {
     fetchWhoAmIMock.mockResolvedValue(PERSONAL_WHO)
+    let credentialCallback: ((token: string) => void) | undefined
     setupGisMock.mockImplementation(async (onCredential: (token: string) => void) => {
-      onCredential('token-1')
+      credentialCallback = onCredential
     })
-    return renderHook(() => useAuth(), { wrapper })
-  }
 
-  async function signIn(result: { current: ReturnType<typeof useAuth> }) {
-    await waitFor(() => expect(result.current.status).toBe('signed-in'))
-  }
-
-  it('retries exactly once after a silent refresh on an expired credential', async () => {
-    const { result } = renderSignedIn()
-    await signIn(result)
-
-    apiCallMock
-      .mockRejectedValueOnce(new ApiError('UNAUTHENTICATED', 'expired'))
-      .mockResolvedValueOnce({ ok: true })
-
-    setupGisMock.mockImplementation(async (onCredential: (token: string) => void) => {
-      onCredential('token-2')
-    })
-    promptSilentMock.mockImplementation(() => new Promise(() => {}))
-    fetchWhoAmIMock.mockResolvedValue(PERSONAL_WHO)
-
-    const response = await act(() => result.current.authedCall('tasks.list'))
-    expect(response).toEqual({ ok: true })
-    expect(apiCallMock).toHaveBeenCalledTimes(2)
-    expect(apiCallMock.mock.calls[1][2]).toMatchObject({ token: 'token-2' })
-  })
-
-  it('shares one in-flight refresh across concurrent expired calls', async () => {
-    const { result } = renderSignedIn()
-    await signIn(result)
-
-    apiCallMock.mockRejectedValueOnce(new ApiError('UNAUTHENTICATED', 'expired'))
-    apiCallMock.mockRejectedValueOnce(new ApiError('UNAUTHENTICATED', 'expired'))
-    apiCallMock.mockResolvedValue({ ok: true })
-
-    let refreshCalls = 0
-    setupGisMock.mockImplementation(async (onCredential: (token: string) => void) => {
-      refreshCalls += 1
-      onCredential('token-2')
-    })
-    fetchWhoAmIMock.mockResolvedValue(PERSONAL_WHO)
+    const { result } = renderHook(() => useAuth(), { wrapper })
+    await waitFor(() => expect(result.current.status).toBe('signed-out'))
 
     await act(async () => {
-      await Promise.all([result.current.authedCall('tasks.list'), result.current.authedCall('events.list')])
+      await result.current.initSignInButton(document.createElement('div'))
+      credentialCallback?.('google-id-token')
     })
 
-    // First setupGis call is the initial sign-in; exactly one more for the shared refresh.
-    expect(refreshCalls).toBe(1)
+    await waitFor(() => expect(result.current.status).toBe('signed-in'))
+    expect(fetchWhoAmIMock).toHaveBeenCalledWith('google-id-token')
+    expect(result.current.session?.token).toBe('hqs1.fresh.sig')
+    expect(sessionStore.getSessionToken()).toBe('hqs1.fresh.sig')
+  })
+})
+
+describe('authedCall', () => {
+  async function renderSignedIn() {
+    sessionStore.setSessionToken('hqs1.stored.sig')
+    fetchWhoAmIMock.mockResolvedValue(PERSONAL_WHO)
+    const rendered = renderHook(() => useAuth(), { wrapper })
+    await waitFor(() => expect(rendered.result.current.status).toBe('signed-in'))
+    return rendered
+  }
+
+  it('calls the API with the current session token', async () => {
+    const { result } = await renderSignedIn()
+    apiCallMock.mockResolvedValue({ tasks: [] })
+
+    const response = await act(() => result.current.authedCall('tasks.list'))
+    expect(response).toEqual({ tasks: [] })
+    expect(apiCallMock).toHaveBeenCalledWith('tasks.list', {}, { token: 'hqs1.fresh.sig', actingPerson: undefined })
   })
 
-  it('falls back to signed-out when the silent refresh itself fails', async () => {
-    const { result } = renderSignedIn()
-    await signIn(result)
-
-    apiCallMock.mockRejectedValueOnce(new ApiError('UNAUTHENTICATED', 'expired'))
-    promptSilentMock.mockResolvedValue('declined')
-    setupGisMock.mockImplementation(async () => {})
+  it('drops the session and falls back to the wall when the token is rejected', async () => {
+    const { result } = await renderSignedIn()
+    apiCallMock.mockRejectedValue(new ApiError('UNAUTHENTICATED', 'expired'))
 
     await act(async () => {
       await expect(result.current.authedCall('tasks.list')).rejects.toThrow()
     })
     expect(result.current.status).toBe('signed-out')
+    expect(sessionStore.getSessionToken()).toBeNull()
+  })
+
+  it('keeps the session on non-auth errors', async () => {
+    const { result } = await renderSignedIn()
+    apiCallMock.mockRejectedValue(new ApiError('VALIDATION_FAILED', 'bad field'))
+
+    await act(async () => {
+      await expect(result.current.authedCall('tasks.create')).rejects.toThrow('bad field')
+    })
+    expect(result.current.status).toBe('signed-in')
+    expect(sessionStore.getSessionToken()).toBe('hqs1.fresh.sig')
   })
 })
 
 describe('sign-out', () => {
-  it('clears persisted hints so the next boot is signed-out with no auto re-entry', async () => {
-    sessionStore.setAutoSignIn()
+  it('clears everything so the next boot is signed-out with no auto re-entry', async () => {
+    sessionStore.setSessionToken('hqs1.stored.sig')
     sessionStore.setActingPerson('max')
     fetchWhoAmIMock.mockResolvedValue(PERSONAL_WHO)
-    setupGisMock.mockImplementation(async (onCredential: (token: string) => void) => {
-      onCredential('token-1')
-    })
 
     const { result } = renderHook(() => useAuth(), { wrapper })
     await waitFor(() => expect(result.current.status).toBe('signed-in'))
@@ -188,7 +185,7 @@ describe('sign-out', () => {
     act(() => result.current.signOut())
 
     expect(signOutMock).toHaveBeenCalled()
-    expect(sessionStore.getAutoSignIn()).toBe(false)
+    expect(sessionStore.getSessionToken()).toBeNull()
     expect(sessionStore.getActingPerson()).toBeNull()
     expect(result.current.status).toBe('signed-out')
   })

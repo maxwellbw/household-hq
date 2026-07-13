@@ -1,7 +1,17 @@
 # Quickstart & Validation: Stay Signed In (Session Persistence)
 
+> **Revised 2026-07-12** (research R7): now backend-touching after all — `clasp push` +
+> `clasp deploy -i <deploymentId>` required (no scope change, so no re-authorization).
+> Backend checks: run `selfTestSessionTokens()` from the Apps Script editor (seconds), or
+> the full `selfTest()`. Live negative checks (garbage/tampered `hqs1.*` token →
+> `INVALID_CREDENTIAL`; no token → `UNAUTHENTICATED`) can be curl'd anonymously. The
+> manual pass below still applies, with one change: returning-visit restore is now a
+> single `auth.whoami` round-trip using the persisted `hq.sessionToken` — Google's silent
+> One Tap is no longer involved, so restore must succeed on iOS Safari too, not just in
+> the "common case".
+
 Frontend-only. **No backend/clasp deploy and no OAuth re-authorization** — `auth.whoami` and
-token verification are reused unchanged (research R6).
+token verification are reused unchanged (research R6). *(Superseded — see revision note above.)*
 
 ## Prerequisites
 

@@ -6,6 +6,15 @@
 
 ## Summary
 
+> **Revision 2026-07-12 (branch `018-session-token`)**: the GIS-auto-select approach below
+> shipped and failed on real devices (iOS Safari ITP / Chrome FedCM declines) — returning
+> users got a 4-second stall, then the wall and popup anyway. Replaced by a backend-minted,
+> HMAC-signed, 30-day sliding **household session token** persisted in `localStorage`;
+> Google is now only the first sign-in. See research.md R7 and the spec's 2026-07-12
+> clarification session. This made the feature backend-touching after all: `Auth.js` mints
+> and verifies the token, `auth.whoami` returns it, and the silent-prompt client machinery
+> was deleted. No scope changes — redeploy only, no re-authorization.
+
 Today the app holds the Google ID token in memory only and re-prompts on every visit
 (`frontend/src/lib/auth.ts`, `frontend/src/hooks/useAuth.tsx`). This feature makes sign-in
 rare by (1) turning on GIS **auto-select** so a returning user's browser silently re-issues

@@ -1,7 +1,11 @@
 # Data Model: Stay Signed In (Session Persistence)
 
-No Google Sheet tabs or columns change. This feature only adds **client-side** state. There
-is no server-side session store (Constitution III).
+> **Revised 2026-07-12** (research R7): the `hq.autoSignIn` hint + silent-GIS model below is
+> superseded by a backend-minted **household session token**. Tables updated in place.
+
+No Google Sheet tabs or columns change. There is still no server-side session *store*
+(Constitution III) — the session token is stateless (HMAC-signed, self-describing); the only
+server-side addition is a `SESSION_SECRET` script property.
 
 ## Persisted (localStorage) — the only durable additions
 
@@ -9,11 +13,14 @@ Namespace: `hq.` string keys, human-legible, defensively read.
 
 | Key | Type | Meaning | Written | Cleared |
 |-----|------|---------|---------|---------|
-| `hq.autoSignIn` | `'1'` \| absent | Hint that a prior sign-in succeeded, so boot should attempt silent restore and show the calm restoring state instead of the sign-in wall. | On successful `signed-in`. | On sign-out; on unrecoverable silent-auth failure. |
-| `hq.actingPerson` | `'max'` \| `'jaz'` \| absent | Remembered acting person for the shared account, restored on return and reflected in the affirmation banner. | When acting person is set/confirmed. | On sign-out. |
+| `hq.sessionToken` | `hqs1.<payload>.<hmac>` \| absent | Backend-minted household session token (30-day sliding expiry). Boot presents it to `auth.whoami`; the renewed token from the response replaces it. | On every successful `signed-in` (fresh mint from whoami). | On sign-out; when the backend rejects it (expired/tampered/forbidden). Kept on transient network failures. |
+| `hq.actingPerson` | `'max'` \| `'jaz'` \| absent | Remembered acting person for the shared account, restored on return and reflected in the affirmation banner. | When acting person is set/confirmed. | On sign-out only — it survives token expiry so a re-sign-in doesn't re-ask "Max or Jaz?". |
 
-**Explicitly NOT persisted**: the ID token / any credential (FR-009). It is acquired fresh
-each session and held in memory only.
+(`hq.autoSignIn` is legacy — no longer written, removed by `clear()` on sign-out.)
+
+**Explicitly NOT persisted**: any **Google** credential (FR-009 as revised). The Google ID
+token appears only during the first interactive sign-in and is held in memory just long
+enough to exchange it for a session token via `auth.whoami`.
 
 **Read rules**: any unexpected/corrupt value → treat as absent → fall back to the sign-in
 wall (spec edge case: corrupted persisted session data). `hq.actingPerson` is advisory only:
@@ -26,15 +33,14 @@ From `frontend/src/types/domain.ts`:
 
 ```ts
 interface Session {
-  token: string                        // fresh ID token, memory only, refreshed reactively
-  who: WhoAmI                          // { identity, displayName, email, needsActingPerson }
-  actingPerson?: 'max' | 'jaz'         // now seeded from hq.actingPerson on restore
+  token: string                        // household session token (hqs1.*), also persisted
+  who: WhoAmI                          // { identity, displayName, email, needsActingPerson, sessionToken }
+  actingPerson?: 'max' | 'jaz'         // seeded from hq.actingPerson on restore
 }
 ```
 
-The type does not change. What changes is its **lifecycle**: it can now be rebuilt on boot
-from a silently-acquired token, its `token` can be refreshed in place on expiry, and its
-`actingPerson` can be seeded from `localStorage`.
+`WhoAmI` gains a required `sessionToken` — the freshly minted token returned by every
+`auth.whoami` call, which becomes both the in-memory and persisted credential.
 
 ## Auth state machine (extends existing `AuthStatus`)
 
@@ -47,12 +53,13 @@ Transitions (new/changed in **bold**):
 
 | From | Event | To |
 |------|-------|-----|
-| _(boot)_ | `hq.autoSignIn` set | **`restoring`** |
-| _(boot)_ | no hint | `signed-out` |
-| **`restoring`** | silent token acquired + whoami ok | `signed-in` (seed acting person) |
-| **`restoring`** | silent auth declined / whoami fails non-auth | `signed-out` |
-| **`restoring`** | whoami `FORBIDDEN`/`ALLOWLIST_MISCONFIGURED` | `forbidden` |
-| `signed-in` | authed call → `UNAUTHENTICATED`/`INVALID_CREDENTIAL` | silent refresh (single-flight); on success stay `signed-in` with new token + retry; on failure → `signed-out` |
+| _(boot)_ | `hq.sessionToken` present | **`restoring`** (one whoami round-trip) |
+| _(boot)_ | no stored token | `signed-out` |
+| **`restoring`** | whoami ok | `signed-in` (persist renewed token; seed acting person) |
+| **`restoring`** | whoami `UNAUTHENTICATED`/`INVALID_CREDENTIAL` | `signed-out` (clear stored token) |
+| **`restoring`** | whoami `FORBIDDEN`/`ALLOWLIST_MISCONFIGURED` | `forbidden` (clear stored token) |
+| **`restoring`** | transient failure (offline etc.) | `signed-out` (stored token kept for next launch) |
+| `signed-in` | authed call → `UNAUTHENTICATED`/`INVALID_CREDENTIAL` | `signed-out` (clear stored token; no silent Google refresh — see R7) |
 | `signed-in` | user Sign Out | `signed-out` + clear `hq.*` + `disableAutoSelect()` |
 
 ## Acting-person presentation (derived, not stored beyond the table above)

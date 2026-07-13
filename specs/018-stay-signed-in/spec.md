@@ -12,9 +12,26 @@
 
 ### Session 2026-07-11
 
-- Q: How should the session be persisted client-side? → A: Auto-select only, no token — rely on Google's silent auto re-sign-in plus a remembered acting person in local device storage; store no credential.
-- Q: How should an expired credential be refreshed during a long-open session? → A: Reactive on auth failure — when an authenticated request fails on a stale credential, silently re-acquire once and retry the request transparently.
+- Q: How should the session be persisted client-side? → A: Auto-select only, no token — rely on Google's silent auto re-sign-in plus a remembered acting person in local device storage; store no credential. **[Superseded 2026-07-12 — see below.]**
+- Q: How should an expired credential be refreshed during a long-open session? → A: Reactive on auth failure — when an authenticated request fails on a stale credential, silently re-acquire once and retry the request transparently. **[Superseded 2026-07-12: with a long-lived session token renewed on every visit, mid-session expiry is a rare edge; on auth failure the app falls back to the sign-in wall.]**
 - Q: When a shared-account user returns, how should the remembered acting person be handled? → A: Restore it, but surface a dismissible "Signed in as <person> — switch?" affirmation each session.
+
+### Session 2026-07-12 (revision after field failure)
+
+- Field report (Jaz): the auto-select-only approach shipped 2026-07-11 did not work in
+  practice — GIS silent re-auth is routinely declined on iOS Safari (ITP blocks the
+  third-party context) and on Chrome (FedCM declines), so a returning user saw a
+  several-second "Signing you back in…" stall, then the sign-in wall, then the full Google
+  popup anyway. Strictly worse than before the feature.
+- Q: How should the session be persisted, given silent Google re-auth cannot be relied on?
+  → A (revised): After the first interactive Google sign-in, the backend mints a
+  **household session token** — HMAC-signed with a server-held secret, 30-day expiry,
+  re-minted on every `auth.whoami` so each visit slides the window forward. The client
+  persists it in local device storage and presents it on every request. Google is involved
+  only at first-ever sign-in and after explicit sign-out. This supersedes the 2026-07-11
+  "store no credential" decision: the session token *is* a device-local credential, but a
+  household-scoped, revocable one — the allowlist is still enforced server-side on every
+  request, and rotating the server secret invalidates all outstanding sessions at once.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -131,12 +148,11 @@ message), never an infinite prompt loop.
 - **FR-001**: The app MUST allow a household member who has previously signed in to return
   in a later session and reach the app as that member without an interactive sign-in step,
   whenever the identity provider permits silent re-authentication.
-- **FR-002**: The app MUST silently re-acquire a fresh credential when the current one is
-  missing or expired — without showing an interactive sign-in prompt in the normal case. On
-  app open the credential is acquired before the first authenticated request; during a
-  long-open session, expiry is handled **reactively**: when an authenticated request fails
-  because the credential is stale, the app re-acquires a fresh credential once and retries
-  the same request transparently.
+- **FR-002** *(revised 2026-07-12)*: On app open, the app MUST restore the session from the
+  persisted household session token with a single backend verification round-trip — no
+  Google interaction. Each successful verification renews the token (sliding expiry). If an
+  authenticated request ever fails on an invalid/expired token, the app MUST clear the
+  stored token and fall back to the interactive sign-in wall — never a retry loop.
 - **FR-003**: The app MUST persist enough session context across full app restarts to restore
   the signed-in experience, including which household member is the acting person when the
   shared household account was used.
@@ -154,10 +170,12 @@ message), never an infinite prompt loop.
 - **FR-008**: The app MUST continue to enforce the existing two-email allowlist on every
   authenticated request; persistence MUST NOT bypass or weaken authorization, and a user
   removed from the allowlist MUST NOT be silently re-admitted.
-- **FR-009**: The app MUST NOT persist any credential (including the short-lived identity
-  token) to durable device storage. Persisted data is limited to (a) an indicator that
-  automatic re-sign-in should be attempted and (b) the chosen acting person; the credential
-  itself is always re-acquired fresh at runtime and held in memory only.
+- **FR-009** *(revised 2026-07-12)*: The app MUST NOT persist any **Google** credential to
+  durable device storage. The only persisted credential is the backend-minted household
+  session token, which MUST be HMAC-signed with a server-held secret, MUST expire (30 days,
+  sliding), MUST be re-verified against the live allowlist on every request (persistence
+  never widens who may enter), MUST be cleared on sign-out, and MUST be revocable in bulk
+  by rotating the server secret. The chosen acting person may also be persisted.
 - **FR-010**: Every state change already logged today (create, complete, snooze, etc.) MUST
   continue to attribute to the correct acting person after a session is restored — session
   restoration MUST NOT break actor attribution in ActivityLog.
