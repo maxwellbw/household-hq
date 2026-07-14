@@ -11,7 +11,7 @@ order confirmed by Jaz 2026-07-11, including 010/011 — definitely a go, slotte
 
 ## The queue — up next, in order
 
-**Next up: 011 — Weather-aware dog-walk window finder** (010 shipped 2026-07-13; **011 pulled ahead of 026** 2026-07-13 at Jaz's request — the two are independent calendar sources, 011 reads *work* cals free/busy, 026 imports *personal* cals as events; no dependency either way).
+**Next up: PRIV — Public-repo personal-data scrub** (added 2026-07-14 after the 011 merge surfaced that `maxwellbw/household-hq` is **public**, not private as the codebase assumed — see the description below; must be done before more personal data accretes).
 
 | Order | # | Feature | Stage | Spec folder | PR |
 |---|---|---|---|---|---|
@@ -22,8 +22,29 @@ order confirmed by Jaz 2026-07-11, including 010/011 — definitely a go, slotte
 | 5 | 027 | Household seed data + engine extensions | ✅ merged | specs/027-household-seed-data | [#25](https://github.com/maxwellbw/household-hq/pull/25) |
 | 6 | 028 | UX fix batch 3 (mobile polish + save speed + event lookahead) | ✅ merged | specs/028-ux-fix-batch-3 | [#27](https://github.com/maxwellbw/household-hq/pull/27) |
 | 7 | 010 | PWA install + web push | ✅ merged (real-iPhone checks still pending — see Shipped notes) | specs/010-pwa-and-push | [#28](https://github.com/maxwellbw/household-hq/pull/28) |
-| 8 | 011 | Weather-aware dog-walk window finder | 🟩 implemented, pending live validation + PR | specs/011-dog-walk-finder | — |
-| 9 | 026 | Inbound gcal import (personal calendars) | ⬜ not started | — | — |
+| 8 | 011 | Weather-aware dog-walk window finder | ✅ merged (live-validated suggest-only; real auto-book run pending — see Shipped notes) | specs/011-dog-walk-finder | [#29](https://github.com/maxwellbw/household-hq/pull/29) |
+| 9 | **PRIV** | **Public-repo personal-data scrub (git history rewrite)** | ⬜ **next up — not started** | — | — |
+| 10 | 026 | Inbound gcal import (personal calendars) | ⬜ not started | — | — |
+
+**PRIV — Public-repo personal-data scrub (git history rewrite).** Added 2026-07-14. During
+011's live setup we discovered `maxwellbw/household-hq` is a **public** repo — it must stay
+public for GitHub Pages + the external API URL — while the whole codebase was built assuming
+private (`CLAUDE.md` still literally says "the repo is private, so IDs live here as plain
+constants"). Personal data is committed and already sitting in **public git history**:
+- the shared household email (`vapidSubject: 'mailto:…@gmail.com'` in `backend/Config.js`, feature 010);
+- real **family birthdays, names, gift recipients**, and the household's actual grocery/household
+  lists (`docs/seed-data.md` + `Config.js` `EVENT_SEED_PACK` / `LIST_SEED_PACK` / `TEMPLATE_SEED_PACK`, feature 027);
+- the committed `SPREADSHEET_ID` and `OAUTH_CLIENT_ID` (access is still gated by Google ID
+  token + email allowlist, so **not** an open door, but both are world-readable).
+
+Confirmed **not** committed (good): the VAPID private key and clasp credentials (Sheet-only / local).
+Scope for the task: (1) inventory exactly what's exposed; (2) move personal seed data out of the
+tracked repo — into the Sheet, an untracked local file, or GitHub Actions secrets — and
+genericize committed config; (3) **rewrite history** (`git filter-repo` / BFG) + force-push to
+purge it from all past commits; (4) decide whether to re-create the Google Sheet (its id is
+public) and move IDs into Actions secrets; (5) correct `CLAUDE.md`'s stale "repo is private"
+assumption. This is a security/privacy cleanup, not a feature — it needs a careful written plan
+and **explicit approval before any force-push** (history rewrite is destructive and coordinated).
 
 **021 — Someday force-rank + Tasks-tab Someday section.** "This or that?" pairwise session
 through the Someday list producing **one shared household ranking** (clarified: not
@@ -217,6 +238,7 @@ prep template).
 | 023 | Dog-care recurring seed rows (`sixweekly`/`eightweekly` cadences added) | [specs/023-dog-care-seed-rows](specs/023-dog-care-seed-rows/spec.md) | [#22](https://github.com/maxwellbw/household-hq/pull/22) |
 | 028 | UX fix batch 3 (yearly lookahead, optimistic saves, mobile feel, day peek, ack redesign, selfTest split) | [specs/028-ux-fix-batch-3](specs/028-ux-fix-batch-3/spec.md) | [#27](https://github.com/maxwellbw/household-hq/pull/27) |
 | 010 | PWA install + web push (vendored SJCL for RFC 8291/8292 crypto; ntfy.sh fully retired) | [specs/010-pwa-and-push](specs/010-pwa-and-push/spec.md) | [#28](https://github.com/maxwellbw/household-hq/pull/28) |
+| 011 | Weather-aware dog-walk window finder (Open-Meteo gates; Outlook→Google subscription; DogWalks ledger) | [specs/011-dog-walk-finder](specs/011-dog-walk-finder/spec.md) | [#29](https://github.com/maxwellbw/household-hq/pull/29) |
 
 **Planning history:** Phase 1 (001–007) + Phase 2 (008–009) per brief §10 · Phase 2.5
 (012–015) planned 2026-07-09, Jaz's feedback round 1 — the backend had outrun the UI ·
@@ -267,6 +289,22 @@ especially, since its core value (silent restore/refresh) is exactly what the sa
 exercise** — see `specs/018-stay-signed-in/quickstart.md`. 006's T057 live sign-in
 walkthrough was never formally run. 013's US3 (desktop drag-onto-day) is deferred until
 Schedule-X exposes stable `data-date` on month-grid cells.
+
+_011 (PR #29). Daily Apps Script finder books one dog walk per weekday in a mutual-free,
+good-weather window (Open-Meteo per-hour heat/cold/precip/snow-ice gates; longest of 60/45/30
+closest to midday) as two single-guest invites on the household account's own calendar, one
+row per (date, slot) in a new **DogWalks** ledger tab; never auto-cancels (moves a bad-turned
+window, flags `needs-decision` + pushes both once otherwise); suggest-only mode + second
+early-day walk. Frontend: `dogwalks.list`, `useDogWalks`, dashboard needs-decision notice,
+7-day-strip 🐾/⚠️ badges, read-only month-calendar markers. Setup re-scoped the calendar read
+(research R4): both work calendars now read via one `getCalendarById()` path — Outlook/Exchange
+subscribed into Google Calendar "From URL" (dropping an in-house ICS/RRULE parser); all-day
+events never block; "Busy" dropped from the ignore-list default; coordinates DMS-hardened. 401
+frontend tests green; backend `selfTestDogWalk()` → `DOG WALK: ALL PASS`. Backend deployed
+(@25). **Live-validated in suggest-only mode 2026-07-14** against the real calendars (per-hour
+gating, weekend skip, one row/day all confirmed). **Open follow-up: the real auto-book run is
+still pending** — flip `dogWalkAutoBook=TRUE` and re-run `runDogWalkFinder()` to send real
+invites, then confirm move/needs-decision pushes and the app surfaces on real devices._
 
 _028 (PR #27). Seven pre-clarified fixes from Jaz's feedback round 4 (first real-device
 pass after the 027 seed). `generateRecurringEvents()`'s window is now per-cadence: annual
