@@ -11,7 +11,7 @@ order confirmed by Jaz 2026-07-11, including 010/011 — definitely a go, slotte
 
 ## The queue — up next, in order
 
-**Next up: 026 — Inbound gcal import** (010 shipped 2026-07-13; 011 follows).
+**Next up: 011 — Weather-aware dog-walk window finder** (010 shipped 2026-07-13; **011 pulled ahead of 026** 2026-07-13 at Jaz's request — the two are independent calendar sources, 011 reads *work* cals free/busy, 026 imports *personal* cals as events; no dependency either way).
 
 | Order | # | Feature | Stage | Spec folder | PR |
 |---|---|---|---|---|---|
@@ -22,8 +22,8 @@ order confirmed by Jaz 2026-07-11, including 010/011 — definitely a go, slotte
 | 5 | 027 | Household seed data + engine extensions | ✅ merged | specs/027-household-seed-data | [#25](https://github.com/maxwellbw/household-hq/pull/25) |
 | 6 | 028 | UX fix batch 3 (mobile polish + save speed + event lookahead) | ✅ merged | specs/028-ux-fix-batch-3 | [#27](https://github.com/maxwellbw/household-hq/pull/27) |
 | 7 | 010 | PWA install + web push | ✅ merged (real-iPhone checks still pending — see Shipped notes) | specs/010-pwa-and-push | [#28](https://github.com/maxwellbw/household-hq/pull/28) |
-| 8 | 026 | Inbound gcal import (personal calendars) | ⬜ not started | — | — |
-| 9 | 011 | Weather-aware dog-walk window finder | ⬜ not started | — | — |
+| 8 | 011 | Weather-aware dog-walk window finder | 🟨 tasks generated (⏸ review gate) | specs/011-dog-walk-finder | — |
+| 9 | 026 | Inbound gcal import (personal calendars) | ⬜ not started | — | — |
 
 **021 — Someday force-rank + Tasks-tab Someday section.** "This or that?" pairwise session
 through the Someday list producing **one shared household ranking** (clarified: not
