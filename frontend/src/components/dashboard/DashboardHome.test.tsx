@@ -17,6 +17,10 @@ vi.mock('@/hooks/useLists', () => ({
   useListItems: () => ({ data: [], isPending: false, isError: false }),
 }))
 
+vi.mock('@/hooks/useDogWalks', () => ({
+  useDogWalks: () => ({ data: [], isPending: false, isError: false }),
+}))
+
 vi.mock('@/hooks/useAuth', () => ({
   useAuth: () => ({
     session: {

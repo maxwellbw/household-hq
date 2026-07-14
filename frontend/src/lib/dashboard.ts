@@ -1,5 +1,5 @@
 import { Temporal } from 'temporal-polyfill'
-import type { Cadence, Event, Owner, RecurringRule, Session, Task } from '@/types/domain'
+import type { Cadence, DogWalk, Event, Owner, RecurringRule, Session, Task } from '@/types/domain'
 import { dayKey, formatDate, inRange, nextNDaysRange, todayKey, weekendRange, type DayRange } from '@/lib/datetime'
 
 // ── Smart Views (US1) ────────────────────────────────────────────────────────
@@ -77,6 +77,12 @@ export interface DayTileSummary {
   isToday: boolean
   countsByOwner: Record<Owner, number>
   total: number
+  /** Feature 011: a booked/suggested dog walk lands this day — shown as its own badge, not
+   *  folded into countsByOwner/total (a walk isn't a task/event and always owner 'both'). */
+  hasDogWalk: boolean
+  /** Feature 011: the dog-walk finder couldn't place a walk this day (no mutual-free or
+   *  no good-weather window) — surfaced as a ⚠️ so a dismissed notice still leaves a trace. */
+  needsDogWalkDecision: boolean
 }
 
 /** True if event `e` spans day `k` (inclusive of multi-day events) — the single source of
@@ -100,8 +106,10 @@ function taskOnDay(t: Task, k: string, timezone: string): boolean {
  * Seven day-tiles, today first, for the dashboard's rolling week strip
  * (feature 017 FR-015–018). Counts open dated tasks + spanning events by
  * owner per day; empty days are present with zeroed counts, never omitted.
+ * `dogWalks` (feature 011 — pass the full row set) only sets the `hasDogWalk` /
+ * `needsDogWalkDecision` badges; it never affects the owner counts/total.
  */
-export function sevenDayTiles(tasks: Task[], events: Event[], timezone: string): DayTileSummary[] {
+export function sevenDayTiles(tasks: Task[], events: Event[], timezone: string, dogWalks: DogWalk[] = []): DayTileSummary[] {
   const range = nextNDaysRange(7, timezone)
   const todayK = todayKey(timezone)
   const start = Temporal.PlainDate.from(range.startKey)
@@ -123,6 +131,8 @@ export function sevenDayTiles(tasks: Task[], events: Event[], timezone: string):
       isToday: k === todayK,
       countsByOwner,
       total: countsByOwner.max + countsByOwner.jaz + countsByOwner.both,
+      hasDogWalk: dogWalks.some((w) => w.date === k && (w.status === 'booked' || w.status === 'suggested')),
+      needsDogWalkDecision: dogWalks.some((w) => w.date === k && w.status === 'needs-decision'),
     }
   })
 }

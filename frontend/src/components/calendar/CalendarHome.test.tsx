@@ -71,6 +71,10 @@ vi.mock('@/hooks/useTasks', () => ({
   }),
 }))
 
+vi.mock('@/hooks/useDogWalks', () => ({
+  useDogWalks: () => ({ data: [], isPending: false, isError: false }),
+}))
+
 describe('CalendarHome', () => {
   it('renders the Schedule-X calendar with fixture events without crashing', async () => {
     render(<CalendarHome visibleOwners={new Set(ALL_OWNERS)} />)

@@ -8,6 +8,8 @@ function tile(overrides: Partial<DayTileSummary> & { dateKey: string }): DayTile
     isToday: false,
     countsByOwner: { max: 0, jaz: 0, both: 0 },
     total: 0,
+    hasDogWalk: false,
+    needsDogWalkDecision: false,
     ...overrides,
   }
 }
@@ -38,6 +40,19 @@ describe('SevenDayStrip', () => {
     render(<SevenDayStrip tiles={tiles} activeDateKey={null} onToggleDate={vi.fn()} />)
     const emptyTiles = screen.getAllByText('—')
     expect(emptyTiles.length).toBe(6)
+  })
+
+  it('shows a 🐾 on a dog-walk day and a ⚠️ on a needs-decision day (feature 011)', () => {
+    const walkTiles = [
+      tile({ dateKey: '2026-07-10', isToday: true, hasDogWalk: true }),
+      tile({ dateKey: '2026-07-11', needsDogWalkDecision: true }),
+      ...tiles.slice(2),
+    ]
+    render(<SevenDayStrip tiles={walkTiles} activeDateKey={null} onToggleDate={vi.fn()} />)
+    expect(screen.getByLabelText('Dog walk')).toBeInTheDocument()
+    expect(screen.getByLabelText('Dog walk needs a decision')).toBeInTheDocument()
+    // A needs-decision day shows the ⚠️ instead of the empty-dash placeholder.
+    expect(screen.getAllByText('—').length).toBe(5)
   })
 
   it('calls onToggleDate with the tapped tile date', () => {

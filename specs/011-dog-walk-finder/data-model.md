@@ -53,12 +53,11 @@ Reconciled from the existing 011 placeholders + new (research R7). `seedSettings
 | `dogWalkAutoBook` | `TRUE` | On = send invites; off = suggest-only (compute + show, no invite). |
 | `householdLat` | `` (existing) | Forecast latitude. |
 | `householdLon` | `` (existing) | Forecast longitude. |
-| `maxWorkCalId` | `` | Max's work calendar id (shared to the household account, detail access). |
-| `jazWorkCalId` | `` | Jaz's work calendar id (detail access) — or use the ICS fallback below. |
-| `jazWorkIcsUrl` | `` | Optional private ICS URL if Jaz's calendar can't detail-share (free/busy only; no ignore-list). |
+| `maxWorkCalId` | `` | Max's work calendar id in the household account — Google-native, or an Outlook/Exchange ICS subscribed via Google Calendar "From URL" (research R4). |
+| `jazWorkCalId` | `` | Jaz's work calendar id in the household account (Google-native, or a subscribed ICS like `maxWorkCalId`). |
 | `maxWorkEmail` | `` | Guest email invited for Max's work calendar. |
 | `jazWorkEmail` | `` | Guest email invited for Jaz's work calendar. |
-| `dogWalkIgnoreList` | `Focus time; Block; Busy; Hold` | `;`-delimited, case-insensitive titles that count as free. |
+| `dogWalkIgnoreList` | `Focus time; Block; Hold` | `;`-delimited, case-insensitive titles that count as free. **"Busy" deliberately excluded** — a free/busy-only shared calendar surfaces real meetings titled "Busy" (research R4), so ignoring it would book over them. |
 | `dogWalkTitle` | `Booked` | Visible title on the invite. |
 | `dogWalkEarliestStart` | `08:00` | Earliest walk start (HH:MM, household tz). |
 | `dogWalkLatestStart` | `16:00` | Latest walk start. |

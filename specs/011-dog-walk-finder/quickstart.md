@@ -4,13 +4,13 @@ End-to-end validation. Backend runs in Apps Script (the sandbox can't do real Go
 
 ## A. One-time setup (human — browser)
 
-1. **Share work calendars → the household account** (`maxandjazmine@gmail.com`), **"See all event details"**:
-   - Max: work calendar → share to the household account.
-   - Jaz: work (Google) calendar → share to the household account. **If your employer blocks external detail-sharing**, instead grab the calendar's **private ICS URL** (Google Calendar → Settings for that calendar → "Secret address in iCal format") and put it in `jazWorkIcsUrl`. (Free/busy-only; the ignore-list won't apply to it.)
+1. **Make each work calendar readable by the shared household Google account** — one read path, two ways to get there (research R4):
+   - **Google-native work calendar (Jaz):** share it to the household account at **"See all event details"**.
+   - **Outlook/Exchange work calendar (Max):** it can't be shared to a Google account directly. Instead, in Outlook publish the calendar and copy its **ICS URL** (the "…try adding an Internet calendar and providing this URL" link), then in **Google Calendar signed in as the household account** → **Other calendars → + → From URL** → paste → Add. Google subscribes to it and expands recurrence/timezones/titles for you. (Google refreshes it on its own schedule — often hours, up to ~a day; the daily finder tolerates that, see research R4.)
 2. **Configure your work accounts to accept/auto-add invitations** (so booked walks land as accepted, not just pending). Household HQ only *sends* the invite.
 3. In the **Settings** tab of the Sheet (hand-edit), fill:
    - `householdLat` / `householdLon` (your home coordinates).
-   - `maxWorkCalId` / `jazWorkCalId` (the shared calendar ids), `maxWorkEmail` / `jazWorkEmail` (the guest emails to invite).
+   - `maxWorkCalId` / `jazWorkCalId` — each calendar's **Calendar ID** as it appears in the household account (for a subscribed "From URL" calendar, its Settings → "Integrate calendar" → Calendar ID). `maxWorkEmail` / `jazWorkEmail` (the guest emails to invite).
    - Confirm `householdCalendarId` is set (from 007).
    - Optionally tune `weatherHeatF` (80), `weatherColdFloorF` (20), `weatherPrecipPct` (50), the search window, band, and horizon — all have working defaults.
    - Leave `dogWalkAutoBook` = `TRUE` for auto-book, or set `FALSE` to start in suggest-only mode.

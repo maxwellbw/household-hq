@@ -28,12 +28,15 @@ var SELFTEST_PREFIX = 'selftest-';
  *   selfTest3SeedAndLists()      (8): liveSeedEventsAndTemplates_, unitSeedPack_,
  *     liveSeedPack_, unitAlternatingBins_, liveSeedTripTemplateOnEvent_, liveListsCrud_,
  *     liveListItemsCrud_, liveSeedLists_
- *   selfTest4CalendarAndComms()  (8): unitCalendarSync_, liveCalendarEventSync_,
+ *   selfTest4CalendarAndComms() (13): unitCalendarSync_, liveCalendarEventSync_,
  *     liveCalendarTaskSync_, liveCalendarReconcile_, unitDigests_, liveSettingsUpdate_,
  *     unitPush_, liveCalendarLocationSync_ (feature 010: unitPush_ replaces the retired
- *     unitNtfy_; the crypto proof itself lives in the separate selfTestPush() runner)
+ *     unitNtfy_; the crypto proof itself lives in the separate selfTestPush() runner),
+ *     unitDogWalkAvailability_, unitDogWalkSelection_, unitDogWalkWeatherGate_,
+ *     unitDogWalkSecondWalk_, liveDogWalkBookingLifecycle_ (feature 011, also runnable
+ *     alone via selfTestDogWalk())
  *
- *   Total: 14 + 12 + 8 + 8 = 42 suites, matching the old monolith's call count exactly.
+ *   Total: 14 + 12 + 8 + 13 = 47 suites (42 original + 5 feature-011 additions).
  *
  * `selfTestSeedPack()` and `selfTestSessionTokens()` (below) are unrelated targeted runners
  * from earlier features and are untouched.
@@ -101,6 +104,11 @@ function selfTest4CalendarAndComms() {
   liveSettingsUpdate_();
   unitPush_();
   liveCalendarLocationSync_();
+  unitDogWalkAvailability_();
+  unitDogWalkSelection_();
+  unitDogWalkWeatherGate_();
+  unitDogWalkSecondWalk_();
+  liveDogWalkBookingLifecycle_();
   Logger.log('SELFTEST 4/4 (CalendarAndComms): ALL PASS');
 }
 
@@ -126,6 +134,20 @@ function selfTestSessionTokens() {
   unitAuth_();
   unitSessionTokens_();
   Logger.log('SESSION TOKENS: ALL PASS');
+}
+
+/**
+ * Feature-011 targeted runner (contracts/dogwalks-api.md): the dog-walk finder's pure
+ * helpers plus its live booking/move/never-cancel/suggest-only lifecycle against the
+ * household account's own calendar. Public name so it appears in the editor Run menu.
+ */
+function selfTestDogWalk() {
+  unitDogWalkAvailability_();
+  unitDogWalkSelection_();
+  unitDogWalkWeatherGate_();
+  unitDogWalkSecondWalk_();
+  liveDogWalkBookingLifecycle_();
+  Logger.log('DOG WALK: ALL PASS');
 }
 
 function assert_(cond, message) {
@@ -2509,4 +2531,343 @@ function liveListItemsCrud_() {
 
   deleteList_({ id: listId }, actor); // cleans up milk's row too
   Logger.log('live ListItems CRUD: pass');
+}
+
+// ---------------------------------------------------------------------------
+// Feature 011 — weather-aware dog-walk finder (specs/011-dog-walk-finder/)
+// ---------------------------------------------------------------------------
+
+/** One synthetic Open-Meteo hour entry, keyed the way `fetchForecast_` builds its map. */
+function dogWalkForecastHour_(map, ymd, hour, temp, precipProb, code) {
+  var hh = hour < 10 ? '0' + hour : '' + hour;
+  map[ymd + 'T' + hh] = { temp: temp, precipProb: precipProb, code: code };
+}
+
+/** All-day-good weather map for `ymd` over `[startHour, endHourExclusive)` — the default
+ *  backdrop the other weather tests punch specific bad hours into. */
+function dogWalkAllGoodForecast_(ymd, startHour, endHourExclusive) {
+  var map = {};
+  for (var h = startHour; h < endHourExclusive; h++) dogWalkForecastHour_(map, ymd, h, 65, 5, 1);
+  return map;
+}
+
+// ---------------------------------------------------------------------------
+// Unit: availability — three-source intersection, ignore-list, own-window union (US1;
+// FR-001/002; research R2/R3). Pure — plain event objects, no CalendarApp.
+// ---------------------------------------------------------------------------
+
+function unitDogWalkAvailability_() {
+  var ymd = addDays_(todayYmd_(), 30);
+  var settings = { earliestStart: '08:00', latestStart: '16:00', ignoreList: parseIgnoreList_('Focus time; Block') };
+
+  var sources = {
+    max: [{ title: 'Meeting', start: walkDateTime_(ymd, '09:00'), end: walkDateTime_(ymd, '10:00'), allDay: false }],
+    jaz: [{ title: 'FOCUS TIME', start: walkDateTime_(ymd, '10:00'), end: walkDateTime_(ymd, '11:00'), allDay: false }],
+    household: []
+  };
+
+  var free = computeAvailability_(sources, ymd, settings, null);
+  assert_(free.length === 2, 'busy from one source splits the day; an ignore-listed title stays free');
+  assert_(free[0].start.getTime() === walkDateTime_(ymd, '08:00').getTime() &&
+    free[0].end.getTime() === walkDateTime_(ymd, '09:00').getTime(), 'first free interval is 08:00-09:00');
+  assert_(free[1].start.getTime() === walkDateTime_(ymd, '10:00').getTime() &&
+    free[1].end.getTime() === walkDateTime_(ymd, '16:00').getTime(), 'second free interval is 10:00-16:00 (ignore-listed block stays free)');
+
+  assert_(computeAvailability_({ max: null, jaz: [], household: [] }, ymd, settings, null) === null,
+    'an unreadable/unconfigured work calendar fails safe (null sentinel, FR-022)');
+  assert_(computeAvailability_({ max: [], jaz: null, household: [] }, ymd, settings, null) === null,
+    'either work calendar missing fails safe, not just max');
+
+  // All-day events never block (research R4, confirmed against real calendars 2026-07-14):
+  // others' PTO/OOO, on-call rotations, household to-dos are day-context, not commitments.
+  var allDayNoise = {
+    max: [{ title: 'Coworker PTO', start: walkDateTime_(ymd, '08:00'), end: walkDateTime_(ymd, '16:00'), allDay: true },
+          { title: 'On-call rotation', start: walkDateTime_(ymd, '08:00'), end: walkDateTime_(ymd, '16:00'), allDay: true }],
+    jaz: [],
+    household: [{ title: '[Max] Trash', start: walkDateTime_(ymd, '08:00'), end: walkDateTime_(ymd, '16:00'), allDay: true }]
+  };
+  var freeAllDay = computeAvailability_(allDayNoise, ymd, settings, null);
+  assert_(freeAllDay.length === 1 &&
+    freeAllDay[0].start.getTime() === walkDateTime_(ymd, '08:00').getTime() &&
+    freeAllDay[0].end.getTime() === walkDateTime_(ymd, '16:00').getTime(),
+    'all-day events (PTO/OOO/rotations/to-dos) never block — the whole window stays free');
+
+  // A free/busy-shared work calendar surfaces empty-titled events (Jaz's case): an empty
+  // title can never match the ignore-list, so it always blocks (correct/safe).
+  var emptyTitled = {
+    max: [], jaz: [{ title: '', start: walkDateTime_(ymd, '11:00'), end: walkDateTime_(ymd, '12:00'), allDay: false }], household: []
+  };
+  var freeEmpty = computeAvailability_(emptyTitled, ymd, settings, null);
+  assert_(freeEmpty.length === 2 &&
+    freeEmpty[0].end.getTime() === walkDateTime_(ymd, '11:00').getTime() &&
+    freeEmpty[1].start.getTime() === walkDateTime_(ymd, '12:00').getTime(),
+    'an empty-titled (free/busy-shared) event blocks its time — never ignore-listed away');
+
+  // Own-window union (research R2/R3): the walk's own current window is treated as free
+  // even though the max event overlaps it, so a re-plan doesn't block itself.
+  var ownWindow = { start: walkDateTime_(ymd, '09:00'), end: walkDateTime_(ymd, '10:00') };
+  var freeWithOwn = computeAvailability_(sources, ymd, settings, ownWindow);
+  assert_(freeWithOwn.length === 1 &&
+    freeWithOwn[0].start.getTime() === walkDateTime_(ymd, '08:00').getTime() &&
+    freeWithOwn[0].end.getTime() === walkDateTime_(ymd, '16:00').getTime(),
+    'unioning back the walk\'s own window merges the day into one free interval');
+
+  Logger.log('unit dog-walk availability: pass');
+}
+
+// ---------------------------------------------------------------------------
+// Unit: window selection — longest-fits, band + closest-to-midday, weather gating (US1/US2;
+// FR-004/004a; research R9). Pure — no CalendarApp/network.
+// ---------------------------------------------------------------------------
+
+function unitDogWalkSelection_() {
+  var ymd = addDays_(todayYmd_(), 30);
+  var settings = { bandStart: '09:00', bandEnd: '12:00' };
+
+  // Longest-fits: only a 30-minute gap exists -> 30 is chosen, not skipped (FR-004).
+  var thirtyOnly = [{ start: walkDateTime_(ymd, '09:00'), end: walkDateTime_(ymd, '09:30') }];
+  var picked30 = selectWindow_(thirtyOnly, undefined, [60, 45, 30], settings);
+  assert_(picked30 && picked30.durationMin === 30, 'a 30-minute-only gap books 30 minutes, not skipped');
+
+  // Whole-day free: 60 fits, closest-to-noon-in-band wins (noon itself, band 9-12 inclusive).
+  var wholeDay = [{ start: walkDateTime_(ymd, '08:00'), end: walkDateTime_(ymd, '16:00') }];
+  var pickedNoon = selectWindow_(wholeDay, undefined, [60, 45, 30], settings);
+  assert_(pickedNoon.durationMin === 60 &&
+    pickedNoon.windowStart.getHours() === 12 && pickedNoon.windowStart.getMinutes() === 0,
+    'a free whole day books the longest duration starting at noon (closest to midday, in-band)');
+
+  // Band beats out-of-band even when out-of-band is numerically closer to noon.
+  var bandVsOut = [
+    { start: walkDateTime_(ymd, '09:00'), end: walkDateTime_(ymd, '09:30') },
+    { start: walkDateTime_(ymd, '13:00'), end: walkDateTime_(ymd, '13:30') }
+  ];
+  var pickedBand = selectWindow_(bandVsOut, undefined, [30], settings);
+  assert_(pickedBand.windowStart.getHours() === 9, 'an in-band window is chosen over a closer-to-noon out-of-band one');
+
+  // Tie-break earliest when two in-band candidates are equidistant from noon.
+  var tieSettings = { bandStart: '11:00', bandEnd: '13:00' };
+  var tieIntervals = [
+    { start: walkDateTime_(ymd, '11:00'), end: walkDateTime_(ymd, '11:30') },
+    { start: walkDateTime_(ymd, '13:00'), end: walkDateTime_(ymd, '13:30') }
+  ];
+  var pickedTie = selectWindow_(tieIntervals, undefined, [30], tieSettings);
+  assert_(pickedTie.windowStart.getHours() === 11, 'equidistant in-band candidates tie-break to the earlier one');
+
+  assert_(selectWindow_([], undefined, [60, 45, 30], settings) === null, 'no free intervals -> no window (null)');
+
+  // Weather-gated selection (US2): a rainy/hot morning + a clear afternoon books only the
+  // clear window; an all-day-bad forecast books nothing.
+  var weatherSettings = { timezone: getTimezone_(), bandStart: '09:00', bandEnd: '12:00', weatherHeatF: 80, weatherColdFloorF: 20, weatherPrecipPct: 50 };
+  var mixedForecast = dogWalkAllGoodForecast_(ymd, 8, 16);
+  for (var h = 8; h < 12; h++) dogWalkForecastHour_(mixedForecast, ymd, h, 95, 0, 1); // too hot in the morning
+  var pickedAfternoon = selectWindow_(wholeDay, mixedForecast, [60], weatherSettings);
+  assert_(pickedAfternoon && pickedAfternoon.windowStart.getHours() >= 12,
+    'a hot morning + good afternoon books only in the good afternoon window');
+
+  var allBadForecast = dogWalkAllGoodForecast_(ymd, 8, 16);
+  Object.keys(allBadForecast).forEach(function (k) { allBadForecast[k].temp = 95; });
+  assert_(selectWindow_(wholeDay, allBadForecast, [60, 45, 30], weatherSettings) === null,
+    'an all-day-bad forecast books nothing (surfaces as no-good-weather upstream)');
+
+  Logger.log('unit dog-walk selection: pass');
+}
+
+// ---------------------------------------------------------------------------
+// Unit: weatherGate_ — heat/cold/precip/snow-ice gates, per-hour, fail-safe on missing data
+// (US2; FR-007; research R5). Pure.
+// ---------------------------------------------------------------------------
+
+function unitDogWalkWeatherGate_() {
+  var ymd = addDays_(todayYmd_(), 30);
+  var settings = { timezone: getTimezone_(), weatherHeatF: 80, weatherColdFloorF: 20, weatherPrecipPct: 50 };
+  var forecast = dogWalkAllGoodForecast_(ymd, 8, 16);
+
+  var start = walkDateTime_(ymd, '09:00'), end = walkDateTime_(ymd, '10:00');
+  assert_(weatherGate_(forecast, start, end, settings) === true, 'a good hour passes the gate');
+  assert_(weatherGate_(null, start, end, settings) === false, 'a null forecast fails closed');
+
+  var hot = dogWalkAllGoodForecast_(ymd, 8, 16);
+  dogWalkForecastHour_(hot, ymd, 9, 81, 0, 1);
+  assert_(weatherGate_(hot, start, end, settings) === false, 'a temperature over the heat ceiling fails');
+  dogWalkForecastHour_(hot, ymd, 9, 80, 0, 1);
+  assert_(weatherGate_(hot, start, end, settings) === true, 'exactly the heat ceiling passes (fails only when exceeded)');
+
+  var cold = dogWalkAllGoodForecast_(ymd, 8, 16);
+  dogWalkForecastHour_(cold, ymd, 9, 19, 0, 1);
+  assert_(weatherGate_(cold, start, end, settings) === false, 'a temperature under the cold floor fails');
+  dogWalkForecastHour_(cold, ymd, 9, 20, 0, 1);
+  assert_(weatherGate_(cold, start, end, settings) === true, 'exactly the cold floor passes (fails only when under)');
+
+  var wet = dogWalkAllGoodForecast_(ymd, 8, 16);
+  dogWalkForecastHour_(wet, ymd, 9, 65, 50, 1);
+  assert_(weatherGate_(wet, start, end, settings) === false, 'precip probability at the threshold fails (>=)');
+  dogWalkForecastHour_(wet, ymd, 9, 65, 49, 1);
+  assert_(weatherGate_(wet, start, end, settings) === true, 'precip probability just under the threshold passes');
+
+  [56, 57, 66, 67, 71, 73, 75, 77, 85, 86].forEach(function (code) {
+    var snowy = dogWalkAllGoodForecast_(ymd, 8, 16);
+    dogWalkForecastHour_(snowy, ymd, 9, 65, 0, code);
+    assert_(weatherGate_(snowy, start, end, settings) === false, 'WMO code ' + code + ' (snow/ice) fails the gate');
+  });
+  var clear = dogWalkAllGoodForecast_(ymd, 8, 16);
+  dogWalkForecastHour_(clear, ymd, 9, 65, 0, 1);
+  assert_(weatherGate_(clear, start, end, settings) === true, 'a clear WMO code passes');
+
+  var missingHour = dogWalkAllGoodForecast_(ymd, 8, 16);
+  delete missingHour[ymd + 'T09'];
+  assert_(weatherGate_(missingHour, start, end, settings) === false, 'a missing hour fails closed (no forecast coverage)');
+
+  // Multi-hour window: every overlapped hour must pass.
+  var oneBadHour = dogWalkAllGoodForecast_(ymd, 8, 16);
+  dogWalkForecastHour_(oneBadHour, ymd, 10, 95, 0, 1);
+  assert_(weatherGate_(oneBadHour, walkDateTime_(ymd, '09:30'), walkDateTime_(ymd, '11:00'), settings) === false,
+    'a window overlapping any bad hour fails, even if other overlapped hours are good');
+
+  Logger.log('unit dog-walk weather gate: pass');
+}
+
+// ---------------------------------------------------------------------------
+// Unit: second-walk rule — fires only when the primary starts early, books after the
+// afternoon cutoff, weather-gated, silent skip otherwise (US4; FR-009). Pure.
+// ---------------------------------------------------------------------------
+
+function unitDogWalkSecondWalk_() {
+  var ymd = addDays_(todayYmd_(), 30);
+  var settings = { secondTriggerBefore: '09:00', secondAfter: '13:00', secondDurationMin: 30 };
+  var afternoonFree = [{ start: walkDateTime_(ymd, '13:00'), end: walkDateTime_(ymd, '14:00') }];
+
+  var earlyPrimary = { windowStart: walkDateTime_(ymd, '08:15'), windowEnd: walkDateTime_(ymd, '09:15'), durationMin: 60 };
+  var second = secondWalkPlan_(earlyPrimary, afternoonFree, null, settings);
+  assert_(second && second.durationMin === 30 && second.windowStart.getHours() === 13,
+    'an early primary with a free afternoon books a 30-minute second walk after the cutoff');
+
+  var latePrimary = { windowStart: walkDateTime_(ymd, '09:30'), windowEnd: walkDateTime_(ymd, '10:30'), durationMin: 60 };
+  assert_(secondWalkPlan_(latePrimary, afternoonFree, null, settings) === null,
+    'a primary starting at/after the trigger time never attempts a second walk');
+
+  assert_(secondWalkPlan_(earlyPrimary, [], null, settings) === null,
+    'an early primary with no free afternoon window skips the second walk silently');
+
+  assert_(secondWalkPlan_(null, afternoonFree, null, settings) === null,
+    'no primary at all -> no second walk attempted');
+
+  var badAfternoonForecast = dogWalkAllGoodForecast_(ymd, 8, 16);
+  dogWalkForecastHour_(badAfternoonForecast, ymd, 13, 95, 0, 1);
+  var weatherSettings = { timezone: getTimezone_(), secondTriggerBefore: '09:00', secondAfter: '13:00', secondDurationMin: 30,
+    weatherHeatF: 80, weatherColdFloorF: 20, weatherPrecipPct: 50 };
+  assert_(secondWalkPlan_(earlyPrimary, afternoonFree, badAfternoonForecast, weatherSettings) === null,
+    'a weather-bad afternoon skips the second walk silently, same as no free window');
+
+  Logger.log('unit dog-walk second-walk rule: pass');
+}
+
+// ---------------------------------------------------------------------------
+// Live: booking lifecycle — book, idempotent reconcile, move, never-cancel flag,
+// notifiedAt guard, past-start freeze, suggest-only + upgrade (US1/US3/US5). Uses
+// `CalendarApp.getDefaultCalendar()` directly (always available — no Settings needed) with
+// a synthetic settings object and example.com guest addresses (RFC 2606 reserved, so
+// "sendInvites" never reaches a real inbox). Self-cleaning: deletes every created event and
+// ledger row in a `finally` block.
+// ---------------------------------------------------------------------------
+
+/** Test-only cleanup: DogWalks has no write API by design (contracts §Non-goals), so
+ *  self-test removes its own scratch rows directly via the Sheets primitives. */
+function deleteDogWalkTestRows_(ymds) {
+  withLock_(function () {
+    var t = readTableForWrite_(TABS.DOG_WALKS);
+    var toDelete = t.records
+      .filter(function (r) { return ymds.indexOf(r.date) >= 0; })
+      .sort(function (a, b) { return b._row - a._row; }); // bottom-up so row indices stay valid
+    toDelete.forEach(function (r) { t.sheet.deleteRow(r._row); });
+  });
+}
+
+function liveDogWalkBookingLifecycle_() {
+  var cal = CalendarApp.getDefaultCalendar();
+  var timezone = getTimezone_();
+  var ymd = addDays_(todayYmd_(), 40);
+  var ymd2 = addDays_(todayYmd_(), 41);
+  var settings = {
+    timezone: timezone, autoBook: true, title: SELFTEST_PREFIX + 'walk',
+    maxWorkEmail: 'selftest-max@example.com', jazWorkEmail: 'selftest-jaz@example.com'
+  };
+  var eventIds = [];
+
+  try {
+    var plan = { ymd: ymd, slot: 'primary', windowStart: walkDateTime_(ymd, '10:00'), windowEnd: walkDateTime_(ymd, '11:00'), durationMin: 60 };
+    var row = bookOrReconcileWalk_(null, plan, settings);
+    eventIds.push(row.maxGcalEventId, row.jazGcalEventId);
+    assert_(row.status === 'booked', 'bookOrReconcileWalk_ books when autoBook is true');
+    assert_(row.maxGcalEventId !== '' && row.jazGcalEventId !== '', 'both single-guest invite ids are stored');
+    var maxEvt = cal.getEventById(row.maxGcalEventId);
+    assert_(maxEvt && maxEvt.getTitle() === settings.title, 'the invite carries the configured title');
+    assert_(maxEvt.getGuestByEmail(settings.maxWorkEmail) !== null, 'the invite guests the configured work email');
+    var jazEvt = cal.getEventById(row.jazGcalEventId);
+    assert_(jazEvt.getGuestByEmail(settings.maxWorkEmail) === null, 'neither invite guests the OTHER person\'s email');
+
+    // Idempotent reconcile: same plan, same existing row -> same ids, no duplicate events.
+    var reconciled = bookOrReconcileWalk_(row, plan, settings);
+    assert_(reconciled.maxGcalEventId === row.maxGcalEventId && reconciled.jazGcalEventId === row.jazGcalEventId,
+      'reconciling an unchanged plan reuses the same invite ids (idempotent, no duplicate)');
+    assert_(countDogWalkTestRows_(ymd, 'primary') === 1, 're-running never creates a second ledger row for the same day/slot');
+
+    // Move (US3): both invites relocate, same ids, status stays booked.
+    var movedPlan = { windowStart: walkDateTime_(ymd, '13:00'), windowEnd: walkDateTime_(ymd, '14:00'), durationMin: 60 };
+    var moved = moveWalk_(row, movedPlan, settings);
+    assert_(moved.status === 'booked', 'moving a walk keeps it booked');
+    assert_(moved.maxGcalEventId === row.maxGcalEventId && moved.jazGcalEventId === row.jazGcalEventId,
+      'moving reuses the same two invite ids');
+    assert_(cal.getEventById(moved.maxGcalEventId).getStartTime().getHours() === 13,
+      'moving actually relocates the invite to the new window');
+
+    // Never-cancel (FR-017): flagging needs-decision preserves the window + invite ids.
+    var flagged = flagNeedsDecision_(moved, ymd, 'primary', 'forecast-turned-bad', settings);
+    assert_(flagged.status === 'needs-decision' && flagged.reason === 'forecast-turned-bad',
+      'flagging sets needs-decision + the reason');
+    assert_(flagged.maxGcalEventId === row.maxGcalEventId && flagged.windowStart !== '',
+      'never-cancel: the invite ids and window are preserved when flagged');
+    assert_(cal.getEventById(flagged.maxGcalEventId) !== null, 'the invite event itself is never deleted on a flag');
+
+    // notifiedAt guard: re-flagging the SAME reason is a no-op on notifiedAt (no re-push).
+    var reflaggedSame = flagNeedsDecision_(flagged, ymd, 'primary', 'forecast-turned-bad', settings);
+    assert_(reflaggedSame.notifiedAt === flagged.notifiedAt,
+      'notifiedAt guard: an unchanged needs-decision reason does not re-stamp (no re-push)');
+
+    // A genuinely different reason re-flags (and would re-notify).
+    var reflaggedDiff = flagNeedsDecision_(reflaggedSame, ymd, 'primary', 'no-good-weather', settings);
+    assert_(reflaggedDiff.reason === 'no-good-weather', 'a changed reason re-flags with the new reason');
+
+    // Past-start freeze (FR-018).
+    var pastRow = { status: 'booked', windowStart: isoWithOffset_(new Date(Date.now() - 3600000), timezone) };
+    assert_(isFrozen_(pastRow) === true, 'a row whose window already started is frozen');
+    var futureRow = { status: 'booked', windowStart: isoWithOffset_(new Date(Date.now() + 3600000), timezone) };
+    assert_(isFrozen_(futureRow) === false, 'a future-start row is not frozen');
+    assert_(isFrozen_(null) === false, 'no row at all is never frozen');
+
+    // Suggest-only mode (US5): computes the window, sends no invites.
+    var suggestSettings = { timezone: timezone, autoBook: false, title: settings.title,
+      maxWorkEmail: settings.maxWorkEmail, jazWorkEmail: settings.jazWorkEmail };
+    var suggestPlan = { ymd: ymd2, slot: 'primary', windowStart: walkDateTime_(ymd2, '10:00'), windowEnd: walkDateTime_(ymd2, '11:00'), durationMin: 60 };
+    var suggested = bookOrReconcileWalk_(null, suggestPlan, suggestSettings);
+    assert_(suggested.status === 'suggested' && suggested.maxGcalEventId === '' && suggested.jazGcalEventId === '',
+      'suggest-only mode computes a window but creates no invite events');
+
+    // Flipping autoBook on later upgrades the suggested row to booked with real invites.
+    var upgraded = bookOrReconcileWalk_(suggested, suggestPlan, settings);
+    eventIds.push(upgraded.maxGcalEventId, upgraded.jazGcalEventId);
+    assert_(upgraded.status === 'booked' && upgraded.maxGcalEventId !== '' && upgraded.jazGcalEventId !== '',
+      'flipping autoBook on upgrades a suggested row to booked with invites');
+  } finally {
+    eventIds.forEach(function (id) {
+      if (!id) return;
+      try { var e = cal.getEventById(id); if (e) e.deleteEvent(); } catch (e2) { /* best-effort cleanup */ }
+    });
+    deleteDogWalkTestRows_([ymd, ymd2]);
+  }
+  Logger.log('live dog-walk booking lifecycle: pass');
+}
+
+/** Count of DogWalks rows for (ymd, slot) — for the idempotency assertion above. */
+function countDogWalkTestRows_(ymd, slot) {
+  return readDogWalkRows_().filter(function (r) { return r.date === ymd && r.slot === slot; }).length;
 }
