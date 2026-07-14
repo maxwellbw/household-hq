@@ -10,9 +10,18 @@ interface ScheduleXEventProps {
     title?: string
     owner?: Owner
     _raw?: Event | EventWithTasks | Task
-    _kind?: 'event' | 'task'
+    _kind?: 'event' | 'task' | 'dogwalk' | 'dogwalk-flag'
     _overdue?: boolean
+    _reason?: string | null
   }
+}
+
+// Feature 011: short calendar-chip labels for a needs-decision day's reason.
+const DOG_WALK_FLAG_REASON: Record<string, string> = {
+  'no-mutual-free': 'no free window',
+  'no-good-weather': 'weather',
+  'forecast-turned-bad': 'weather changed',
+  'calendar-unreadable': 'calendar issue',
 }
 
 function isEventRaw(raw: Event | EventWithTasks | Task | undefined): raw is Event | EventWithTasks {
@@ -39,6 +48,20 @@ const OWNER_TINT: Record<Owner, string> = {
  * for tasks displayed on today past their real due date (feature 017).
  */
 export function EventContent({ calendarEvent }: ScheduleXEventProps) {
+  // Feature 011: a needs-decision day is a read-only warning marker — amber left edge + a
+  // ⚠️, text in high-contrast ink (owner tint/badge would misread it as a booked walk).
+  if (calendarEvent._kind === 'dogwalk-flag') {
+    const reason = DOG_WALK_FLAG_REASON[calendarEvent._reason ?? ''] ?? 'needs a decision'
+    return (
+      <div className="flex h-full w-full items-center gap-1 rounded-control border-l-[3px] border-l-warning bg-surface-alt px-1.5 py-1 text-left text-xs text-ink">
+        <span aria-hidden="true">⚠️</span>
+        <span className="truncate">
+          <span className="font-medium">Dog walk</span> — {reason}
+        </span>
+      </div>
+    )
+  }
+
   const raw = calendarEvent._raw
   const owner = calendarEvent.owner ?? raw?.owner ?? 'both'
   const style = ownerStyle(owner)

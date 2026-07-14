@@ -124,3 +124,18 @@ export interface Session {
   who: WhoAmI
   actingPerson?: 'max' | 'jaz'
 }
+
+// Feature 011 — weather-aware dog-walk finder (contracts/dogwalks-api.md). Read-only:
+// the backend engine owns all writes; the app only ever lists.
+export type DogWalkStatus = 'booked' | 'suggested' | 'needs-decision' | 'deferred'
+
+export interface DogWalk {
+  id: string
+  date: string // YYYY-MM-DD
+  slot: 'primary' | 'second'
+  status: DogWalkStatus
+  windowStart: string | null // ISO datetime
+  windowEnd: string | null // ISO datetime
+  durationMin: number | null
+  reason: string | null // set for needs-decision
+}

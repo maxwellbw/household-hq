@@ -4,9 +4,11 @@ import { useEvents } from '@/hooks/useEvents'
 import { useRecurring } from '@/hooks/useRecurring'
 import { useSettings } from '@/hooks/useSettings'
 import { useListItems } from '@/hooks/useLists'
+import { useDogWalks } from '@/hooks/useDogWalks'
 import { useAuth } from '@/hooks/useAuth'
 import { highlights, itemsForDay, loadBalance, resolveViewer, sevenDayTiles, smartViews } from '@/lib/dashboard'
 import { ackNotices } from '@/lib/ackNotices'
+import { needsDecisionDays } from '@/lib/dogwalks'
 import { shouldShowGroceryNudge } from '@/lib/lists'
 import { buildCalendarModel } from '@/lib/tether'
 import { monthRange, weekRange } from '@/lib/datetime'
@@ -16,6 +18,7 @@ import { Highlights } from '@/components/dashboard/Highlights'
 import { SevenDayStrip } from '@/components/dashboard/SevenDayStrip'
 import { DayPeekPanel } from '@/components/dashboard/DayPeekPanel'
 import { AckNotices } from '@/components/dashboard/AckNotices'
+import { DogWalkNotice } from '@/components/dashboard/DogWalkNotice'
 import { GroceryNudge } from '@/components/dashboard/GroceryNudge'
 import { TaskDetailSheet } from '@/components/task/TaskDetailSheet'
 import { EventDetailSheet } from '@/components/event/EventDetailSheet'
@@ -31,6 +34,7 @@ export function DashboardHome({ onOpenDate }: DashboardHomeProps) {
   const recurringQuery = useRecurring()
   const { timezone, data: settingsData } = useSettings()
   const listItemsQuery = useListItems()
+  const dogWalksQuery = useDogWalks()
   const { session } = useAuth()
   const [peekDateKey, setPeekDateKey] = useState<string | null>(null)
   const [detailTask, setDetailTask] = useState<Task | null>(null)
@@ -63,9 +67,14 @@ export function DashboardHome({ onOpenDate }: DashboardHomeProps) {
     [eventsQuery.data, recurringQuery.data, tasksQuery.data, timezone],
   )
 
+  const dogWalkNoticeDays = useMemo(
+    () => needsDecisionDays(dogWalksQuery.data ?? [], timezone),
+    [dogWalksQuery.data, timezone],
+  )
+
   const strip = useMemo(
-    () => sevenDayTiles(tasksQuery.data ?? [], eventsQuery.data ?? [], timezone),
-    [tasksQuery.data, eventsQuery.data, timezone],
+    () => sevenDayTiles(tasksQuery.data ?? [], eventsQuery.data ?? [], timezone, dogWalksQuery.data ?? []),
+    [tasksQuery.data, eventsQuery.data, timezone, dogWalksQuery.data],
   )
 
   const peekItems = useMemo(
@@ -116,6 +125,7 @@ export function DashboardHome({ onOpenDate }: DashboardHomeProps) {
   return (
     <div className="flex flex-col py-2">
       <AckNotices notices={notices} />
+      <DogWalkNotice days={dogWalkNoticeDays} onOpenDate={onOpenDate} />
       <GroceryNudge show={showGroceryNudge} />
       <SevenDayStrip tiles={strip} activeDateKey={peekDateKey} onToggleDate={toggleDate} />
       {peekDateKey && peekItems && (

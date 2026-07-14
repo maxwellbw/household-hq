@@ -75,4 +75,23 @@ describe('EventContent', () => {
     expect(screen.queryByText('Overdue')).not.toBeInTheDocument()
     expect(screen.getByText('Task')).toBeInTheDocument()
   })
+
+  it('renders a needs-decision dog-walk marker with a plain-English reason (feature 011)', () => {
+    render(
+      <EventContent
+        calendarEvent={{ id: 'dogwalk-flag-1', title: 'Dog walk — needs a decision', _kind: 'dogwalk-flag', _reason: 'no-good-weather' }}
+      />,
+    )
+    expect(screen.getByText('Dog walk')).toBeInTheDocument()
+    expect(screen.getByText(/weather/)).toBeInTheDocument()
+  })
+
+  it('falls back to a generic reason for an unknown needs-decision reason (feature 011)', () => {
+    render(
+      <EventContent
+        calendarEvent={{ id: 'dogwalk-flag-2', title: 'Dog walk — needs a decision', _kind: 'dogwalk-flag', _reason: 'something-else' }}
+      />,
+    )
+    expect(screen.getByText(/needs a decision/)).toBeInTheDocument()
+  })
 })

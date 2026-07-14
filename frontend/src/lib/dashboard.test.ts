@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { highlights, itemsForDay, loadBalance, resolveViewer, sevenDayTiles, smartViews } from './dashboard'
 import { monthRange, weekRange } from './datetime'
-import type { Event, RecurringRule, Session, Task } from '@/types/domain'
+import type { DogWalk, Event, RecurringRule, Session, Task } from '@/types/domain'
 
 const TZ = 'America/Los_Angeles'
 // 2026-07-10T18:00:00Z = 2026-07-10 (Friday) in America/Los_Angeles
@@ -369,6 +369,21 @@ describe('sevenDayTiles', () => {
     const tiles = sevenDayTiles([], [], TZ)
     expect(tiles.every((t) => t.total === 0)).toBe(true)
     expect(tiles).toHaveLength(7)
+  })
+
+  it('flags hasDogWalk for a booked/suggested walk day without affecting owner counts (feature 011)', () => {
+    const dogWalks: DogWalk[] = [
+      { id: 'w1', date: '2026-07-11', slot: 'primary', status: 'booked', windowStart: '2026-07-11T11:00:00-07:00', windowEnd: '2026-07-11T12:00:00-07:00', durationMin: 60, reason: null },
+      { id: 'w2', date: '2026-07-12', slot: 'primary', status: 'needs-decision', windowStart: null, windowEnd: null, durationMin: null, reason: 'no-good-weather' },
+    ]
+    const tiles = sevenDayTiles([], [], TZ, dogWalks)
+    const booked = tiles.find((t) => t.dateKey === '2026-07-11')
+    const flagged = tiles.find((t) => t.dateKey === '2026-07-12')
+    expect(booked?.hasDogWalk).toBe(true)
+    expect(booked?.needsDogWalkDecision).toBe(false)
+    expect(booked?.total).toBe(0)
+    expect(flagged?.hasDogWalk).toBe(false) // a booked/suggested badge is not shown for it
+    expect(flagged?.needsDogWalkDecision).toBe(true) // but it is flagged for a decision
   })
 })
 

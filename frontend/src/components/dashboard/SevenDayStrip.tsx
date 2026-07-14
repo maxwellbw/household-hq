@@ -64,8 +64,18 @@ export function SevenDayStrip({ tiles, activeDateKey, onToggleDate }: SevenDaySt
                   </span>
                 </span>
               ))}
-              {tile.total === 0 && (
+              {tile.total === 0 && !tile.hasDogWalk && !tile.needsDogWalkDecision && (
                 <span className={cn('text-[10px]', isActive ? 'text-surface' : 'text-ink-muted')}>—</span>
+              )}
+              {tile.hasDogWalk && (
+                <span className="text-[10px]" aria-label="Dog walk" title="Dog walk">
+                  🐾
+                </span>
+              )}
+              {tile.needsDogWalkDecision && (
+                <span className="text-[10px]" aria-label="Dog walk needs a decision" title="Dog walk needs a decision">
+                  ⚠️
+                </span>
               )}
             </div>
           </button>

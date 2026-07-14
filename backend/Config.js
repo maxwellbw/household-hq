@@ -52,7 +52,9 @@ var TABS = {
   // Feature 025 — recurring events.
   RECURRING_EVENTS: 'RecurringEvents',
   // Feature 010 — web push subscriptions.
-  PUSH_SUBSCRIPTIONS: 'PushSubscriptions'
+  PUSH_SUBSCRIPTIONS: 'PushSubscriptions',
+  // Feature 011 — weather-aware dog-walk finder ledger.
+  DOG_WALKS: 'DogWalks'
 };
 
 /**
@@ -81,12 +83,15 @@ var HEADERS = {
                      'seasonEnd', 'lastGenerated', 'seedKey'],
   // Feature 010 — one row per device enabled for web push (data-model.md).
   PushSubscriptions: ['id', 'person', 'endpoint', 'p256dh', 'auth', 'deviceLabel',
-                       'createdAt', 'lastUsedAt']
+                       'createdAt', 'lastUsedAt'],
+  // Feature 011 — dog-walk ledger: one row per (date, slot) (data-model.md).
+  DogWalks: ['id', 'date', 'slot', 'status', 'windowStart', 'windowEnd', 'durationMin',
+             'maxGcalEventId', 'jazGcalEventId', 'reason', 'notifiedAt', 'updatedAt']
 };
 
 /** Tabs whose rows carry a UUID `id` (eligible for blank-ID adoption, FR-022). */
 var ID_TABS = [TABS.EVENTS, TABS.TASKS, TABS.TEMPLATES, TABS.RECURRING, TABS.LISTS,
-               TABS.LIST_ITEMS, TABS.RECURRING_EVENTS, TABS.PUSH_SUBSCRIPTIONS];
+               TABS.LIST_ITEMS, TABS.RECURRING_EVENTS, TABS.PUSH_SUBSCRIPTIONS, TABS.DOG_WALKS];
 
 // ---------------------------------------------------------------------------
 // Enumerations (FR-014)
@@ -132,7 +137,10 @@ var ACTION_VERBS = {
   'list-item-need': 'marked needed', 'list-item-stocked': 'marked stocked',
   // Feature 010 — web push (retires feature 009's ntfy-ping).
   'push-subscribe': 'enabled push on a device', 'push-unsubscribe': 'disabled push on a device',
-  'push-notify': 'sent a push notification'
+  'push-notify': 'sent a push notification',
+  // Feature 011 — weather-aware dog-walk finder.
+  'dogwalk-book': 'booked a dog walk', 'dogwalk-move': 'moved a dog walk',
+  'dogwalk-suggest': 'suggested a dog-walk window', 'dogwalk-needs-decision': 'flagged a dog walk for a decision'
 };
 
 /**
@@ -238,6 +246,24 @@ var OWNER_EVENT_COLOR = {
  *  seeded `digestHour` Settings value (below) is the normal source of truth. */
 var DIGEST_TRIGGER_HOUR = 6;
 
+// ---------------------------------------------------------------------------
+// Feature 011 — weather-aware dog-walk finder (research R8)
+// ---------------------------------------------------------------------------
+
+/** Hour (household tz) the nightly dog-walk finder trigger runs at — earliest of the
+ *  nightly jobs (004/005/007/008 run at 3/4/5/6) so a booked walk is in place before the
+ *  household's day and before the digest email that might mention it. */
+var DOG_WALK_TRIGGER_HOUR = 1;
+
+/** Discretization step (minutes) for scanning a free interval's candidate start times in
+ *  `selectWindow_`/`secondWalkPlan_` — fine enough to find the real best window, coarse
+ *  enough to keep the 6-minute budget (research R8/R9). */
+var DOG_WALK_STEP_MIN = 15;
+
+/** WMO weather codes treated as snow/ice/freezing (research R5): snow (71,73,75,77), snow
+ *  showers (85,86), freezing rain (66,67), freezing drizzle (56,57). */
+var DOG_WALK_WMO_SNOW_ICE = [56, 57, 66, 67, 71, 73, 75, 77, 85, 86];
+
 /** Owner → inline HTML color for digest emails (DESIGN.md owner hues; email clients strip
  *  external CSS, so these are applied inline at render time — research D4). */
 var OWNER_EMAIL_HUE = {
@@ -268,14 +294,28 @@ var SETTINGS_SEED = [
   ['vapidPublicKey', '', 'feature 010; generated once by setupPush(); Sheet-only, not in the Settings editor'],
   ['vapidPrivateKey', '', 'feature 010; generated once by setupPush(); Sheet-only, not in the Settings editor'],
   ['vapidSubject', 'mailto:household@example.com', 'feature 010; VAPID JWT "sub" contact'],
-  ['workIcsUrlMax', '', 'feature 011'],
-  ['workIcsUrlJaz', '', 'feature 011'],
   ['householdLat', '', 'feature 011'],
   ['householdLon', '', 'feature 011'],
-  ['weatherHeatF', '80', 'feature 011'],
-  ['weatherMorningCutoff', '10:00', 'feature 011'],
-  ['weatherPrecipPct', '40', 'feature 011'],
-  ['weatherColdFloorF', '25', 'feature 011'],
+  ['weatherHeatF', '80', 'feature 011; heat ceiling °F (hour fails above)'],
+  ['weatherPrecipPct', '50', 'feature 011; precip-probability ceiling % (hour fails at/above)'],
+  ['weatherColdFloorF', '20', 'feature 011; cold floor °F (hour fails below)'],
+  ['dogWalkAutoBook', 'TRUE', 'feature 011; FALSE = suggest-only (compute + show, no invite)'],
+  ['maxWorkCalId', '', 'feature 011; Max\'s work calendar id in the household account. Google-native, or an Outlook/Exchange ICS subscribed via Google Calendar "From URL" (research R4)'],
+  ['jazWorkCalId', '', 'feature 011; Jaz\'s work calendar id in the household account (Google-native, or a subscribed ICS like maxWorkCalId)'],
+  ['maxWorkEmail', '', 'feature 011; guest email invited for Max\'s work calendar'],
+  ['jazWorkEmail', '', 'feature 011; guest email invited for Jaz\'s work calendar'],
+  ['dogWalkIgnoreList', 'Focus time; Block; Hold', 'feature 011; ";"-delimited, case-insensitive titles that count as free. NOTE: do NOT add "Busy" — a free/busy-only shared calendar (e.g. Jaz\'s) surfaces every real meeting titled "Busy", so ignoring it would book walks over real meetings (research R4)'],
+  ['dogWalkTitle', 'Booked', 'feature 011; visible title on the invite'],
+  ['dogWalkEarliestStart', '08:00', 'feature 011; earliest walk start (HH:MM, household tz)'],
+  ['dogWalkLatestStart', '16:00', 'feature 011; latest walk start'],
+  ['dogWalkDurationsMin', '60,45,30', 'feature 011; duration preference order, longest first'],
+  ['dogWalkMiddayBandStart', '09:00', 'feature 011; preferred window-selection band start'],
+  ['dogWalkMiddayBandEnd', '12:00', 'feature 011; preferred window-selection band end'],
+  ['dogWalkSecondTriggerBefore', '09:00', 'feature 011; if the primary starts before this, attempt a second walk'],
+  ['dogWalkSecondAfter', '13:00', 'feature 011; earliest start for the second (afternoon) walk'],
+  ['dogWalkSecondDurationMin', '30', 'feature 011; fixed duration of the second walk'],
+  ['dogWalkReliableDays', '14', 'feature 011; firm auto-book horizon (days from today)'],
+  ['dogWalkOuterDays', '21', 'feature 011; outer sliding horizon ("3 weeks")'],
   ['recurringLookaheadDays', '30',
     'feature 004; days ahead the nightly generator materializes. Blank/≤0 falls back to 30'],
   ['recurringSeedApplied', '',

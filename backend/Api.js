@@ -148,7 +148,10 @@ var HANDLERS = {
   'push.unsubscribe': function (p, actor) { return unsubscribeDevice_(p, actor); },
 
   // Feature 002: "who am I" — identity + whether the client must confirm Max/Jaz (FR-009).
-  'auth.whoami':    function (p, actor, identity) { return whoami_(identity); }
+  'auth.whoami':    function (p, actor, identity) { return whoami_(identity); },
+
+  // Feature 011: dog-walk finder — read-only; the engine owns all writes (contracts/dogwalks-api.md).
+  'dogwalks.list':  function () { return { dogWalks: listUpcomingDogWalks_() }; }
 };
 
 // ---------------------------------------------------------------------------

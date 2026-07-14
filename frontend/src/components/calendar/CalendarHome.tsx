@@ -7,7 +7,9 @@ import './calendar-theme.css'
 import { useEvents } from '@/hooks/useEvents'
 import { useTasks } from '@/hooks/useTasks'
 import { useSettings } from '@/hooks/useSettings'
+import { useDogWalks } from '@/hooks/useDogWalks'
 import { isOverdue, todayKey, toZonedDateTime, weekRange } from '@/lib/datetime'
+import { needsDecisionDays, upcomingWalks } from '@/lib/dogwalks'
 import { buildCalendarModel, type EventWithTasks } from '@/lib/tether'
 import { taskDisplayDateKey, type CalendarItem } from '@/lib/calendarItems'
 import { EventContent } from '@/components/calendar/EventContent'
@@ -47,6 +49,7 @@ interface CalendarHomeProps {
 export function CalendarHome({ visibleOwners, focusDate }: CalendarHomeProps) {
   const eventsQuery = useEvents()
   const tasksQuery = useTasks()
+  const dogWalksQuery = useDogWalks()
   const { timezone } = useSettings()
   const isMobile = useIsMobile()
   const [visibleRange, setVisibleRange] = useState<{ start: string; end: string } | null>(null)
@@ -72,6 +75,18 @@ export function CalendarHome({ visibleOwners, focusDate }: CalendarHomeProps) {
   const visibleStandaloneTasks = useMemo(
     () => model.standaloneTasks.filter((t) => visibleOwners.has(t.owner) && t.dueDate),
     [model.standaloneTasks, visibleOwners],
+  )
+
+  // Feature 011: booked/suggested dog walks as a read-only event source, owner 'both'
+  // (research R12) — always shown regardless of the owner filter chips, since a walk
+  // belongs to the household, not a filterable person.
+  const visibleDogWalks = useMemo(
+    () => upcomingWalks(dogWalksQuery.data ?? [], timezone),
+    [dogWalksQuery.data, timezone],
+  )
+  const dogWalkFlags = useMemo(
+    () => needsDecisionDays(dogWalksQuery.data ?? [], timezone),
+    [dogWalksQuery.data, timezone],
   )
 
   const scheduleXEvents = useMemo(() => {
@@ -102,8 +117,33 @@ export function CalendarHome({ visibleOwners, focusDate }: CalendarHomeProps) {
         _overdue: isOverdue(task, today),
       }
     })
-    return [...eventItems, ...taskItems]
-  }, [visibleEvents, visibleStandaloneTasks, timezone, today])
+    // Feature 011: booked/suggested dog walks, read-only (no detail sheet — tapping is a
+    // no-op, see onEventClick below).
+    const dogWalkItems = visibleDogWalks.map((walk) => ({
+      id: `dogwalk-${walk.id}`,
+      title: 'Dog walk',
+      start: toZonedDateTime(walk.windowStart as string, timezone),
+      end: toZonedDateTime(walk.windowEnd as string, timezone),
+      owner: 'both' as const,
+      _kind: 'dogwalk' as const,
+    }))
+    // Feature 011: needs-decision days as all-day warning markers (no window to place a
+    // timed chip on), so the finder's "you handle this one" days are visible on the calendar
+    // itself, not only the dashboard notice. Read-only like the booked walks.
+    const dogWalkFlagItems = dogWalkFlags.map((walk) => {
+      const date = Temporal.PlainDate.from(walk.date)
+      return {
+        id: `dogwalk-flag-${walk.id}`,
+        title: 'Dog walk — needs a decision',
+        start: date,
+        end: date,
+        owner: 'both' as const,
+        _kind: 'dogwalk-flag' as const,
+        _reason: walk.reason,
+      }
+    })
+    return [...eventItems, ...taskItems, ...dogWalkItems, ...dogWalkFlagItems]
+  }, [visibleEvents, visibleStandaloneTasks, visibleDogWalks, dogWalkFlags, timezone, today])
 
   const calendarApp = useCalendarApp({
     views: [createViewMonthGrid(), createViewMonthAgenda()],
@@ -127,6 +167,9 @@ export function CalendarHome({ visibleOwners, focusDate }: CalendarHomeProps) {
       },
       onEventClick: (calendarEvent: { id: string | number }) => {
         const id = String(calendarEvent.id)
+        if (id.startsWith('dogwalk-')) {
+          return // read-only event source (feature 011) — no detail sheet to open
+        }
         if (id.startsWith('task-')) {
           setSelectedTaskId(id.slice('task-'.length))
         } else {

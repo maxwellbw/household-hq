@@ -11,7 +11,7 @@ order confirmed by Jaz 2026-07-11, including 010/011 — definitely a go, slotte
 
 ## The queue — up next, in order
 
-**Next up: 026 — Inbound gcal import** (010 shipped 2026-07-13; 011 follows).
+**Next up: 011 — Weather-aware dog-walk window finder** (010 shipped 2026-07-13; **011 pulled ahead of 026** 2026-07-13 at Jaz's request — the two are independent calendar sources, 011 reads *work* cals free/busy, 026 imports *personal* cals as events; no dependency either way).
 
 | Order | # | Feature | Stage | Spec folder | PR |
 |---|---|---|---|---|---|
@@ -22,8 +22,8 @@ order confirmed by Jaz 2026-07-11, including 010/011 — definitely a go, slotte
 | 5 | 027 | Household seed data + engine extensions | ✅ merged | specs/027-household-seed-data | [#25](https://github.com/maxwellbw/household-hq/pull/25) |
 | 6 | 028 | UX fix batch 3 (mobile polish + save speed + event lookahead) | ✅ merged | specs/028-ux-fix-batch-3 | [#27](https://github.com/maxwellbw/household-hq/pull/27) |
 | 7 | 010 | PWA install + web push | ✅ merged (real-iPhone checks still pending — see Shipped notes) | specs/010-pwa-and-push | [#28](https://github.com/maxwellbw/household-hq/pull/28) |
-| 8 | 026 | Inbound gcal import (personal calendars) | ⬜ not started | — | — |
-| 9 | 011 | Weather-aware dog-walk window finder | ⬜ not started | — | — |
+| 8 | 011 | Weather-aware dog-walk window finder | 🟩 implemented, pending live validation + PR | specs/011-dog-walk-finder | — |
+| 9 | 026 | Inbound gcal import (personal calendars) | ⬜ not started | — | — |
 
 **021 — Someday force-rank + Tasks-tab Someday section.** "This or that?" pairwise session
 through the Someday list producing **one shared household ranking** (clarified: not
@@ -139,13 +139,39 @@ confirmed passing. Real-iPhone install/enable/receive/disable checks (quickstart
 the standing device-gated follow-up.
 
 **011 — Weather-aware dog-walk window finder** (brief §5 item 16; decisions captured there
-2026-07-09). Open-Meteo forecast ∩ mutual-free windows from both work calendars, read as
-**free/busy only** (re-confirmed 2026-07-11 at 026's clarify): Max's work calendar shares
-full details directly to `household@example.com` (no extra credentials needed —
-`CalendarApp.getCalendarById()`); Jaz's sharing capability TBD (ICS fallback). Configurable
-ignore-list for not-really-busy titles (Focus time, Hold, …); auto-invite + auto-accept
-booking of good windows up to 3 weeks out, idempotent via stored event ids, with a
-suggest-only mode first.
+2026-07-09). Open-Meteo forecast ∩ mutual-free windows from both work calendars + the
+shared Household calendar, all read through one path — `CalendarApp.getCalendarById().getEvents()`.
+**Re-scoped 2026-07-14 during live setup (research R4):** the original in-house ICS-fetch
+fallback was removed. Jaz's calendar is Google-native (shared at detail access); Max's is
+**Outlook/Exchange** (a corporate M365 account), which can't share to a Google account natively — so the
+household account **subscribes to its published ICS URL via Google Calendar "From URL,"** and
+Google expands recurrence/timezones/titles before we read it as a normal `maxWorkCalId`. This
+dropped a large, fragile RRULE/timezone parser (Max's real feed: 300 events, 252 timed
+meetings, 79 recurrences, 4 timezones) in favor of the boring/dependable path, and keeps the
+ignore-list working (titles survive). Trade-off: Google's subscription refresh lag (hours–day),
+tolerated by the daily re-eval + never-cancel design. **Open live-validation watch:** Max's
+feed carries all-day team noise (on-call rotations, others' PTO, office closures) that
+currently over-blocks — how all-day events should affect a midday walk is a decision deferred
+to first real run (candidate: ignore all-day events for availability). Configurable ignore-list
+for not-really-busy titles (Focus time, Hold, …). **Implemented 2026-07-13:** booking = two
+separate single-guest invites (one per work email) created on the household account's own
+calendar and tagged, not "auto-invite + auto-accept" onto a shared calendar — so neither
+person sees the other's invite and the shared Household calendar shows no duplicate; the
+app shows one walk from a single new **DogWalks** ledger tab (research R1, FR-010/011 written
+back into spec.md). Firm auto-book horizon is 14 days (`dogWalkReliableDays`), sliding toward
+a 21-day outer edge (`dogWalkOuterDays`) rather than booking blind to "3 weeks." Never
+auto-cancels — a bad-turned window is moved, an unplaceable day is flagged `needs-decision`
+and pushes both people once (guarded by `notifiedAt`). Suggest-only mode
+(`dogWalkAutoBook=FALSE`) ships from day one. New `dogwalks.list` read action; dashboard
+7-day-strip badges (🐾 booked/suggested, ⚠️ needs-decision) + a dismissible needs-decision
+notice + a read-only calendar event source with booked/suggested walks as timed chips and
+needs-decision days as all-day ⚠️ markers (month grid/agenda only — the week/day list view
+doesn't yet render walks/flags, a scope deferral worth a follow-up). **Live-validated
+2026-07-14 in suggest-only mode** against the real calendars: correct per-hour weather gating
+(Bend July heat wave pushed walks to cool mornings, flagged too-hot days), weekend skip, and
+one row per weekday all confirmed; `weatherHeatF=80` left as the dog-safety default. Setup
+learnings folded into research R4/R7 (Outlook→Google subscription; "Busy" dropped from the
+ignore-list default; all-day events never block; DMS-coordinate hardening).
 
 ## Parked (unscheduled — pull into the queue when prioritized)
 
