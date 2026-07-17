@@ -11,7 +11,7 @@ order confirmed by Jaz 2026-07-11, including 010/011 — definitely a go, slotte
 
 ## The queue — up next, in order
 
-**Next up: PRIV — Public-repo personal-data scrub** (added 2026-07-14 after the 011 merge surfaced that `maxwellbw/household-hq` is **public**, not private as the codebase assumed — see the description below; must be done before more personal data accretes).
+**Next up: 029 — Bug-fix batch 4** (root causes captured in plan, 2026-07-16).
 
 | Order | # | Feature | Stage | Spec folder | PR |
 |---|---|---|---|---|---|
@@ -23,7 +23,7 @@ order confirmed by Jaz 2026-07-11, including 010/011 — definitely a go, slotte
 | 6 | 028 | UX fix batch 3 (mobile polish + save speed + event lookahead) | ✅ merged | specs/028-ux-fix-batch-3 | [#27](https://github.com/maxwellbw/household-hq/pull/27) |
 | 7 | 010 | PWA install + web push | ✅ merged (real-iPhone checks still pending — see Shipped notes) | specs/010-pwa-and-push | [#28](https://github.com/maxwellbw/household-hq/pull/28) |
 | 8 | 011 | Weather-aware dog-walk window finder | ✅ merged (live-validated suggest-only; real auto-book run pending — see Shipped notes) | specs/011-dog-walk-finder | [#29](https://github.com/maxwellbw/household-hq/pull/29) |
-| 9 | **PRIV** | **Public-repo personal-data scrub (git history rewrite)** | 🟡 **plan drafted 2026-07-17 — awaiting Max's approval** | specs/PRIV-privacy-scrub | — |
+| 9 | **PRIV** | **Public-repo personal-data scrub (git history rewrite)** | ✅ done 2026-07-17 | specs/PRIV-privacy-scrub | — |
 | 10 | 029 | Bug-fix batch 4 (calendar glitch, scroll lock, dismissals, done strikethrough, walks in day peek + times, walk-trigger reliability, prep-template picker) | ⬜ not started (root causes captured in plan, 2026-07-16) | — | — |
 | 11 | 030 | Perf & resilience (data.bootstrap batching, code splitting, remaining optimistic saves, fetch timeout/retry, boot-restore hardening) | ⬜ not started | — | — |
 | 12 | 031 | Dog-walk day planner (view busy blocks + hourly weather, book from the app) | ⬜ not started | — | — |
@@ -38,25 +38,28 @@ sandboxed browser use the live app without Google OAuth — ending the era of "s
 do OAuth" deferrals. First-ever full live run of the backend suite followed; see the
 2026-07-17 validation note under "Post-merge notes & open follow-ups".
 
-**PRIV — Public-repo personal-data scrub (git history rewrite).** Added 2026-07-14. During
-011's live setup we discovered `maxwellbw/household-hq` is a **public** repo — it must stay
-public for GitHub Pages + the external API URL — while the whole codebase was built assuming
-private (`CLAUDE.md` still literally says "the repo is private, so IDs live here as plain
-constants"). Personal data is committed and already sitting in **public git history**:
-- the shared household email (`vapidSubject: 'mailto:…@gmail.com'` in `backend/Config.js`, feature 010);
-- real **family birthdays, names, gift recipients**, and the household's actual grocery/household
-  lists (`docs/seed-data.md` + `Config.js` `EVENT_SEED_PACK` / `LIST_SEED_PACK` / `TEMPLATE_SEED_PACK`, feature 027);
-- the committed `SPREADSHEET_ID` and `OAUTH_CLIENT_ID` (access is still gated by Google ID
-  token + email allowlist, so **not** an open door, but both are world-readable).
+**PRIV — Public-repo personal-data scrub (git history rewrite). ✅ Done 2026-07-17.** Added
+2026-07-14 after 011's live setup surfaced that `maxwellbw/household-hq` is a **public** repo
+— it must stay public for GitHub Pages + the external API URL — while the whole codebase was
+built assuming private. Resolved in two phases:
+- **Phase 1 (working tree):** genericized `Config.js`'s `EVENT_SEED_PACK`/`TEMPLATE_SEED_PACK`/
+  `LIST_SEED_PACK` to example rows, removed `docs/seed-data.md` (real copy kept untracked
+  locally), replaced the three real gmail addresses and family names/birthdays/anniversary
+  dates across specs/docs with placeholders, and corrected `CLAUDE.md`'s stale "repo is
+  private" claim. `SPREADSHEET_ID`/`OAUTH_CLIENT_ID` stayed committed (access is gated by ID
+  token + allowlist, not secrecy). Verified via `npm test`/`npm run build` + live `clasp run`
+  self-tests, all green.
+- **Phase 2 (history rewrite):** full local backup (`git bundle`, verified), then
+  `git filter-repo` in a fresh clone to drop `docs/seed-data.md` and scrub every mapped value
+  from all ~100 commits of history, verified with zero blob-content hits before and after a
+  force-push to GitHub. The GitHub Pages deploy ran green on the rewritten `main` immediately
+  after. Residual, accepted as non-issues: the repo owner's own commit-author email, and a
+  few instances of a household member's first name in commit metadata/messages (git identity
+  fields aren't touched by `--replace-text`; judged not worth a second rewrite pass).
 
-Confirmed **not** committed (good): the VAPID private key and clasp credentials (Sheet-only / local).
-Scope for the task: (1) inventory exactly what's exposed; (2) move personal seed data out of the
-tracked repo — into the Sheet, an untracked local file, or GitHub Actions secrets — and
-genericize committed config; (3) **rewrite history** (`git filter-repo` / BFG) + force-push to
-purge it from all past commits; (4) decide whether to re-create the Google Sheet (its id is
-public) and move IDs into Actions secrets; (5) correct `CLAUDE.md`'s stale "repo is private"
-assumption. This is a security/privacy cleanup, not a feature — it needs a careful written plan
-and **explicit approval before any force-push** (history rewrite is destructive and coordinated).
+**Action needed from Max:** any other local checkout of this repo has old (pre-rewrite) commit
+hashes and must be re-synced — `git fetch && git reset --hard origin/main` (only once any
+uncommitted work there is stashed/committed first).
 
 **021 — Someday force-rank + Tasks-tab Someday section.** "This or that?" pairwise session
 through the Someday list producing **one shared household ranking** (clarified: not

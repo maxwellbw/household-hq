@@ -1,7 +1,8 @@
 # PRIV — Public-repo personal-data scrub
 
-**Status: plan drafted 2026-07-17 — awaiting Max's approval. The history rewrite
-(force-push) requires an explicit go-ahead and runs only after a full local backup.**
+**Status: ✅ done 2026-07-17.** Working-tree scrub committed, history rewritten via
+`git filter-repo` in a fresh clone (verified zero leaks locally and post-push), and
+force-pushed to `main`. Pages deploy ran green on the rewritten history.
 
 Not a Spec Kit feature: no user story, no UI — a security/privacy cleanup executed as a
 carefully-ordered checklist. Context: the repo is **public** (required for GitHub Pages +
