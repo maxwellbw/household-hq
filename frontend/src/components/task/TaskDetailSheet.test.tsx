@@ -90,6 +90,14 @@ const taskWithNotes: Task = {
   notes: 'Buy: https://example.com/filter',
 } as Task
 
+const doneTask: Task = {
+  id: 't8',
+  title: 'Renew passport',
+  owner: 'max',
+  status: 'done',
+  dueDate: '2026-07-15',
+} as Task
+
 describe('TaskDetailSheet', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -220,5 +228,15 @@ describe('TaskDetailSheet', () => {
     render(<TaskDetailSheet task={recurringTask} onClose={vi.fn()} />)
     expect(screen.queryByText('Not yet committed')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: "I've got it" })).not.toBeInTheDocument()
+  })
+
+  it('strikes the title of a done task (feature 029 US2)', () => {
+    render(<TaskDetailSheet task={doneTask} onClose={vi.fn()} />)
+    expect(screen.getByRole('heading', { name: 'Renew passport' })).toHaveClass('line-through')
+  })
+
+  it('does not strike the title of an open task', () => {
+    render(<TaskDetailSheet task={openTask} onClose={vi.fn()} />)
+    expect(screen.getByRole('heading', { name: 'Water the plants' })).not.toHaveClass('line-through')
   })
 })

@@ -117,4 +117,18 @@ describe('CalendarHome', () => {
     // The task detail sheet (not the event sheet) is open — it has an Edit task button.
     expect(screen.getByRole('button', { name: 'Edit task' })).toBeInTheDocument()
   })
+
+  it('does not tear down and rebuild calendar chips on a re-render with unchanged data (feature 029 US7 — flash regression guard)', async () => {
+    // Root cause (pinned live): ScheduleXCalendar's own effect destroys + re-renders the
+    // whole calendar whenever its `customComponents` prop gets a new reference — an inline
+    // object literal recreated it on every CalendarHome render, even a harmless one. A new
+    // but equivalent `visibleOwners` Set is exactly that kind of harmless re-render trigger.
+    const { rerender } = render(<CalendarHome visibleOwners={new Set(ALL_OWNERS)} />)
+    const chipBefore = await screen.findByText('Dentist')
+
+    rerender(<CalendarHome visibleOwners={new Set(ALL_OWNERS)} />)
+
+    const chipAfter = await screen.findByText('Dentist')
+    expect(chipAfter).toBe(chipBefore)
+  })
 })

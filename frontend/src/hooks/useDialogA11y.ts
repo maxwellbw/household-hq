@@ -1,4 +1,5 @@
 import { useEffect, type RefObject } from 'react'
+import { useScrollLock } from './useScrollLock'
 
 const FOCUSABLE =
   'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])'
@@ -7,8 +8,12 @@ const FOCUSABLE =
  * Modal-dialog keyboard a11y (WCAG 2.1.2 / 2.4.3): Escape to close, Tab is
  * trapped inside the dialog, focus lands inside on open and is restored to
  * the previously-focused element on close. Attach `ref` to the dialog panel.
+ * Also locks background scroll for as long as the dialog is mounted (feature 029 US4) —
+ * every adopter inherits it with no per-sheet change.
  */
 export function useDialogA11y(ref: RefObject<HTMLElement | null>, onClose: () => void) {
+  useScrollLock()
+
   useEffect(() => {
     const panel = ref.current
     const previouslyFocused = document.activeElement as HTMLElement | null

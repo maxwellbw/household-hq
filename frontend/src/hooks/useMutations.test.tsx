@@ -87,6 +87,26 @@ describe('useCreateEvent (optimistic create, R2)', () => {
     })
     expect(toastShow).toHaveBeenCalledWith("Couldn't save — try again")
   })
+
+  it('threads templateId through to the payload and the optimistic row (feature 029 US5)', async () => {
+    const queryClient = newQueryClient()
+    queryClient.setQueryData<Event[]>(['events'], [])
+    authedCall.mockResolvedValue({})
+
+    const { result } = renderHook(() => useCreateEvent(), { wrapper: wrapperFor(queryClient) })
+    act(() => {
+      result.current.mutate({ title: 'Trip', start: '2026-07-20T14:30', owner: 'jaz', templateId: 'Vacation' })
+    })
+
+    await waitFor(() => expect(authedCall).toHaveBeenCalled())
+    const payload = authedCall.mock.calls[0][1] as { templateId?: string }
+    expect(payload.templateId).toBe('Vacation')
+
+    await waitFor(() => {
+      const events = queryClient.getQueryData<Event[]>(['events'])
+      expect(events?.[0]?.templateId).toBe('Vacation')
+    })
+  })
 })
 
 describe('useCreateOneTimeTask (optimistic create, R2)', () => {
@@ -164,6 +184,26 @@ describe('useUpdateEvent (optimistic patch, R2)', () => {
       expect(events?.find((e) => e.id === 'e1')?.title).toBe('Old title')
     })
     expect(toastShow).toHaveBeenCalledWith("Couldn't save — try again")
+  })
+
+  it('patches templateId in the cache and sends it in the payload (feature 029 US5)', async () => {
+    const queryClient = newQueryClient()
+    queryClient.setQueryData<Event[]>(['events'], [existing])
+    authedCall.mockResolvedValue({})
+
+    const { result } = renderHook(() => useUpdateEvent(), { wrapper: wrapperFor(queryClient) })
+    act(() => {
+      result.current.mutate({ id: 'e1', templateId: 'Trip' })
+    })
+
+    await waitFor(() => expect(authedCall).toHaveBeenCalled())
+    const payload = authedCall.mock.calls[0][1] as { templateId?: string }
+    expect(payload.templateId).toBe('Trip')
+
+    await waitFor(() => {
+      const events = queryClient.getQueryData<Event[]>(['events'])
+      expect(events?.find((e) => e.id === 'e1')?.templateId).toBe('Trip')
+    })
   })
 })
 

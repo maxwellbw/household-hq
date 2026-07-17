@@ -9,7 +9,7 @@ import { buildSchedulePayload } from '@/lib/schedule'
 
 const SAVE_ERROR_MESSAGE = "Couldn't save — try again"
 
-type EventCreatePayload = { id: string; title: string; start: string; end: string; owner: Owner; type?: string; notes?: string; location?: string }
+type EventCreatePayload = { id: string; title: string; start: string; end: string; owner: Owner; type?: string; notes?: string; location?: string; templateId?: string }
 type TaskCreatePayload = { id: string; title: string; owner: Owner; dueDate?: string; notes?: string }
 
 /** Create an event (US5/US2 R2) — optimistic insert using a client-minted id (the
@@ -41,6 +41,7 @@ export function useCreateEvent() {
         type: payload.type,
         notes: payload.notes,
         location: payload.location,
+        templateId: payload.templateId,
       }
       queryClient.setQueryData<Event[] | undefined>(['events'], (old) => (old ? [...old, optimistic] : [optimistic]))
       return { previous }
@@ -136,6 +137,7 @@ export function useUpdateEvent() {
       owner?: Owner
       notes?: string
       location?: string
+      templateId?: string
     }) => {
       try {
         return await authedCall('events.update', payload)

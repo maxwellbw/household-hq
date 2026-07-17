@@ -147,6 +147,7 @@ function selfTestDogWalk() {
   unitDogWalkSelection_();
   unitDogWalkWeatherGate_();
   unitDogWalkSecondWalk_();
+  unitDogWalkFetchRetry_();
   liveDogWalkBookingLifecycle_();
   Logger.log('DOG WALK: ALL PASS');
 }
@@ -2772,6 +2773,56 @@ function unitDogWalkSecondWalk_() {
     'a weather-bad afternoon skips the second walk silently, same as no free window');
 
   Logger.log('unit dog-walk second-walk rule: pass');
+}
+
+/** A fake UrlFetchApp-shaped response (only the two methods fetchForecast_ calls). */
+function dogWalkFakeResponse_(code, body) {
+  return { getResponseCode: function () { return code; }, getContentText: function () { return body; } };
+}
+
+/**
+ * Retry test (feature 029 US6, T029): fetchForecast_ swaps in a fake `dogWalkFetch_` that
+ * fails the first attempt and succeeds on the second, asserting the retry rides over a
+ * transient failure the way a manual run already does — and that persistent failure across
+ * every attempt still returns null (fail-closed, never a fabricated forecast).
+ */
+function unitDogWalkFetchRetry_() {
+  var original = dogWalkFetch_;
+  var okBody = JSON.stringify({
+    hourly: {
+      time: ['2026-01-01T00:00', '2026-01-01T01:00'],
+      temperature_2m: [60, 61],
+      precipitation_probability: [0, 0],
+      weathercode: [0, 0]
+    }
+  });
+  var settings = { lat: 47.6, lon: -122.3, timezone: 'America/Los_Angeles' };
+
+  try {
+    var attempts = 0;
+    dogWalkFetch_ = function () {
+      attempts++;
+      if (attempts === 1) return dogWalkFakeResponse_(500, '');
+      return dogWalkFakeResponse_(200, okBody);
+    };
+    var forecast = fetchForecast_(settings);
+    assert_(forecast !== null, 'fetchForecast_ rides over a first-attempt failure and returns the forecast on retry');
+    assert_(attempts === 2, 'fetchForecast_ retried exactly once before succeeding');
+    assert_(forecast['2026-01-01T00'] && forecast['2026-01-01T00'].temp === 60,
+      'the retried forecast parses into the same hourly map shape as a first-try success');
+
+    attempts = 0;
+    dogWalkFetch_ = function () {
+      attempts++;
+      return dogWalkFakeResponse_(500, '');
+    };
+    assert_(fetchForecast_(settings) === null, 'fetchForecast_ still fails closed (null) when every attempt fails');
+    assert_(attempts === DOG_WALK_FETCH_MAX_ATTEMPTS_, 'a persistent failure is retried up to the max attempts, then gives up');
+  } finally {
+    dogWalkFetch_ = original;
+  }
+
+  Logger.log('unit dog-walk fetch retry: pass');
 }
 
 // ---------------------------------------------------------------------------

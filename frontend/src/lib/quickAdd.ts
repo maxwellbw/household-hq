@@ -14,6 +14,7 @@ export interface NewEventInput {
   type?: string
   notes?: string
   location?: string
+  templateId?: string // attaches a prep-checklist template (feature 029 US5)
 }
 
 export interface NewRecurringInput {
@@ -50,6 +51,7 @@ export function buildEventPayload(input: NewEventInput): Record<string, unknown>
     ...(input.type ? { type: input.type } : {}),
     ...(input.notes ? { notes: input.notes } : {}),
     ...(input.location ? { location: input.location } : {}),
+    ...(input.templateId ? { templateId: input.templateId } : {}),
   }
 }
 

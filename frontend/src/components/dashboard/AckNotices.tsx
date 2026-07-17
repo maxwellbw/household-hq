@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { AckNotice } from '@/lib/ackNotices'
-import { dismiss } from '@/lib/ackDismissals'
+import { dismiss, isDismissed } from '@/lib/ackDismissals'
 import { cn } from '@/lib/utils'
 
 interface AckNoticesProps {
@@ -10,10 +10,12 @@ interface AckNoticesProps {
 /** Dismissible "X has it" notices for tasks the viewer assigned that were just
  *  acknowledged (feature 019 US2). Persists across reloads until dismissed (research R4).
  *  Restyled (feature 028 R7) to the same quiet owner-colored outline language as the
- *  ack chip on TaskRow/TaskDetailSheet, colored for whoever committed. */
+ *  ack chip on TaskRow/TaskDetailSheet, colored for whoever committed. The `isDismissed`
+ *  check here is a belt-and-suspenders guard (feature 029 US3) on top of `notices` already
+ *  coming pre-filtered from the `ackNotices` selector — cheap and remount-proof either way. */
 export function AckNotices({ notices }: AckNoticesProps) {
   const [dismissedThisSession, setDismissedThisSession] = useState<Set<string>>(new Set())
-  const visible = notices.filter((n) => !dismissedThisSession.has(n.key))
+  const visible = notices.filter((n) => !dismissedThisSession.has(n.key) && !isDismissed(n.key))
 
   if (visible.length === 0) return null
 
