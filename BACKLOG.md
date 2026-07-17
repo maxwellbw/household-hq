@@ -23,8 +23,20 @@ order confirmed by Jaz 2026-07-11, including 010/011 — definitely a go, slotte
 | 6 | 028 | UX fix batch 3 (mobile polish + save speed + event lookahead) | ✅ merged | specs/028-ux-fix-batch-3 | [#27](https://github.com/maxwellbw/household-hq/pull/27) |
 | 7 | 010 | PWA install + web push | ✅ merged (real-iPhone checks still pending — see Shipped notes) | specs/010-pwa-and-push | [#28](https://github.com/maxwellbw/household-hq/pull/28) |
 | 8 | 011 | Weather-aware dog-walk window finder | ✅ merged (live-validated suggest-only; real auto-book run pending — see Shipped notes) | specs/011-dog-walk-finder | [#29](https://github.com/maxwellbw/household-hq/pull/29) |
-| 9 | **PRIV** | **Public-repo personal-data scrub (git history rewrite)** | ⬜ **next up — not started** | — | — |
-| 10 | 026 | Inbound gcal import (personal calendars) | ⬜ not started | — | — |
+| 9 | **PRIV** | **Public-repo personal-data scrub (git history rewrite)** | 🟡 **plan drafted 2026-07-17 — awaiting Max's approval** | specs/PRIV-privacy-scrub | — |
+| 10 | 029 | Bug-fix batch 4 (calendar glitch, scroll lock, dismissals, done strikethrough, walks in day peek + times, walk-trigger reliability, prep-template picker) | ⬜ not started (root causes captured in plan, 2026-07-16) | — | — |
+| 11 | 030 | Perf & resilience (data.bootstrap batching, code splitting, remaining optimistic saves, fetch timeout/retry, boot-restore hardening) | ⬜ not started | — | — |
+| 12 | 031 | Dog-walk day planner (view busy blocks + hourly weather, book from the app) | ⬜ not started | — | — |
+| 13 | 032 | Mobile rework (audit-driven, own spec) | ⬜ not started | — | — |
+| 14 | 026 | Inbound gcal import (personal calendars) | ⬜ not started | — | — |
+
+**Phase 0 tooling (no spec folder — infra, 2026-07-16/17):** `clasp run` works from the CLI
+(standard GCP project `household-hq-501817` associated, `executionApi` manifest block, Desktop
+OAuth client at `~/.config/household-hq/client_secret.json` — see backend/README.md "CLI:
+clasp run"), and a dev session token (`mintDevSessionToken()`, `backend/DevTools.js`) lets a
+sandboxed browser use the live app without Google OAuth — ending the era of "sandbox can't
+do OAuth" deferrals. First-ever full live run of the backend suite followed; see the
+2026-07-17 validation note under "Post-merge notes & open follow-ups".
 
 **PRIV — Public-repo personal-data scrub (git history rewrite).** Added 2026-07-14. During
 011's live setup we discovered `maxwellbw/household-hq` is a **public** repo — it must stay
@@ -252,42 +264,41 @@ grocery lists + inbound gcal import from the parked list · Phase 2.8 (028) plan
 
 ### Post-merge notes & open follow-ups
 
-**Open follow-ups first:** **010's real-iPhone checks are still pending** — `setupDatabase()`,
-`setupPush()`, and `selfTestPush()` (RFC 8291 vector + VAPID roundtrip) were run manually from
-the Apps Script editor and confirmed passing; the backend is pushed and the web-app deployment
-refreshed (@24). What's left needs a physical iPhone: home-screen install (icon/splash
-correctness), enabling notifications on the installed PWA, receiving a closed-app push, and
-disabling — see `specs/010-pwa-and-push/quickstart.md` §D–G. **028's live validation is still
-pending** — `clasp run` isn't
-configured as an API executable in this sandbox, so `setupDatabase()`, the four
-`selfTest1Core()` … `selfTest4CalendarAndComms()` chunks, and the one-time
-`generateRecurringEvents()` backfill (the moment the seeded birthdays/anniversaries
-actually appear on the calendar) all need to be run manually from the Apps Script editor;
-the real-iPhone checks (zoom lock, safe-area, day-peek touch, ack redesign at phone width)
-also need a real device. Backend code is pushed and the web-app deployment refreshed
-(@23) either way — see `specs/028-ux-fix-batch-3/quickstart.md` §A–H. **023's
-`selfTestSeedPack()` live run is still pending** — the
-sandbox can't execute Apps Script, so `selfTestSeedPack()` (updated for the 12-chore pack
-and the two new `sixweekly`/`eightweekly` cadences) needs to be run manually from the Apps
-Script editor to confirm `SEED PACK: ALL PASS`, and `seedRecurringPack()` needs a real run to
-seed the four dog-care chores into production (see `specs/023-dog-care-seed-rows/quickstart.md`
-§A–G). Backend code is pushed and the web-app deployment refreshed (@18) either way.
-**020's `selfTest()` and live click-through are still pending** —
-`clasp run` needs an API-executable deployment this project doesn't use (web app only), so
-`selfTest()` (which now includes `liveSettingsUpdate_()`) must be run manually from the Apps
-Script editor; the sandboxed preview also can't complete real Google OAuth, so the new
-More → Settings screen has only been verified via component tests + code-level review, not a
-live click-through. Backend code is pushed and the web-app deployment refreshed (@16)
-either way. **019's Sheet migration is still pending** — `setupDatabase()` (adds
-`Tasks.notes/ackBy/ackAt` + `Events.location`) and `selfTest()` need to be run from the Apps
-Script editor; until then the app fails closed with `SCHEMA_MISMATCH` on any request
-touching those fields. 009's live validation is still deferred (run `setupDatabase()` +
-`selfTest()`, pick topics, subscribe phones, quickstart A–F). 016, 017, 018, 019, 020, and
-**022** all shipped without a live browser pass (the sandboxed preview can't do real Google
-OAuth) — **a manual desktop + mobile quickstart pass is still recommended for all six; 018
-especially, since its core value (silent restore/refresh) is exactly what the sandbox can't
-exercise** — see `specs/018-stay-signed-in/quickstart.md`. 006's T057 live sign-in
-walkthrough was never formally run. 013's US3 (desktop drag-onto-day) is deferred until
+**2026-07-17 — first-ever full live validation of the backend suite (Phase 0 tooling).**
+With `clasp run` finally configured, `setupDatabase()`, all self-test chunks, and the
+one-time `generateRecurringEvents()` backfill were run against production — clearing the
+long-standing 019/020/023/028 "run it from the editor" backlog in one pass. Results:
+- **All suites green**: `selfTest1Core` → `selfTest4CalendarAndComms`, `selfTestSeedPack`,
+  `selfTestSessionTokens`, `selfTestDogWalk`, `selfTestPush`, `setupDatabase()`, and the
+  `generateRecurringEvents()` backfill (verified live in the browser: seeded birthdays now
+  appear on the calendar with their prep tasks attached, e.g. 0/1-task birthday chips).
+- **The run surfaced 5 never-executed-before test bugs, all fixed** (test bugs, not engine
+  bugs — engine code verified in each case): three missing-required-field expectations in
+  `liveSnooze_` said `BAD_REQUEST` where `requireFields_` has thrown `VALIDATION_FAILED`
+  since 001; annual/quarterly rules in `liveRecurringEventGeneration_`,
+  `liveRecurringEventPrep_`, and `liveRecurringEventCrud_`'s scope test used a 60-day
+  window that mathematically can never contain their next occurrence (fixed with the
+  366-day yearly window / an −85d quarterly anchor, mirroring 028's real per-cadence
+  behavior); the `{nth}` anniversary assert forgot the `selftest-` title prefix.
+- **028's chunk split was re-split**: `selfTest4CalendarAndComms` overran the 6-minute
+  Apps Script cap every time (and `clasp run` hangs rather than errors on an overrun —
+  known failure mode to remember). The five dog-walk suites moved out; `selfTestDogWalk()`
+  (already their dedicated runner) is now chunk **5/5**, and `selfTest()`'s guard text says
+  so. Slimmed chunk 4 passes at **5m31s — still close to the cap; watch it** as calendar
+  suites grow (candidate for a further split in a future backend batch).
+- New `cleanupSelfTestResidue()` (`backend/DevTools.js`) sweeps `selftest-` rows + ledger
+  keys stranded by mid-run aborts; run it after any failed suite.
+- **Two Sheet-data observations for Max/Jaz** (data, not code — no action taken):
+  the 023 **"Grooming" (eightweekly) rule is absent** from Recurring (hand-deleted? the
+  never-resurrect ledger respects that) and **"Tree/shrub trim" appears twice**.
+
+**Still device-gated (a real iPhone, not tooling):** 010's install/enable/receive/disable
+push checks (`specs/010-pwa-and-push/quickstart.md` §D–G) and 028's on-device checks (zoom
+lock, safe-area, day-peek touch, ack redesign at phone width). **011's real auto-book run
+is still pending** (flip `dogWalkAutoBook=TRUE`, see the 011 note below). The 016–022
+manual desktop/mobile quickstart passes are now largely superseded by live browser access
+(the dev token ends the "sandbox can't do OAuth" era); remaining UI verification folds
+into 029/032's live passes. 013's US3 (desktop drag-onto-day) is still deferred until
 Schedule-X exposes stable `data-date` on month-grid cells.
 
 _011 (PR #29). Daily Apps Script finder books one dog walk per weekday in a mutual-free,

@@ -1,6 +1,7 @@
 node_modules/
 dist/
 .clasprc.json
+client_secret*.json
 .impeccable/
 .claude/settings.local.json
 .DS_Store

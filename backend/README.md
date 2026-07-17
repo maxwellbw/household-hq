@@ -266,7 +266,9 @@ and yields "Page Not Found".
    re-run. Fill in `maxEmail` / `jazEmail` / `sharedEmails` and `OAUTH_CLIENT_ID`
    (`Config.js`) by hand — see feature 002 quickstart.
 4. **Validate:** follow [`quickstart.md`](../specs/001-sheets-schema-and-api/quickstart.md),
-   or run `selfTest()` in the editor (expects `ALL PASS`).
+   or run the five self-test chunks (`selfTest1Core()` … `selfTest4CalendarAndComms()`,
+   `selfTestDogWalk()`) — each logs `ALL PASS`. (`selfTest()` itself is a fail-loud guard,
+   not a runner.)
 5. **Install the nightly triggers:** in the editor, run `installRecurringEventsTrigger()`
    (feature 025), `installRecurringTrigger()` (feature 004), `installPrepTrigger()` (feature
    005), and `installCalendarTrigger()` (feature 007) once each. Re-running any of them is
@@ -286,6 +288,42 @@ feature 007's `gcalEventId` on Tasks, feature 015's `seedKey` on Recurring, feat
 `recurringEventId` on Events plus the new `RecurringEvents` tab), re-run `setupDatabase()`
 — it appends any missing header/tab without touching existing columns or data (safe to
 re-run).
+
+## CLI: `clasp run` + dev session tokens (Phase 0 tooling, 2026-07-16)
+
+Backend functions (self-tests, setup, generators) run from the CLI — no more manual
+editor runs. One-time setup already done:
+
+- A standard GCP project (`household-hq-501817`) is associated with the script
+  (Apps Script editor → Project Settings → GCP project number), the **Apps Script API**
+  is enabled both in that project and at script.google.com/home/usersettings, and the
+  manifest has `"executionApi": { "access": "MYSELF" }`.
+- clasp is logged in with a **Desktop-app OAuth client from that same project**
+  (required — the default clasp client can't call the Execution API on this script).
+  Client secret lives at `~/.config/household-hq/client_secret.json` (never in the repo;
+  `client_secret*.json` is gitignored). To re-login (e.g. after rotating the client):
+  `clasp login --creds ~/.config/household-hq/client_secret.json --use-project-scopes
+  --include-clasp-scopes` as the shared household account.
+
+Usage (from `backend/`; runs against the **head** deployment, i.e. the last `clasp push`):
+
+```bash
+clasp run selfTest1Core          # …2Recurring, 3SeedAndLists, 4CalendarAndComms,
+                                 # then selfTestDogWalk (chunk 5/5)
+clasp run setupDatabase
+clasp run cleanupSelfTestResidue # sweep selftest- rows/ledger keys after a failed suite
+clasp run mintDevSessionToken    # prints a 7-day hqs1. session token (see below)
+```
+
+Caveat: an execution that exceeds the 6-minute Apps Script cap makes `clasp run` **hang
+indefinitely** rather than error — kill it and check the execution's fate in the Apps
+Script dashboard. Chunk 4 currently runs ~5m30s; if it starts hanging, split it further.
+
+**Dev session tokens (browser access without Google OAuth):** `mintDevSessionToken()`
+(`DevTools.js`) mints a short-lived household session token for Max's allowlisted email.
+Paste it into the deployed app's `localStorage['hq.sessionToken']` and reload — the normal
+`auth.whoami` restore path signs in. Rotating the `SESSION_SECRET` script property revokes
+every outstanding token (dev and real).
 
 ## Deployment mode (interim; ratified by feature 002)
 

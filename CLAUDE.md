@@ -64,6 +64,12 @@ cd backend && clasp push             # upload local source to the script project
 clasp deploy                         # create/refresh the web-app deployment
 clasp pull                           # only if someone edited in the online editor (avoid this)
 clasp open-script                    # open in browser for trigger setup / logs
+clasp run <functionName>             # run self-tests/setup from the CLI (set up 2026-07-16;
+                                     # see backend/README.md "CLI: clasp run"). Runs HEAD, so
+                                     # `clasp push` first.
+clasp run mintDevSessionToken        # 7-day dev session token — paste into the deployed app's
+                                     # localStorage['hq.sessionToken'] to view it in a browser
+                                     # without Google OAuth (sandbox-friendly)
 ```
 
 The Apps Script web app is deployed as **Execute as: Me** (the deploying/shared account), access **Anyone** (even anonymous) — so a cross-origin browser `fetch` receives JSON, not a login redirect; the ID token + allowlist do all gating (feature 002, resolving research R1). After changing scopes in `appsscript.json`, only the deploying account re-authorizes (not both users).

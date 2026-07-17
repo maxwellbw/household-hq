@@ -43,10 +43,11 @@ var SELFTEST_PREFIX = 'selftest-';
  */
 function selfTest() {
   Logger.log('selfTest() no longer runs the suite directly — the full run exceeds the Apps ' +
-    'Script 6-minute execution limit. Run these four chunks from the editor, in order: ' +
-    'selfTest1Core(), selfTest2Recurring(), selfTest3SeedAndLists(), selfTest4CalendarAndComms().');
+    'Script 6-minute execution limit. Run these five chunks from the editor or `clasp run`, ' +
+    'in order: selfTest1Core(), selfTest2Recurring(), selfTest3SeedAndLists(), ' +
+    'selfTest4CalendarAndComms(), selfTestDogWalk().');
   throw new Error('selfTest() is a fail-loud guard, not a runner. See the Logger output above ' +
-    'for the four chunk functions to run instead — never trust a partial run as a pass.');
+    'for the five chunk functions to run instead — never trust a partial run as a pass.');
 }
 
 function selfTest1Core() {
@@ -64,7 +65,7 @@ function selfTest1Core() {
   liveTaskNotes_();
   liveAcknowledge_();
   liveTasksRank_();
-  Logger.log('SELFTEST 1/4 (Core): ALL PASS');
+  Logger.log('SELFTEST 1/5 (Core): ALL PASS');
 }
 
 function selfTest2Recurring() {
@@ -80,7 +81,7 @@ function selfTest2Recurring() {
   unitPrepMath_();
   livePrepGeneration_();
   livePrepLifecycle_();
-  Logger.log('SELFTEST 2/4 (Recurring): ALL PASS');
+  Logger.log('SELFTEST 2/5 (Recurring): ALL PASS');
 }
 
 function selfTest3SeedAndLists() {
@@ -92,7 +93,7 @@ function selfTest3SeedAndLists() {
   liveListsCrud_();
   liveListItemsCrud_();
   liveSeedLists_();
-  Logger.log('SELFTEST 3/4 (SeedAndLists): ALL PASS');
+  Logger.log('SELFTEST 3/5 (SeedAndLists): ALL PASS');
 }
 
 function selfTest4CalendarAndComms() {
@@ -104,13 +105,13 @@ function selfTest4CalendarAndComms() {
   liveSettingsUpdate_();
   unitPush_();
   liveCalendarLocationSync_();
-  unitDogWalkAvailability_();
-  unitDogWalkSelection_();
-  unitDogWalkWeatherGate_();
-  unitDogWalkSecondWalk_();
-  liveDogWalkBookingLifecycle_();
-  Logger.log('SELFTEST 4/4 (CalendarAndComms): ALL PASS');
+  Logger.log('SELFTEST 4/5 (CalendarAndComms): ALL PASS');
 }
+// The dog-walk suites that used to close this chunk (the 5 run by selfTestDogWalk()) are
+// the suite's fifth chunk: with them inline, chunk 4 overran the 6-minute execution cap
+// (first observed on the first-ever live run, 2026-07-17 — the live calendar suites plus
+// the live booking lifecycle together exceed it). selfTestDogWalk() was already their
+// dedicated public runner; run it as chunk 5/5.
 
 /**
  * Feature-015 targeted runner. The full `selfTest()` suite has grown past the 6-minute Apps
@@ -776,8 +777,13 @@ function liveRecurringEventGeneration_() {
   var tz = getTimezone_();
   var today = Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd');
   var windowEnd = addDays_(today, 60);
+  // Annual rules get the wide feature-028 window, mirroring generateRecurringEvents()'s
+  // per-cadence selection — a 60-day window can never contain an annual occurrence whose
+  // anchor already passed (occurrencesInWindow_ steps strictly forward from the anchor).
+  var windowEndYearly = addDays_(today, 366);
 
-  // An all-day yearly rule anchored ~15 days ago, so one occurrence falls inside the window.
+  // An all-day yearly rule anchored ~15 days ago: its next occurrence (~350 days out)
+  // falls inside the yearly window.
   var ruleId = SELFTEST_PREFIX + Utilities.getUuid();
   var anchor = addDays_(today, -15);
   createRecord_(TABS.RECURRING_EVENTS, {
@@ -786,7 +792,7 @@ function liveRecurringEventGeneration_() {
     templateId: '', location: '', notes: '', lastGenerated: '', seasonStart: '', seasonEnd: ''
   }, 'selftest');
 
-  generateForEventRule_(readEventRuleById_(ruleId), today, windowEnd);
+  generateForEventRule_(readEventRuleById_(ruleId), today, windowEndYearly);
   var occurrencesForRule = function () {
     return listRecords_(TABS.EVENTS).filter(function (e) { return e.recurringEventId === ruleId; });
   };
@@ -799,22 +805,23 @@ function liveRecurringEventGeneration_() {
   assert_(readEventRuleById_(ruleId).lastGenerated !== '', 'lastGenerated advances after generation');
 
   // Re-run: idempotent, no duplicates (SC-002).
-  generateForEventRule_(readEventRuleById_(ruleId), today, windowEnd);
+  generateForEventRule_(readEventRuleById_(ruleId), today, windowEndYearly);
   assert_(occurrencesForRule().length === first.length, 're-run creates no duplicate occurrences');
 
   // Delete one occurrence, re-run: not resurrected (FR-006).
   var deletedId = first[0].id;
   deleteEvent_({ id: deletedId }, 'selftest');
-  generateForEventRule_(readEventRuleById_(ruleId), today, windowEnd);
+  generateForEventRule_(readEventRuleById_(ruleId), today, windowEndYearly);
   var afterDelete = occurrencesForRule();
   assert_(afterDelete.filter(function (e) { return e.id === deletedId; }).length === 0,
     'deleted occurrence is not resurrected on re-run');
 
-  // A timed rule: occurrence carries the derived start/end.
+  // A timed rule: occurrence carries the derived start/end. Anchored ~85 days ago so the
+  // next quarterly step (+3 calendar months = 89–92 days) lands inside the 60-day window.
   var timedId = SELFTEST_PREFIX + Utilities.getUuid();
   createRecord_(TABS.RECURRING_EVENTS, {
     id: timedId, title: SELFTEST_PREFIX + 'checkup', cadence: 'quarterly',
-    anchorDate: addDays_(today, -5), startTime: '09:30', durationMinutes: '60',
+    anchorDate: addDays_(today, -85), startTime: '09:30', durationMinutes: '60',
     defaultOwner: 'max', templateId: '', location: '', notes: '', lastGenerated: '',
     seasonStart: '', seasonEnd: ''
   }, 'selftest');
@@ -900,7 +907,9 @@ function readEventRuleById_(id) {
 function liveRecurringEventPrep_() {
   var tz = getTimezone_();
   var today = Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd');
-  var windowEnd = addDays_(today, 60);
+  // Every rule in this suite is annual with a recent-past anchor, so use the wide
+  // feature-028 yearly window — a 60-day window can never contain their next occurrence.
+  var windowEnd = addDays_(today, 366);
 
   var eventType = SELFTEST_PREFIX + 'birthday-prep';
   var giftStep = createRecord_(TABS.TEMPLATES, {
@@ -1026,7 +1035,9 @@ function liveRecurringEventCrud_() {
   // its original values after the rule changes.
   var tz = getTimezone_();
   var today = Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd');
-  var windowEnd = addDays_(today, 60);
+  // Annual rule with a recent-past anchor — needs the wide yearly window (see
+  // liveRecurringEventGeneration_) for its next occurrence to be generable at all.
+  var windowEnd = addDays_(today, 366);
   var ruleId = SELFTEST_PREFIX + Utilities.getUuid();
   createRecord_(TABS.RECURRING_EVENTS, {
     id: ruleId, title: SELFTEST_PREFIX + 'scope test', cadence: 'annually',
@@ -1358,7 +1369,7 @@ function liveSeedEventsAndTemplates_() {
 
   var annivOcc = occForRule(annivRule.id);
   assert_(annivOcc.length === 1, 'seeded anniversary rule generates its occurrence');
-  assert_(annivOcc[0].title === '5th test anniversary',
+  assert_(annivOcc[0].title === SELFTEST_PREFIX + '5th test anniversary',
     'seeded anniversary occurrence bakes the {nth} token as the correct ordinal (5 years)');
 
   // Idempotency: re-run creates no duplicate template row or event rule.
@@ -2134,19 +2145,21 @@ function liveSnooze_() {
   assert_(resolveWriteActor_(sharedId, 'tasks.snooze', { actingPerson: 'max' }) === 'max',
     'shared-account snooze with actingPerson max → actor=max');
 
-  // 6. Bad request: missing id / invalid dueDate rejected.
-  assertFails_('BAD_REQUEST', function () {
+  // 6. Missing id / dueDate and invalid dueDate all rejected. Missing required fields
+  // throw VALIDATION_FAILED (requireFields_'s contract since feature 001), same as an
+  // invalid value — BAD_REQUEST is reserved for unknown/immutable fields.
+  assertFails_('VALIDATION_FAILED', function () {
     snoozeTask_({ dueDate: '2026-07-14' }, 'selftest');
-  }, 'snooze without id → BAD_REQUEST');
-  assertFails_('BAD_REQUEST', function () {
+  }, 'snooze without id → VALIDATION_FAILED');
+  assertFails_('VALIDATION_FAILED', function () {
     snoozeTask_({ id: id }, 'selftest');
-  }, 'snooze without dueDate → BAD_REQUEST');
+  }, 'snooze without dueDate → VALIDATION_FAILED');
   assertFails_('VALIDATION_FAILED', function () {
     snoozeTask_({ id: id, dueDate: 'not-a-date' }, 'selftest');
   }, 'snooze with invalid dueDate → VALIDATION_FAILED');
-  assertFails_('BAD_REQUEST', function () {
+  assertFails_('VALIDATION_FAILED', function () {
     unsnoozeTask_({}, 'selftest');
-  }, 'unsnooze without id → BAD_REQUEST');
+  }, 'unsnooze without id → VALIDATION_FAILED');
 
   deleteRecordById_(TABS.TASKS, id, 'selftest');
   Logger.log('live snooze: pass');
