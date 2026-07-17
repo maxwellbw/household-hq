@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { useSettings } from '@/hooks/useSettings'
 import { useCreateEvent, useCreateOneTimeTask, useCreateRecurring } from '@/hooks/useMutations'
+import { useTemplates } from '@/hooks/useTemplates'
 import { useDialogA11y } from '@/hooks/useDialogA11y'
 import { ownerStyle, ALL_OWNERS } from '@/lib/owners'
 import { endBeforeStart } from '@/lib/datetime'
@@ -46,11 +47,14 @@ export function QuickAddSheet({ onClose }: QuickAddSheetProps) {
   const [owner, setOwner] = useState<Owner>(defaultOwner)
   const [notes, setNotes] = useState('')
   const [location, setLocation] = useState('')
+  const [templateId, setTemplateId] = useState('')
   const [fieldError, setFieldError] = useState<{ field?: string; message: string } | null>(null)
 
   const createEvent = useCreateEvent()
   const createRecurring = useCreateRecurring()
   const createTask = useCreateOneTimeTask(timezone)
+  const templatesQuery = useTemplates()
+  const eventTypes = Array.from(new Set((templatesQuery.data ?? []).map((t) => t.eventType))).sort()
   const panelRef = useRef<HTMLFormElement>(null)
   useDialogA11y(panelRef, onClose)
 
@@ -83,6 +87,7 @@ export function QuickAddSheet({ onClose }: QuickAddSheetProps) {
           owner,
           notes: notes.trim() || undefined,
           location: location.trim() || undefined,
+          templateId: templateId || undefined,
         })
         onClose()
       } else if (type === 'recurring') {
@@ -232,6 +237,24 @@ export function QuickAddSheet({ onClose }: QuickAddSheetProps) {
               placeholder="Address or place"
               className="min-h-[44px] w-full rounded-control border border-border bg-surface px-3 text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
             />
+          </label>
+        )}
+
+        {type === 'event' && (
+          <label className="mb-3 block">
+            <span className="mb-1 block text-xs font-medium text-ink-muted">Prep checklist (optional)</span>
+            <select
+              value={templateId}
+              onChange={(e) => setTemplateId(e.target.value)}
+              className="min-h-[44px] w-full rounded-control border border-border bg-surface px-3 text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+            >
+              <option value="">None</option>
+              {eventTypes.map((eventType) => (
+                <option key={eventType} value={eventType}>
+                  {eventType}
+                </option>
+              ))}
+            </select>
           </label>
         )}
 

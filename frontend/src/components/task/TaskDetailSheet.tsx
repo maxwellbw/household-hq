@@ -36,6 +36,7 @@ export function TaskDetailSheet({ task, onClose, initialEdit = false }: TaskDeta
   const [showDelete, setShowDelete] = useState(false)
   const style = ownerStyle(task.owner)
   const isSnoozed = task.status === 'snoozed'
+  const isDone = task.status === 'done'
   const isRecurring = !!task.recurringId
   const historyRows = parseSnoozeHistory(task.snoozeHistory)
   const uncommitted = isUncommitted(task)
@@ -86,7 +87,7 @@ export function TaskDetailSheet({ task, onClose, initialEdit = false }: TaskDeta
         {/* Header */}
         <div className="mb-4 flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <h2 className="font-display text-xl text-ink">{task.title}</h2>
+            <h2 className={cn('font-display text-xl', isDone ? 'text-ink-muted line-through' : 'text-ink')}>{task.title}</h2>
             <p className="mt-1 flex items-center gap-2 text-sm text-ink-muted">
               <span
                 className={cn(

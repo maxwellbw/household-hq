@@ -123,7 +123,7 @@ export function TaskRow({ task, timezone, eventStartKey, onSnooze, onEditDue, on
         disabled={!onDetail}
         className={cn(
           'flex min-h-[44px] flex-1 items-center text-left text-sm transition-all duration-200',
-          isDone ? 'text-ink-faint line-through' : isSnoozed ? 'text-ink opacity-60' : 'text-ink',
+          isDone ? 'text-ink-muted line-through' : isSnoozed ? 'text-ink opacity-60' : 'text-ink',
           onDetail && 'hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
         )}
       >

@@ -21,6 +21,7 @@ const withTasks = (doneTaskCount: number, totalTaskCount: number): EventWithTask
 })
 
 const overdueTask: Task = { id: 't1', title: 'Water plants', owner: 'max', status: 'open', dueDate: '2026-07-01' }
+const doneTask: Task = { id: 't2', title: 'Water plants', owner: 'max', status: 'done', dueDate: '2026-07-20' }
 
 describe('EventContent', () => {
   it('shows "M/N tasks" when the event has prep tasks', () => {
@@ -93,5 +94,23 @@ describe('EventContent', () => {
       />,
     )
     expect(screen.getByText(/needs a decision/)).toBeInTheDocument()
+  })
+
+  it('strikes a done task chip title (feature 029 US2)', () => {
+    render(
+      <EventContent
+        calendarEvent={{ id: 't2', title: 'Water plants', owner: 'max', _raw: doneTask, _kind: 'task' }}
+      />,
+    )
+    expect(screen.getByText('Water plants')).toHaveClass('line-through')
+  })
+
+  it('does not strike an open or overdue task chip title', () => {
+    render(
+      <EventContent
+        calendarEvent={{ id: 't1', title: 'Water plants', owner: 'max', _raw: overdueTask, _kind: 'task', _overdue: true }}
+      />,
+    )
+    expect(screen.getByText('Water plants')).not.toHaveClass('line-through')
   })
 })

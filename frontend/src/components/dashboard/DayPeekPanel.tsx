@@ -1,12 +1,13 @@
 import { cn } from '@/lib/utils'
 import { ownerStyle } from '@/lib/owners'
 import { formatDate, formatDayLabel, formatTime, isAllDay } from '@/lib/datetime'
-import type { Event, Task } from '@/types/domain'
+import type { DogWalk, Event, Task } from '@/types/domain'
 
 interface DayPeekPanelProps {
   dateKey: string
   events: Event[]
   tasks: Task[]
+  walks: DogWalk[]
   timezone: string
   onOpenCalendar: (dateKey: string) => void
   onOpenTask: (task: Task) => void
@@ -84,7 +85,7 @@ function PeekTaskRow({ task, onOpen }: PeekTaskRowProps) {
       >
         {style.initial}
       </span>
-      <span className={cn('flex-1 text-sm', task.status === 'done' ? 'text-ink-faint line-through' : 'text-ink')}>
+      <span className={cn('flex-1 text-sm', task.status === 'done' ? 'text-ink-muted line-through' : 'text-ink')}>
         {task.title}
         {task.status === 'snoozed' && <span className="ml-2 text-xs text-ink-muted">snoozed</span>}
       </span>
@@ -95,14 +96,50 @@ function PeekTaskRow({ task, onOpen }: PeekTaskRowProps) {
   )
 }
 
+interface PeekWalkRowProps {
+  walk: DogWalk
+  timezone: string
+}
+
+function PeekWalkRow({ walk, timezone }: PeekWalkRowProps) {
+  const style = ownerStyle('both')
+  const needsDecision = walk.status === 'needs-decision'
+  const time = walk.windowStart && walk.windowEnd ? `${formatTime(walk.windowStart, timezone)}–${formatTime(walk.windowEnd, timezone)}` : null
+
+  return (
+    <div className="flex min-h-[44px] w-full items-center gap-3 border-b border-border px-1 py-2 last:border-b-0">
+      <span
+        className={cn(
+          'flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-medium text-surface',
+          'bg-owner-both',
+        )}
+        aria-label={style.label}
+      >
+        🐾
+      </span>
+      <span className="flex-1 text-sm text-ink">
+        Dog walk
+        {needsDecision && (
+          <span className="ml-2 text-xs text-ink-muted" aria-label="Needs a decision">
+            ⚠️ needs a decision
+          </span>
+        )}
+      </span>
+      {time && <span className="shrink-0 text-xs tabular-nums text-ink-muted">{time}</span>}
+    </div>
+  )
+}
+
 /**
  * Inline panel below the dashboard's 7-day strip (feature 028 US4): shows the tapped
  * day's events + tasks without leaving the dashboard, with a quiet link out to the full
  * calendar day. Membership comes from `itemsForDay` (lib/dashboard.ts), the same
  * selector the strip's counts use, so contents and counts can never disagree (SC-006).
+ * Walks (feature 029 US1) come from a dedicated `walksForDay` selector — read-only, no
+ * booking from the peek (that's feature 031).
  */
-export function DayPeekPanel({ dateKey, events, tasks, timezone, onOpenCalendar, onOpenTask, onOpenEvent }: DayPeekPanelProps) {
-  const isEmpty = events.length === 0 && tasks.length === 0
+export function DayPeekPanel({ dateKey, events, tasks, walks, timezone, onOpenCalendar, onOpenTask, onOpenEvent }: DayPeekPanelProps) {
+  const isEmpty = events.length === 0 && tasks.length === 0 && walks.length === 0
   const longLabel = formatDayLabel(dateKey, { weekday: 'long', month: 'long', day: 'numeric' })
 
   return (
@@ -134,6 +171,11 @@ export function DayPeekPanel({ dateKey, events, tasks, timezone, onOpenCalendar,
           {tasks.map((t) => (
             <li key={t.id} role="listitem">
               <PeekTaskRow task={t} onOpen={() => onOpenTask(t)} />
+            </li>
+          ))}
+          {walks.map((w) => (
+            <li key={w.id} role="listitem">
+              <PeekWalkRow walk={w} timezone={timezone} />
             </li>
           ))}
         </ul>

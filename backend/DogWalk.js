@@ -289,11 +289,30 @@ function computeAvailability_(sourceEventsByCal, ymd, settings, ownWindow) {
 // Weather (research R5)
 // ---------------------------------------------------------------------------
 
+var DOG_WALK_FETCH_MAX_ATTEMPTS_ = 3;
+var DOG_WALK_FETCH_RETRY_SLEEP_MS_ = 500;
+
+// Test seam (feature 029 US6): the sole point that calls UrlFetchApp for the forecast, so
+// selfTestDogWalk can swap it out to inject a transient failure without hitting the
+// network. Never reassigned outside tests.
+var dogWalkFetch_ = function (url) {
+  return UrlFetchApp.fetch(url, { muteHttpExceptions: true });
+};
+
 /** One Open-Meteo hourly forecast fetch -> `{"YYYY-MM-DDTHH": {temp, precipProb, code}}`.
- *  Returns `null` on any failure (missing coords, non-200, bad JSON) so callers can defer
- *  affected days rather than book/flag against a fabricated forecast (research R5). */
+ *  Returns `null` if the forecast is genuinely unavailable (missing coords, or every
+ *  attempt below fails) so callers can defer affected days rather than book/flag against a
+ *  fabricated forecast (research R5). Retries a transient fetch failure (thrown exception
+ *  or non-200) up to DOG_WALK_FETCH_MAX_ATTEMPTS_ times with a short backoff — trigger-driven
+ *  runs otherwise see more transient failures than manual runs and defer everything (feature
+ *  029 US6). Logs the specific failure mode (coords unset / HTTP code / exception message /
+ *  malformed JSON) so a genuine failure is diagnosable from the execution log, not just an
+ *  ambiguous catch-all. */
 function fetchForecast_(settings) {
-  if (settings.lat == null || settings.lon == null) return null;
+  if (settings.lat == null || settings.lon == null) {
+    Logger.log('fetchForecast_: coordinates unset.');
+    return null;
+  }
   var url = 'https://api.open-meteo.com/v1/forecast'
     + '?latitude=' + encodeURIComponent(settings.lat)
     + '&longitude=' + encodeURIComponent(settings.lon)
@@ -301,24 +320,39 @@ function fetchForecast_(settings) {
     + '&temperature_unit=fahrenheit'
     + '&timezone=' + encodeURIComponent(settings.timezone)
     + '&forecast_days=16';
-  try {
-    var resp = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
-    if (resp.getResponseCode() !== 200) return null;
-    var data = JSON.parse(resp.getContentText());
-    var hourly = data && data.hourly;
-    if (!hourly || !hourly.time) return null;
-    var map = {};
-    hourly.time.forEach(function (t, i) {
-      map[String(t).substring(0, 13)] = {
-        temp: hourly.temperature_2m[i],
-        precipProb: hourly.precipitation_probability[i],
-        code: hourly.weathercode[i]
-      };
-    });
-    return map;
-  } catch (e) {
-    return null;
+
+  var lastReason = 'unknown';
+  for (var attempt = 1; attempt <= DOG_WALK_FETCH_MAX_ATTEMPTS_; attempt++) {
+    try {
+      var resp = dogWalkFetch_(url);
+      var code = resp.getResponseCode();
+      if (code !== 200) {
+        lastReason = 'non-200 response (HTTP ' + code + ')';
+      } else {
+        var data = JSON.parse(resp.getContentText());
+        var hourly = data && data.hourly;
+        if (!hourly || !hourly.time) {
+          lastReason = 'malformed forecast JSON (missing hourly.time)';
+        } else {
+          var map = {};
+          hourly.time.forEach(function (t, i) {
+            map[String(t).substring(0, 13)] = {
+              temp: hourly.temperature_2m[i],
+              precipProb: hourly.precipitation_probability[i],
+              code: hourly.weathercode[i]
+            };
+          });
+          return map;
+        }
+      }
+    } catch (e) {
+      lastReason = 'exception (' + (e && e.message ? e.message : e) + ')';
+    }
+    Logger.log('fetchForecast_: attempt ' + attempt + '/' + DOG_WALK_FETCH_MAX_ATTEMPTS_ + ' failed — ' + lastReason);
+    if (attempt < DOG_WALK_FETCH_MAX_ATTEMPTS_) Utilities.sleep(DOG_WALK_FETCH_RETRY_SLEEP_MS_);
   }
+  Logger.log('fetchForecast_: all ' + DOG_WALK_FETCH_MAX_ATTEMPTS_ + ' attempts failed — ' + lastReason);
+  return null;
 }
 
 /**
@@ -678,7 +712,7 @@ function runDogWalkFinder() {
   var settings = readDogWalkSettings_();
   var forecast = fetchForecast_(settings);
   if (!forecast) {
-    Logger.log('runDogWalkFinder: forecast unavailable this run (fetch failed or coordinates unset); deferring all days.');
+    Logger.log('runDogWalkFinder: forecast unavailable after retries; deferring all days this run (see fetchForecast_ log above for the specific reason).');
     return;
   }
 

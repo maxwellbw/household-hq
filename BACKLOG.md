@@ -11,7 +11,9 @@ order confirmed by Jaz 2026-07-11, including 010/011 — definitely a go, slotte
 
 ## The queue — up next, in order
 
-**Next up: 029 — Bug-fix batch 4** (root causes captured in plan, 2026-07-16).
+**In progress: 029 — Bug-fix batch 4** (spec+clarify+plan+tasks+implement done 2026-07-17;
+all 39 tasks complete, all 7 stories live-validated per `specs/029-bug-fix-batch-4/quickstart.md`
+— see the post-merge note below; paused for commit/PR go-ahead).
 
 | Order | # | Feature | Stage | Spec folder | PR |
 |---|---|---|---|---|---|
@@ -24,7 +26,7 @@ order confirmed by Jaz 2026-07-11, including 010/011 — definitely a go, slotte
 | 7 | 010 | PWA install + web push | ✅ merged (real-iPhone checks still pending — see Shipped notes) | specs/010-pwa-and-push | [#28](https://github.com/maxwellbw/household-hq/pull/28) |
 | 8 | 011 | Weather-aware dog-walk window finder | ✅ merged (live-validated suggest-only; real auto-book run pending — see Shipped notes) | specs/011-dog-walk-finder | [#29](https://github.com/maxwellbw/household-hq/pull/29) |
 | 9 | **PRIV** | **Public-repo personal-data scrub (git history rewrite)** | ✅ done 2026-07-17 | specs/PRIV-privacy-scrub | — |
-| 10 | 029 | Bug-fix batch 4 (calendar glitch, scroll lock, dismissals, done strikethrough, walks in day peek + times, walk-trigger reliability, prep-template picker) | ⬜ not started (root causes captured in plan, 2026-07-16) | — | — |
+| 10 | 029 | Bug-fix batch 4 (calendar glitch, scroll lock, dismissals, done strikethrough, walks in day peek + times, walk-trigger reliability, prep-template picker) | 🟢 implement (all 7 stories live-validated 2026-07-17; deployed to head @26; awaiting commit/PR go-ahead) | specs/029-bug-fix-batch-4 | — |
 | 11 | 030 | Perf & resilience (data.bootstrap batching, code splitting, remaining optimistic saves, fetch timeout/retry, boot-restore hardening) | ⬜ not started | — | — |
 | 12 | 031 | Dog-walk day planner (view busy blocks + hourly weather, book from the app) | ⬜ not started | — | — |
 | 13 | 032 | Mobile rework (audit-driven, own spec) | ⬜ not started | — | — |
@@ -266,6 +268,54 @@ grocery lists + inbound gcal import from the parked list · Phase 2.8 (028) plan
 010 promoted ahead of 026 for iPhone push.
 
 ### Post-merge notes & open follow-ups
+
+**2026-07-17 — 029 (Bug-fix batch 4) implemented, all 39 tasks done, all 7 stories
+live-validated; not yet committed/PR'd (awaiting go-ahead).** Baseline 401 frontend tests
+→ 432 (+31); `npm run build` type-clean throughout; `selfTestDogWalk` green before and
+after a `clasp deploy -i` refresh to the stable head deployment (now @26).
+- **US1 (walks in Day Peek)**: live-confirmed a booked walk's time window, a needs-decision
+  walk's ⚠️ affordance with no spurious time, and no walk row on a day without one —
+  events/tasks unaffected.
+- **US2 (done strikethrough everywhere)**: live-confirmed across Tasks tab, Day Peek,
+  calendar chip (Next-7 view), and detail-sheet title for the same task. Audit caught a
+  real WCAG AA failure in the pre-existing `text-ink-faint` done-state color (3.06:1 on
+  white, needs 4.5:1) — swapped to `text-ink-muted` (5.68:1) across all 4 in-scope
+  surfaces (`TaskRow`, `DayPeekPanel`, `EventContent`, `TaskDetailSheet`); `ListItemRow`
+  (Lists feature, untouched by this batch) left as-is, flagged for a future pass.
+- **US3 (dismissed notices persist)**: live-confirmed dismissing a dog-walk notice survives
+  a simulated window-focus refetch AND a full page reload — the prior bug (component-only
+  session state, never reading `isDismissed()`) is gone; `DogWalkNotice` now consumes a new
+  `dogWalkNotices()` selector mirroring `ackNotices()`'s persisted-filter pattern.
+- **US4 (scroll lock)**: new ref-counted `useScrollLock` wired into `useDialogA11y` (all 9
+  sheet/dialog adopters inherit it). Live-confirmed on mobile viewport: background scroll
+  frozen while a sheet is open, restored on close, held through a nested dialog (Snooze
+  from Task detail) until the outer sheet also closes, and settles correctly after a rapid
+  open/close burst.
+- **US5 (prep-template picker)**: added to QuickAdd and Event-edit; live-confirmed via a
+  real created+deleted test event ("Test Guests Party 029", `guests-arriving` template) —
+  4 prep tasks attached at the template's offsets, re-applying the same template via
+  `events.update` did not duplicate (still 4), no backend change needed.
+- **US6 (dog-walk finder reliability)**: `fetchForecast_` now retries a transient fetch
+  failure (≤3 attempts, 500ms backoff) with distinct per-failure-mode logging (coords
+  unset / HTTP code / exception / bad JSON) replacing the old ambiguous catch-all. New
+  `unitDogWalkFetchRetry_` (via a `dogWalkFetch_` test seam) covers both the
+  rides-over-a-failure and still-fails-closed-after-max-attempts cases. A live
+  `runDogWalkFinder()` run booked/flagged the full horizon through 2026-07-31 with no
+  duplicates. **Still to watch: the next real nightly trigger's execution log**, per the
+  original bug report (manual runs already worked; only the installed trigger was failing).
+- **US7 (calendar flash)**: reproduced live first, per instruction, before touching code.
+  Tagged all rendered chip DOM nodes and forced a refetch of unchanged data via the
+  `QueryClient` (found through the React fiber tree) — confirmed 0/71 chip nodes survived
+  even though `calendarApp.events.set()` was never called, and `calendarApp.destroy()`
+  fired instead. Root cause: `@schedule-x/react`'s `ScheduleXCalendar` effect keys on
+  `[calendarApp, customComponents, randomId]` and its cleanup calls `.destroy()`; the
+  inline `customComponents={{...}}` object literal in `CalendarHome` was a fresh reference
+  every render, so the whole calendar was destroyed and rebuilt on every harmless refetch —
+  not the `events.set()` path the spec's research doc speculated. Fix: hoisted
+  `customComponents` to a module-level constant. Re-ran the same repro after the fix:
+  71/71 nodes survived; a genuine data change still updates correctly (new chip appeared,
+  71 pre-existing nodes untouched). New regression test in `CalendarHome.test.tsx` asserts
+  DOM-node identity survives a re-render; verified it fails without the fix.
 
 **2026-07-17 — first-ever full live validation of the backend suite (Phase 0 tooling).**
 With `clasp run` finally configured, `setupDatabase()`, all self-test chunks, and the

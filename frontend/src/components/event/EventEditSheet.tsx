@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import { useUpdateEvent } from '@/hooks/useMutations'
+import { useTemplates } from '@/hooks/useTemplates'
 import { useDialogA11y } from '@/hooks/useDialogA11y'
 import { endBeforeStart } from '@/lib/datetime'
 import { ownerStyle, ALL_OWNERS } from '@/lib/owners'
@@ -34,7 +35,10 @@ export function EventEditSheet({ event, onClose }: EventEditSheetProps) {
   const [owner, setOwner] = useState<Owner>(event.owner)
   const [notes, setNotes] = useState(event.notes ?? '')
   const [location, setLocation] = useState(event.location ?? '')
+  const [templateId, setTemplateId] = useState(event.templateId ?? '')
   const [fieldError, setFieldError] = useState<{ field?: string; message: string } | null>(null)
+  const templatesQuery = useTemplates()
+  const eventTypes = Array.from(new Set((templatesQuery.data ?? []).map((t) => t.eventType))).sort()
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -65,6 +69,7 @@ export function EventEditSheet({ event, onClose }: EventEditSheetProps) {
       owner,
       notes,
       location,
+      templateId,
     })
     onClose()
   }
@@ -153,6 +158,22 @@ export function EventEditSheet({ event, onClose }: EventEditSheetProps) {
             placeholder="Address or place"
             className="min-h-[44px] w-full rounded-control border border-border bg-surface px-3 text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
           />
+        </label>
+
+        <label className="mb-3 block">
+          <span className="mb-1 block text-xs font-medium text-ink-muted">Prep checklist (optional)</span>
+          <select
+            value={templateId}
+            onChange={(e) => setTemplateId(e.target.value)}
+            className="min-h-[44px] w-full rounded-control border border-border bg-surface px-3 text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+          >
+            <option value="">None</option>
+            {eventTypes.map((eventType) => (
+              <option key={eventType} value={eventType}>
+                {eventType}
+              </option>
+            ))}
+          </select>
         </label>
 
         <label className="mb-3 block">

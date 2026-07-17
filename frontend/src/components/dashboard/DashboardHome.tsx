@@ -8,7 +8,7 @@ import { useDogWalks } from '@/hooks/useDogWalks'
 import { useAuth } from '@/hooks/useAuth'
 import { highlights, itemsForDay, loadBalance, resolveViewer, sevenDayTiles, smartViews } from '@/lib/dashboard'
 import { ackNotices } from '@/lib/ackNotices'
-import { needsDecisionDays } from '@/lib/dogwalks'
+import { dogWalkNotices, walksForDay } from '@/lib/dogwalks'
 import { shouldShowGroceryNudge } from '@/lib/lists'
 import { buildCalendarModel } from '@/lib/tether'
 import { monthRange, weekRange } from '@/lib/datetime'
@@ -67,8 +67,8 @@ export function DashboardHome({ onOpenDate }: DashboardHomeProps) {
     [eventsQuery.data, recurringQuery.data, tasksQuery.data, timezone],
   )
 
-  const dogWalkNoticeDays = useMemo(
-    () => needsDecisionDays(dogWalksQuery.data ?? [], timezone),
+  const dogWalkNoticeItems = useMemo(
+    () => dogWalkNotices(dogWalksQuery.data ?? [], timezone),
     [dogWalksQuery.data, timezone],
   )
 
@@ -80,6 +80,11 @@ export function DashboardHome({ onOpenDate }: DashboardHomeProps) {
   const peekItems = useMemo(
     () => (peekDateKey ? itemsForDay(tasksQuery.data ?? [], eventsQuery.data ?? [], peekDateKey, timezone) : null),
     [peekDateKey, tasksQuery.data, eventsQuery.data, timezone],
+  )
+
+  const peekWalks = useMemo(
+    () => (peekDateKey ? walksForDay(dogWalksQuery.data ?? [], peekDateKey) : []),
+    [peekDateKey, dogWalksQuery.data],
   )
 
   const calendarModel = useMemo(
@@ -125,7 +130,7 @@ export function DashboardHome({ onOpenDate }: DashboardHomeProps) {
   return (
     <div className="flex flex-col py-2">
       <AckNotices notices={notices} />
-      <DogWalkNotice days={dogWalkNoticeDays} onOpenDate={onOpenDate} />
+      <DogWalkNotice notices={dogWalkNoticeItems} onOpenDate={onOpenDate} />
       <GroceryNudge show={showGroceryNudge} />
       <SevenDayStrip tiles={strip} activeDateKey={peekDateKey} onToggleDate={toggleDate} />
       {peekDateKey && peekItems && (
@@ -133,6 +138,7 @@ export function DashboardHome({ onOpenDate }: DashboardHomeProps) {
           dateKey={peekDateKey}
           events={peekItems.events}
           tasks={peekItems.tasks}
+          walks={peekWalks}
           timezone={timezone}
           onOpenCalendar={onOpenDate}
           onOpenTask={setDetailTask}

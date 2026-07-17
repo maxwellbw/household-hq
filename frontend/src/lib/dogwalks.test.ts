@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { needsDecisionDays, upcomingWalks } from './dogwalks'
+import { dogWalkNotices, needsDecisionDays, upcomingWalks, walksForDay } from './dogwalks'
+import { dismiss, dogWalkNoticeKey } from '@/lib/dogWalkDismissals'
 import type { DogWalk } from '@/types/domain'
 
 const TZ = 'America/Los_Angeles'
@@ -9,6 +10,7 @@ const FIXED_NOW = '2026-07-10T18:00:00Z'
 beforeEach(() => {
   vi.useFakeTimers()
   vi.setSystemTime(new Date(FIXED_NOW))
+  localStorage.clear()
 })
 
 afterEach(() => {
@@ -62,5 +64,61 @@ describe('needsDecisionDays', () => {
 
   it('returns an empty array when nothing needs a decision', () => {
     expect(needsDecisionDays([walk({ id: 'a', date: '2026-07-14' })], TZ)).toEqual([])
+  })
+})
+
+describe('walksForDay', () => {
+  it('returns booked/suggested walks matching the day, sorted by slot', () => {
+    const rows = [
+      walk({ id: 'second', date: '2026-07-12', slot: 'second', status: 'suggested' }),
+      walk({ id: 'primary', date: '2026-07-12', slot: 'primary', status: 'booked' }),
+      walk({ id: 'other-day', date: '2026-07-13' }),
+    ]
+    expect(walksForDay(rows, '2026-07-12').map((w) => w.id)).toEqual(['primary', 'second'])
+  })
+
+  it('includes needs-decision walks for the day', () => {
+    const rows = [walk({ id: 'flagged', date: '2026-07-12', status: 'needs-decision', windowStart: null, windowEnd: null, reason: 'no-good-weather' })]
+    expect(walksForDay(rows, '2026-07-12').map((w) => w.id)).toEqual(['flagged'])
+  })
+
+  it('excludes deferred walks and walks on other days', () => {
+    const rows = [
+      walk({ id: 'deferred', date: '2026-07-12', status: 'deferred', windowStart: null, windowEnd: null }),
+      walk({ id: 'other-day', date: '2026-07-13' }),
+    ]
+    expect(walksForDay(rows, '2026-07-12')).toEqual([])
+  })
+
+  it('returns an empty array for a day with no walks', () => {
+    expect(walksForDay([], '2026-07-12')).toEqual([])
+  })
+})
+
+describe('dogWalkNotices', () => {
+  it('maps needs-decision rows to notice items, earliest first', () => {
+    const rows = [
+      walk({ id: 'a', date: '2026-07-14', status: 'needs-decision', reason: 'no-good-weather' }),
+      walk({ id: 'b', date: '2026-07-10', status: 'needs-decision', reason: 'no-mutual-free' }),
+    ]
+    const result = dogWalkNotices(rows, TZ)
+    expect(result).toEqual([
+      { key: dogWalkNoticeKey('2026-07-10', 'primary', 'no-mutual-free'), date: '2026-07-10', slot: 'primary', reason: 'no-mutual-free' },
+      { key: dogWalkNoticeKey('2026-07-14', 'primary', 'no-good-weather'), date: '2026-07-14', slot: 'primary', reason: 'no-good-weather' },
+    ])
+  })
+
+  it('excludes a notice whose key is already persisted-dismissed', () => {
+    const rows = [walk({ id: 'a', date: '2026-07-14', status: 'needs-decision', reason: 'no-good-weather' })]
+    dismiss(dogWalkNoticeKey('2026-07-14', 'primary', 'no-good-weather'))
+    expect(dogWalkNotices(rows, TZ)).toEqual([])
+  })
+
+  it('re-shows a notice when the underlying reason changes, even if the old key was dismissed', () => {
+    dismiss(dogWalkNoticeKey('2026-07-14', 'primary', 'no-good-weather'))
+    const rows = [walk({ id: 'a', date: '2026-07-14', status: 'needs-decision', reason: 'forecast-turned-bad' })]
+    expect(dogWalkNotices(rows, TZ)).toEqual([
+      { key: dogWalkNoticeKey('2026-07-14', 'primary', 'forecast-turned-bad'), date: '2026-07-14', slot: 'primary', reason: 'forecast-turned-bad' },
+    ])
   })
 })

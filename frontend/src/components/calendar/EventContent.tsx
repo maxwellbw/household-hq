@@ -28,6 +28,10 @@ function isEventRaw(raw: Event | EventWithTasks | Task | undefined): raw is Even
   return !!raw && 'start' in raw
 }
 
+function isTaskRaw(raw: Event | EventWithTasks | Task | undefined): raw is Task {
+  return !!raw && 'status' in raw
+}
+
 const OWNER_EDGE: Record<Owner, string> = {
   max: 'border-l-owner-max',
   jaz: 'border-l-owner-jaz',
@@ -71,6 +75,7 @@ export function EventContent({ calendarEvent }: ScheduleXEventProps) {
   const eventWithTasks = eventRaw && 'tasks' in eventRaw ? (eventRaw as EventWithTasks) : undefined
   const totalTaskCount = eventWithTasks?.totalTaskCount
   const doneTaskCount = eventWithTasks?.doneTaskCount
+  const isDoneTask = calendarEvent._kind === 'task' && isTaskRaw(raw) && raw.status === 'done'
 
   return (
     <div
@@ -92,7 +97,9 @@ export function EventContent({ calendarEvent }: ScheduleXEventProps) {
         >
           {style.initial}
         </span>
-        <span className="truncate font-medium text-ink">{calendarEvent.title ?? raw?.title}</span>
+        <span className={cn('truncate font-medium', isDoneTask ? 'text-ink-muted line-through' : 'text-ink')}>
+          {calendarEvent.title ?? raw?.title}
+        </span>
         {calendarEvent._overdue ? (
           <span className="ml-auto shrink-0 rounded-full bg-danger px-1.5 text-[9px] font-medium uppercase tracking-wide text-surface">
             Overdue

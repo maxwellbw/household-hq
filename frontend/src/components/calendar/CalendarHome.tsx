@@ -36,6 +36,18 @@ interface CalendarDateRange {
   end: { toString(): string }
 }
 
+// Feature 029 US7 — pinned root cause: `@schedule-x/react`'s `ScheduleXCalendar` runs its
+// setup effect on `[calendarApp, customComponents, randomId]` and its cleanup calls
+// `calendarApp.destroy()`, so ANY new `customComponents` reference fully tears down and
+// re-renders the entire calendar (every chip), not just the changed ones. An inline object
+// literal in the JSX below recreated on every `CalendarHome` render — including a harmless
+// background refetch of unchanged data — reproducibly caused `calendarApp.destroy()` to
+// fire on every settle (confirmed live: 71/71 event DOM nodes replaced, `destroy()` called,
+// while `calendarApp.events.set()` was never even invoked). Hoisting this object to module
+// scope keeps its reference stable — `EventContent` is a stable import — so the effect
+// no-ops on an unchanged refetch and the flash is gone.
+const CUSTOM_COMPONENTS = { monthGridEvent: EventContent, monthAgendaEvent: EventContent }
+
 // Desktop month-grid per-day chip cap before collapsing into "+N more"
 // (feature 017 FR-008) — tuned to stay within one grid-cell row at the
 // app's desktop widths.
@@ -250,10 +262,7 @@ export function CalendarHome({ visibleOwners, focusDate }: CalendarHomeProps) {
     <div className="sx-react-calendar-wrapper flex shrink-0 flex-col">
       <CalendarViewSwitcher mode={mode === 'day' ? 'month' : mode} onChange={handleViewChange} />
       {mode === 'month' ? (
-        <ScheduleXCalendar
-          calendarApp={calendarApp}
-          customComponents={{ monthGridEvent: EventContent, monthAgendaEvent: EventContent }}
-        />
+        <ScheduleXCalendar calendarApp={calendarApp} customComponents={CUSTOM_COMPONENTS} />
       ) : (
         <DayListView
           mode={mode}
