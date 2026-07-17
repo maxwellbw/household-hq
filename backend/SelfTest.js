@@ -587,11 +587,11 @@ function unitThanksgivingAndOrdinals_() {
     'ordinal_ 21-23 after the teens exception');
 
   // {nth} token substitution, baked per occurrence from anchor year -> occurrence year.
-  assert_(renderOccurrenceTitle_('{nth} dating anniversary', '2020-01-01', '2026-01-24') === '6th dating anniversary',
+  assert_(renderOccurrenceTitle_('{nth} dating anniversary', '2020-01-01', '2026-01-01') === '6th dating anniversary',
     'renderOccurrenceTitle_ substitutes the year delta as an ordinal');
   assert_(renderOccurrenceTitle_("Rufus's {nth} gotcha day", '2022-07-10', '2027-07-10') === "Rufus's 5th gotcha day",
     'renderOccurrenceTitle_ works inside a possessive title');
-  assert_(renderOccurrenceTitle_("Jaz's birthday", '2020-01-02', '2027-01-02') === "Jaz's birthday",
+  assert_(renderOccurrenceTitle_("Jaz's birthday", '2020-01-01', '2027-01-01') === "Jaz's birthday",
     'renderOccurrenceTitle_ returns a token-less title unchanged');
   assert_(renderOccurrenceTitle_('{nth} wedding anniversary', '2025-01-01', '2025-01-01') === '{nth} wedding anniversary',
     'renderOccurrenceTitle_ leaves the token in place rather than rendering a non-positive ordinal');

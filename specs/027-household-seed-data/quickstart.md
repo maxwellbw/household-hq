@@ -40,7 +40,7 @@ features). Frontend search is verified in the browser preview.
 
 1. Run `generateRecurringEvents()` once (or wait for the nightly trigger).
 2. On the calendar, confirm the eight birthdays appear on their dates (e.g. "Jaz's
-   birthday" Jan 2), each recurring yearly.
+   birthday"), each recurring yearly.
 3. Confirm each birthday's prep task materializes at its lead time with the right owner —
    e.g. "Buy Jaz's birthday gift" 14 days before, owned by **Max**; "Buy Max's birthday
    gift" 14 days before, owned by **Jaz**; "Text Uncle in the family group chat" **day
