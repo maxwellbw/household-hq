@@ -12,6 +12,7 @@ interface DayPeekPanelProps {
   onOpenCalendar: (dateKey: string) => void
   onOpenTask: (task: Task) => void
   onOpenEvent: (event: Event) => void
+  onOpenWalkPlanner: (dateKey: string) => void
 }
 
 function ownerDotClass(owner: Event['owner']): string {
@@ -99,15 +100,23 @@ function PeekTaskRow({ task, onOpen }: PeekTaskRowProps) {
 interface PeekWalkRowProps {
   walk: DogWalk
   timezone: string
+  onOpen: () => void
 }
 
-function PeekWalkRow({ walk, timezone }: PeekWalkRowProps) {
+/** Opens the day planner (feature 031 US2) — the walk entry is the app's one entry point
+ *  into the planner, keeping the calendar the organizing metaphor (PRODUCT.md, research R7)
+ *  rather than adding a new top-level destination. */
+function PeekWalkRow({ walk, timezone, onOpen }: PeekWalkRowProps) {
   const style = ownerStyle('both')
   const needsDecision = walk.status === 'needs-decision'
   const time = walk.windowStart && walk.windowEnd ? `${formatTime(walk.windowStart, timezone)}–${formatTime(walk.windowEnd, timezone)}` : null
 
   return (
-    <div className="flex min-h-[44px] w-full items-center gap-3 border-b border-border px-1 py-2 last:border-b-0">
+    <button
+      type="button"
+      onClick={onOpen}
+      className="flex min-h-[44px] w-full items-center gap-3 border-b border-border px-1 py-2 text-left last:border-b-0 hover:bg-surface-alt focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+    >
       <span
         className={cn(
           'flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-medium text-surface',
@@ -124,9 +133,14 @@ function PeekWalkRow({ walk, timezone }: PeekWalkRowProps) {
             ⚠️ needs a decision
           </span>
         )}
+        {walk.decidedBy && (
+          <span className="ml-2 inline-flex items-center rounded-full bg-accent-soft px-1.5 py-0.5 text-[10px] font-medium text-ink">
+            Decided by {ownerStyle(walk.decidedBy).label}
+          </span>
+        )}
       </span>
       {time && <span className="shrink-0 text-xs tabular-nums text-ink-muted">{time}</span>}
-    </div>
+    </button>
   )
 }
 
@@ -138,7 +152,7 @@ function PeekWalkRow({ walk, timezone }: PeekWalkRowProps) {
  * Walks (feature 029 US1) come from a dedicated `walksForDay` selector — read-only, no
  * booking from the peek (that's feature 031).
  */
-export function DayPeekPanel({ dateKey, events, tasks, walks, timezone, onOpenCalendar, onOpenTask, onOpenEvent }: DayPeekPanelProps) {
+export function DayPeekPanel({ dateKey, events, tasks, walks, timezone, onOpenCalendar, onOpenTask, onOpenEvent, onOpenWalkPlanner }: DayPeekPanelProps) {
   const isEmpty = events.length === 0 && tasks.length === 0 && walks.length === 0
   const longLabel = formatDayLabel(dateKey, { weekday: 'long', month: 'long', day: 'numeric' })
 
@@ -175,7 +189,7 @@ export function DayPeekPanel({ dateKey, events, tasks, walks, timezone, onOpenCa
           ))}
           {walks.map((w) => (
             <li key={w.id} role="listitem">
-              <PeekWalkRow walk={w} timezone={timezone} />
+              <PeekWalkRow walk={w} timezone={timezone} onOpen={() => onOpenWalkPlanner(dateKey)} />
             </li>
           ))}
         </ul>

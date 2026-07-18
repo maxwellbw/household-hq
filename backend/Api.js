@@ -11,17 +11,22 @@
 // Envelope + error plumbing
 // ---------------------------------------------------------------------------
 
-/** Structured error carrier; fail_ throws it, doPost maps it to the error envelope. */
-function AppError_(code, message, field) {
+/** Structured error carrier; fail_ throws it, doPost maps it to the error envelope. `details`
+ *  is optional, structured data beyond `message` (feature 031: `OVERRIDE_REQUIRED` carries
+ *  named `failedGates`/`conflicts` so the client can render a real confirmation step rather
+ *  than a bare error string). Omitted by every pre-existing call site — fully backward
+ *  compatible. */
+function AppError_(code, message, field, details) {
   this.isAppError = true;
   this.code = code;
   this.message = message;
   this.field = field;
+  this.details = details;
 }
 
 /** Throw a closed-set error (contracts/api.md §Error codes). */
-function fail_(code, message, field) {
-  throw new AppError_(code, message, field);
+function fail_(code, message, field, details) {
+  throw new AppError_(code, message, field, details);
 }
 
 function jsonOutput_(obj) {
@@ -34,9 +39,10 @@ function okOut_(data) {
   return jsonOutput_({ ok: true, data: data });
 }
 
-function errorOut_(code, message, field) {
+function errorOut_(code, message, field, details) {
   var error = { code: code, message: message };
   if (field) error.field = field;
+  if (details) error.details = details;
   return jsonOutput_({ ok: false, error: error });
 }
 
@@ -80,7 +86,7 @@ function doPost(e) {
     }
     return okOut_(handler(payload, actor, identity));
   } catch (err) {
-    if (err && err.isAppError) return errorOut_(err.code, err.message, err.field);
+    if (err && err.isAppError) return errorOut_(err.code, err.message, err.field, err.details);
     console.error('INTERNAL error in doPost: ' + (err && err.stack ? err.stack : err));
     return errorOut_('INTERNAL', 'An unexpected error occurred.');
   }
@@ -152,6 +158,14 @@ var HANDLERS = {
 
   // Feature 011: dog-walk finder — read-only; the engine owns all writes (contracts/dogwalks-api.md).
   'dogwalks.list':  function () { return { dogWalks: listUpcomingDogWalks_() }; },
+  // Feature 031 US2: the day planner — read-only, derived server-side from the engine's own
+  // functions (contracts/dogwalks-planner-api.md) so it cannot drift from the nightly run.
+  'dogwalks.day':   function (p) { return buildDayPlan_(p.date, readDogWalkSettings_()); },
+  // Feature 031 US3: book/unbook/release — all route through bookOrReconcileWalk_, so
+  // invites/ledger shape and idempotency are inherited, never reimplemented (FR-018/FR-019).
+  'dogwalks.book':    function (p, actor) { return { dogWalk: bookWalkManually_(p, actor, readDogWalkSettings_()) }; },
+  'dogwalks.unbook':  function (p, actor) { return { dogWalk: unbookWalkManually_(p, actor) }; },
+  'dogwalks.release': function (p, actor) { return { dogWalk: releaseWalkDecision_(p, actor) }; },
 
   // Feature 030 US1: single-request cold-load bootstrap — composes the nine *.list helpers
   // above into one response (contracts/api-bootstrap.md). Read-only; excludes activity

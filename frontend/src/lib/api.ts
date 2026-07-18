@@ -12,12 +12,17 @@ const TRANSIENT_CODES = new Set(['NETWORK_ERROR', 'TIMEOUT', 'BAD_RESPONSE'])
 export class ApiError extends Error {
   code: string
   field?: string
+  // Structured data beyond `message` (feature 031: OVERRIDE_REQUIRED carries named
+  // failedGates/conflicts so the client can render a real confirmation step). Undefined for
+  // every other error code.
+  details?: unknown
 
-  constructor(code: string, message: string, field?: string) {
+  constructor(code: string, message: string, field?: string, details?: unknown) {
     super(message)
     this.name = 'ApiError'
     this.code = code
     this.field = field
+    this.details = details
   }
 }
 
@@ -30,7 +35,7 @@ export function isTransientError(err: unknown): boolean {
 interface Envelope<T> {
   ok: boolean
   data?: T
-  error?: { code: string; message: string; field?: string }
+  error?: { code: string; message: string; field?: string; details?: unknown }
 }
 
 interface CallOptions {
@@ -78,7 +83,7 @@ export async function apiCall<T>(
 
   if (!envelope.ok) {
     const err = envelope.error ?? { code: 'INTERNAL', message: 'An unexpected error occurred.' }
-    throw new ApiError(err.code, err.message, err.field)
+    throw new ApiError(err.code, err.message, err.field, err.details)
   }
 
   return envelope.data as T

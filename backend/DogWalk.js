@@ -1,5 +1,5 @@
 /**
- * DogWalk.js — the weather-aware dog-walk window finder (feature 011).
+ * DogWalk.js — the weather-aware dog-walk window finder (feature 011) + day planner (031).
  *
  * A daily trigger reads free/busy from both work calendars (Google-native, or an
  * Outlook/Exchange ICS subscribed into Google Calendar — research R4) + the shared Household
@@ -10,19 +10,32 @@
  * auto-cancels: a booked window that turns bad is moved; if nothing good remains, the day
  * is flagged `needs-decision` and both users are pushed. See specs/011-dog-walk-finder/.
  *
+ * Feature 031 adds: a forecast cache (script properties) so a rate-limited live fetch falls
+ * back instead of deferring every day; a read-only day-plan assembly reused by the planner
+ * UI; and manual book/unbook/release actions that freeze a row against the automatic run.
+ * See specs/031-dog-walk-day-planner/.
+ *
  * Settings/parse:  readDogWalkSettings_, parseIgnoreList_, parseDurations_,
  *                  parseWmoSnowIce_, hhmmToMinutes_, walkDateTime_, isoWithOffset_,
  *                  parseIsoWithOffset_
  * Ledger:          readDogWalkRows_, findRow_, upsertDogWalkRow_
  * Availability:    fetchAllSourceEvents_ (fetchWorkCalEvents_/fetchHouseholdEvents_),
  *                  computeAvailability_, mergeIntervals_/subtractFromInterval_/unionInterval_
- * Weather:         fetchForecast_, weatherGate_
- * Selection:       selectWindow_, secondWalkPlan_
+ * Forecast cache:  dogWalkCacheHourBand_, dogWalkEncodeCache_, writeForecastCache_,
+ *                  readForecastCache_ (031)
+ * Weather:         fetchForecast_, dogWalkTruncateBody_, getForecastWithFallback_ (031),
+ *                  weatherGate_, gateHour_ (031)
+ * Selection:       selectWindow_, bestCandidatesForDuration_, secondWalkPlan_
  * Booking:         bookOrReconcileWalk_, ensureInviteEvent_, tagWalkEvent_, moveWalk_,
  *                  flagNeedsDecision_, sendDogWalkPush_
  * Run-loop:        runDogWalkFinder, processDogWalkDay_, resolveSlot_, isFrozen_,
- *                  ownWindowOf_, sameWindow_
- * Trigger:         installDogWalkTrigger
+ *                  dogWalkNormalizeDecidedBy_ (031), ownWindowOf_, sameWindow_
+ * Trigger:         installDogWalkTrigger, warmForecastCache (031)
+ * Day plan (031):  dogWalkBusyBlocks_, dogWalkHourlyGates_, enumerateCandidateWindows_,
+ *                  enumerateSecondCandidateWindows_, dogWalkApplyExistingChoice_,
+ *                  dogWalkCandidateOut_, dogWalkBusyBlockOut_, dogWalkWalkOut_, buildDayPlan_
+ * Manual actions (031): dogWalkWindowFailedGates_, dogWalkWindowConflicts_,
+ *                  bookWalkManually_, unbookWalkManually_, releaseWalkDecision_
  * Reader:          listUpcomingDogWalks_
  */
 
@@ -290,7 +303,6 @@ function computeAvailability_(sourceEventsByCal, ymd, settings, ownWindow) {
 // ---------------------------------------------------------------------------
 
 var DOG_WALK_FETCH_MAX_ATTEMPTS_ = 3;
-var DOG_WALK_FETCH_RETRY_SLEEP_MS_ = 500;
 
 // Test seam (feature 029 US6): the sole point that calls UrlFetchApp for the forecast, so
 // selfTestDogWalk can swap it out to inject a transient failure without hitting the
@@ -298,6 +310,146 @@ var DOG_WALK_FETCH_RETRY_SLEEP_MS_ = 500;
 var dogWalkFetch_ = function (url) {
   return UrlFetchApp.fetch(url, { muteHttpExceptions: true });
 };
+
+// Test seam (feature 031 T004): the sole point that reaches script properties for the
+// forecast cache, so self-tests can swap in an in-memory store without touching real script
+// properties. Never reassigned outside tests.
+var dogWalkProps_ = function () {
+  return PropertiesService.getScriptProperties();
+};
+
+// Test seam (feature 031 T005): the sole point that reads "now" for cache-age/freshness
+// checks, so self-tests can assert age deterministically instead of with real elapsed time.
+// Never reassigned outside tests.
+var dogWalkNow_ = function () {
+  return new Date();
+};
+
+// Test seam (feature 031 T019): the sole point that sleeps between forecast-fetch retry
+// attempts, so self-tests can record the backoff schedule instead of actually waiting
+// minutes. Never reassigned outside tests.
+var dogWalkSleep_ = function (ms) {
+  Utilities.sleep(ms);
+};
+
+// ---------------------------------------------------------------------------
+// Forecast cache (feature 031, data-model.md §2): a durable script-property fallback so a
+// rate-limited live fetch doesn't defer every day. Never a source of truth (Principle II) —
+// losing it costs at most one run's fallback.
+// ---------------------------------------------------------------------------
+
+/** The inclusive hour band that can contain a walk: `earliestStart`'s hour through the hour
+ *  containing `latestStart` + the longest configured duration (data-model §2). Only these
+ *  hours are ever gated, so only these are worth caching. */
+function dogWalkCacheHourBand_(settings) {
+  var longestMin = Math.max.apply(null, settings.durationsMin);
+  return {
+    startHour: Math.floor(hhmmToMinutes_(settings.earliestStart) / 60),
+    endHour: Math.ceil((hhmmToMinutes_(settings.latestStart) + longestMin) / 60)
+  };
+}
+
+/** Encode `map` (the shape `fetchForecast_` builds) into the data-model §2 delimited format,
+ *  trimmed to `days` x `hourBand`. */
+function dogWalkEncodeCache_(map, days, hourBand, fetchedAt, settings) {
+  var lines = [DOG_WALK_CACHE_VERSION + '|' + fetchedAt + '|' + settings.lat + '|' + settings.lon];
+  days.forEach(function (ymd) {
+    for (var h = hourBand.startHour; h <= hourBand.endHour; h++) {
+      var key = ymd + 'T' + (h < 10 ? '0' + h : '' + h);
+      var entry = map[key];
+      if (!entry) continue;
+      lines.push(key + ',' + entry.temp + ',' + entry.precipProb + ',' + entry.code);
+    }
+  });
+  return lines.join('\n');
+}
+
+/**
+ * Store `map` as the forecast cache, trimmed to `settings.reliableDays` days (the same
+ * horizon `runDogWalkFinder` evaluates) and the walk-eligible hour band. Asserts the encoded
+ * size against `DOG_WALK_CACHE_MAX_BYTES`, shedding the furthest-out day first and logging
+ * when it does (T007) — near-term days are the ones that matter. No-ops without coordinates,
+ * since a coordinate-less forecast is never fetched in the first place.
+ */
+function writeForecastCache_(map, settings) {
+  if (settings.lat == null || settings.lon == null) return;
+  var hourBand = dogWalkCacheHourBand_(settings);
+  var today = todayYmd_();
+  var days = [];
+  for (var offset = 0; offset <= settings.reliableDays; offset++) days.push(addDays_(today, offset));
+  var totalDays = days.length;
+  var fetchedAt = isoWithOffset_(dogWalkNow_(), settings.timezone);
+
+  var encoded = dogWalkEncodeCache_(map, days, hourBand, fetchedAt, settings);
+  while (encoded.length > DOG_WALK_CACHE_MAX_BYTES && days.length > 1) {
+    days.pop(); // shed the furthest-out day first — near-term days matter most
+    encoded = dogWalkEncodeCache_(map, days, hourBand, fetchedAt, settings);
+  }
+  if (days.length < totalDays) {
+    Logger.log('writeForecastCache_: shed ' + (totalDays - days.length) + ' furthest-out day(s) to stay under the ' +
+      DOG_WALK_CACHE_MAX_BYTES + '-byte cache ceiling (encoded ' + encoded.length + ' bytes).');
+  }
+  dogWalkProps_().setProperty(DOG_WALK_FORECAST_CACHE_KEY, encoded);
+}
+
+/**
+ * Decode the stored forecast cache into `{map, fetchedAt, ageMinutes, usableForBooking}`, or
+ * `null` when there is no cache, it fails to decode, or its coordinates no longer match
+ * `settings` (data-model §2 validity rules). A version mismatch or any malformed payload
+ * degrades to `null` rather than throwing (T008) — a corrupt cache must never break a run.
+ * `usableForBooking` is false once the cache is older than `DOG_WALK_CACHE_MAX_AGE_MIN`
+ * (FR-006), but the cache is still returned so the planner can display it labelled with its
+ * age. Takes `settings` explicitly (a deviation from contracts/dogwalks-planner-api.md's
+ * no-arg signature — see the note there) so it stays pure and testable like its siblings
+ * (`writeForecastCache_`, `getForecastWithFallback_`) rather than silently depending on live
+ * Settings-sheet state.
+ */
+function readForecastCache_(settings) {
+  var raw = dogWalkProps_().getProperty(DOG_WALK_FORECAST_CACHE_KEY);
+  if (!raw) return null;
+
+  try {
+    var lines = raw.split('\n');
+    var header = lines[0].split('|');
+    if (header.length !== 4 || header[0] !== DOG_WALK_CACHE_VERSION) {
+      Logger.log('readForecastCache_: version mismatch or malformed header; treating as no cache.');
+      return null;
+    }
+    var fetchedAt = header[1];
+    var lat = Number(header[2]);
+    var lon = Number(header[3]);
+    var fetchedDate = parseIsoWithOffset_(fetchedAt);
+    if (!fetchedDate || isNaN(lat) || isNaN(lon)) {
+      Logger.log('readForecastCache_: malformed header fields; treating as no cache.');
+      return null;
+    }
+
+    if (settings.lat == null || settings.lon == null || settings.lat !== lat || settings.lon !== lon) {
+      Logger.log('readForecastCache_: cached coordinates do not match current Settings; discarding.');
+      return null;
+    }
+
+    var map = {};
+    for (var i = 1; i < lines.length; i++) {
+      var line = lines[i];
+      if (!line) continue;
+      var parts = line.split(',');
+      if (parts.length !== 4) continue; // tolerate one malformed row rather than failing the whole cache
+      map[parts[0]] = { temp: Number(parts[1]), precipProb: Number(parts[2]), code: Number(parts[3]) };
+    }
+
+    var ageMinutes = Math.round((dogWalkNow_().getTime() - fetchedDate.getTime()) / 60000);
+    return {
+      map: map,
+      fetchedAt: fetchedAt,
+      ageMinutes: ageMinutes,
+      usableForBooking: ageMinutes <= DOG_WALK_CACHE_MAX_AGE_MIN
+    };
+  } catch (e) {
+    Logger.log('readForecastCache_: failed to decode cache (' + (e && e.message ? e.message : e) + '); treating as no cache.');
+    return null;
+  }
+}
 
 /** One Open-Meteo hourly forecast fetch -> `{"YYYY-MM-DDTHH": {temp, precipProb, code}}`.
  *  Returns `null` if the forecast is genuinely unavailable (missing coords, or every
@@ -323,11 +475,16 @@ function fetchForecast_(settings) {
 
   var lastReason = 'unknown';
   for (var attempt = 1; attempt <= DOG_WALK_FETCH_MAX_ATTEMPTS_; attempt++) {
+    var isRateLimited = false;
     try {
       var resp = dogWalkFetch_(url);
       var code = resp.getResponseCode();
       if (code !== 200) {
+        isRateLimited = code === 429;
         lastReason = 'non-200 response (HTTP ' + code + ')';
+        // T011: Open-Meteo returns a human-readable `reason` in the body on 429 — the
+        // evidence research R1 needs the next time this happens.
+        Logger.log('fetchForecast_: attempt ' + attempt + ' body — ' + dogWalkTruncateBody_(resp.getContentText()));
       } else {
         var data = JSON.parse(resp.getContentText());
         var hourly = data && data.hourly;
@@ -342,17 +499,54 @@ function fetchForecast_(settings) {
               code: hourly.weathercode[i]
             };
           });
+          // T012: every successful fetch feeds the cache, whoever/whatever initiated it
+          // (finder, warm trigger, or the planner) — the single path all three writers share
+          // (FR-006a, research R3).
+          writeForecastCache_(map, settings);
           return map;
         }
       }
     } catch (e) {
       lastReason = 'exception (' + (e && e.message ? e.message : e) + ')';
     }
-    Logger.log('fetchForecast_: attempt ' + attempt + '/' + DOG_WALK_FETCH_MAX_ATTEMPTS_ + ' failed — ' + lastReason);
-    if (attempt < DOG_WALK_FETCH_MAX_ATTEMPTS_) Utilities.sleep(DOG_WALK_FETCH_RETRY_SLEEP_MS_);
+    if (attempt < DOG_WALK_FETCH_MAX_ATTEMPTS_) {
+      // T010: escalating, class-specific backoff (research R4) — a rate-limit response waits
+      // minutes, not the old flat 500ms that put all three attempts inside one second.
+      var schedule = isRateLimited ? DOG_WALK_BACKOFF_RATELIMIT_MS : DOG_WALK_BACKOFF_TRANSIENT_MS;
+      var sleepMs = schedule[attempt - 1] !== undefined ? schedule[attempt - 1] : schedule[schedule.length - 1];
+      Logger.log('fetchForecast_: attempt ' + attempt + '/' + DOG_WALK_FETCH_MAX_ATTEMPTS_ + ' failed — ' + lastReason +
+        ' — retrying in ' + sleepMs + 'ms (' + (isRateLimited ? 'rate-limit' : 'transient') + ' schedule).');
+      dogWalkSleep_(sleepMs);
+    } else {
+      Logger.log('fetchForecast_: attempt ' + attempt + '/' + DOG_WALK_FETCH_MAX_ATTEMPTS_ + ' failed — ' + lastReason);
+    }
   }
   Logger.log('fetchForecast_: all ' + DOG_WALK_FETCH_MAX_ATTEMPTS_ + ' attempts failed — ' + lastReason);
   return null;
+}
+
+/** Truncate a response body for logging — Open-Meteo's 429 `reason` field lives in here
+ *  (research R1 evidence) — without flooding the execution log on a large error page. */
+function dogWalkTruncateBody_(text) {
+  var s = String(text || '');
+  return s.length > 500 ? s.substring(0, 500) + '…(truncated)' : s;
+}
+
+/**
+ * The single entry point callers use for a forecast: try a live fetch, fall back to the
+ * cache on failure (FR-002). `runDogWalkFinder` and `dogwalks.day` both go through this so
+ * their provenance semantics (live/cache/none, age, usability) cannot diverge (research R6).
+ */
+function getForecastWithFallback_(settings) {
+  var live = fetchForecast_(settings);
+  if (live) {
+    return { map: live, source: 'live', fetchedAt: isoWithOffset_(dogWalkNow_(), settings.timezone), ageMinutes: 0, usableForBooking: true };
+  }
+  var cached = readForecastCache_(settings);
+  if (cached) {
+    return { map: cached.map, source: 'cache', fetchedAt: cached.fetchedAt, ageMinutes: cached.ageMinutes, usableForBooking: cached.usableForBooking };
+  }
+  return { map: null, source: 'none', fetchedAt: null, ageMinutes: null, usableForBooking: false };
 }
 
 /**
@@ -363,21 +557,37 @@ function fetchForecast_(settings) {
  */
 function weatherGate_(forecast, windowStart, windowEnd, settings) {
   if (!forecast) return false;
-  var wmoSet = parseWmoSnowIce_();
   var tz = settings.timezone;
   var cursor = new Date(windowStart.getTime());
   cursor.setMinutes(0, 0, 0);
   while (cursor < windowEnd) {
     var key = Utilities.formatDate(cursor, tz, "yyyy-MM-dd'T'HH");
-    var metrics = forecast[key];
-    if (!metrics) return false;
-    if (Number(metrics.temp) > settings.weatherHeatF) return false;
-    if (Number(metrics.temp) < settings.weatherColdFloorF) return false;
-    if (Number(metrics.precipProb) >= settings.weatherPrecipPct) return false;
-    if (wmoSet[Number(metrics.code)]) return false;
+    if (!gateHour_(forecast, key, settings).passes) return false;
     cursor = new Date(cursor.getTime() + 3600000);
   }
   return true;
+}
+
+/**
+ * Per-hour gate check (feature 031 US2, T021): the one place the four weather gates are
+ * evaluated — `weatherGate_` (window selection) and `buildDayPlan_` (the planner) both call
+ * this rather than each carrying their own copy, which is what makes FR-015 ("the planner
+ * MUST reflect the same reasoning the nightly run uses") structurally true instead of a
+ * promise to keep two implementations in sync. Returns every gate `hourKey` fails, named
+ * (`heat`/`cold`/`precip`/`snowIce`), or `noForecast` alone when the hour is missing from
+ * `forecast` entirely — never both, since a missing hour has no metrics to gate.
+ */
+function gateHour_(forecast, hourKey, settings) {
+  var metrics = forecast ? forecast[hourKey] : null;
+  if (!metrics) return { passes: false, failedGates: ['noForecast'] };
+
+  var wmoSet = parseWmoSnowIce_();
+  var failedGates = [];
+  if (Number(metrics.temp) > settings.weatherHeatF) failedGates.push('heat');
+  if (Number(metrics.temp) < settings.weatherColdFloorF) failedGates.push('cold');
+  if (Number(metrics.precipProb) >= settings.weatherPrecipPct) failedGates.push('precip');
+  if (wmoSet[Number(metrics.code)]) failedGates.push('snowIce');
+  return { passes: failedGates.length === 0, failedGates: failedGates };
 }
 
 // ---------------------------------------------------------------------------
@@ -519,7 +729,7 @@ function ensureInviteEvent_(cal, existingId, plan, title, email, dogWalkId, pers
  * later run upgrades a suggested row to booked (existing blank ids just get created then).
  * `existingRow` (if any) supplies the row/invite identity so retries never duplicate.
  */
-function bookOrReconcileWalk_(existingRow, plan, settings) {
+function bookOrReconcileWalk_(existingRow, plan, settings, log, extraFields) {
   var id = existingRow ? existingRow.id : Utilities.getUuid();
   var isSuggestOnly = !settings.autoBook;
   var maxId = existingRow ? existingRow.maxGcalEventId : '';
@@ -532,13 +742,24 @@ function bookOrReconcileWalk_(existingRow, plan, settings) {
   }
 
   var status = isSuggestOnly ? 'suggested' : 'booked';
-  var row = upsertDogWalkRow_({
+  var fields = {
     id: id, date: plan.ymd, slot: plan.slot, status: status,
     windowStart: isoWithOffset_(plan.windowStart, settings.timezone),
     windowEnd: isoWithOffset_(plan.windowEnd, settings.timezone),
     durationMin: plan.durationMin, maxGcalEventId: maxId, jazGcalEventId: jazId, reason: ''
-  });
-  appendLog_('system', isSuggestOnly ? 'dogwalk-suggest' : 'dogwalk-book', row.id,
+  };
+  // feature 031 US3: a manual booking (bookWalkManually_) passes extraFields = {decidedBy:
+  // actor} so the freeze marker lands in the SAME atomic upsert as the window/status, rather
+  // than a second separate write.
+  if (extraFields) Object.keys(extraFields).forEach(function (k) { fields[k] = extraFields[k]; });
+  var row = upsertDogWalkRow_(fields);
+  // `log` lets a manual booking attribute the ActivityLog entry to the real actor under the
+  // distinct 'dogwalk.book' action (contracts/dogwalks-planner-api.md) instead of the
+  // automatic finder's 'system'/'dogwalk-book' — omitted here (the finder's own calls),
+  // defaults preserve the exact prior behavior.
+  var logActor = (log && log.actor) || 'system';
+  var logAction = (log && log.action) || (isSuggestOnly ? 'dogwalk-suggest' : 'dogwalk-book');
+  appendLog_(logActor, logAction, row.id,
     plan.ymd + ' ' + plan.slot + ' walk ' + (isSuggestOnly ? 'suggested' : 'booked') + ' ' + formatWindow_(plan));
   return row;
 }
@@ -609,10 +830,22 @@ function sendDogWalkPush_(ymd, slot, kind, reason) {
 // Run-loop state machine (research R10)
 // ---------------------------------------------------------------------------
 
-/** FR-018: a row whose stored window has already started is frozen — never re-evaluated,
- *  moved, or flagged. */
+/** Normalize a `decidedBy` cell to `max`/`jaz`/`''` — anything else (a hand-edit typo, a
+ *  stray value, or garbage) reads as blank rather than being trusted, so a corrupted cell
+ *  degrades to "automatic" instead of breaking the freeze logic (Principle II — tolerate
+ *  hand-edits, feature 031 T037). */
+function dogWalkNormalizeDecidedBy_(value) {
+  var v = String(value || '').trim().toLowerCase();
+  return (v === 'max' || v === 'jaz') ? v : '';
+}
+
+/** FR-018/FR-021: a row is frozen — never re-evaluated, moved, or flagged by the automatic
+ *  run — when a human decided it (`decidedBy` non-blank, research R5), regardless of window
+ *  time or status; or, absent a decision, when its stored window has already started. */
 function isFrozen_(row) {
-  if (!row || !row.windowStart) return false;
+  if (!row) return false;
+  if (dogWalkNormalizeDecidedBy_(row.decidedBy)) return true;
+  if (!row.windowStart) return false;
   if (row.status !== 'booked' && row.status !== 'needs-decision') return false;
   var start = parseIsoWithOffset_(row.windowStart);
   return !!start && start.getTime() <= Date.now();
@@ -710,9 +943,20 @@ function processDogWalkDay_(ymd, rows, sourceEvents, forecast, settings) {
  */
 function runDogWalkFinder() {
   var settings = readDogWalkSettings_();
-  var forecast = fetchForecast_(settings);
-  if (!forecast) {
-    Logger.log('runDogWalkFinder: forecast unavailable after retries; deferring all days this run (see fetchForecast_ log above for the specific reason).');
+  // feature 031 FR-005: log exactly one of the three provenance lines below, so the
+  // execution log states plainly which of live/cache/neither this run acted on.
+  var forecast = getForecastWithFallback_(settings);
+
+  if (forecast.source === 'live') {
+    Logger.log('runDogWalkFinder: forecast: live fetch succeeded');
+  } else if (forecast.source === 'cache' && forecast.usableForBooking) {
+    Logger.log('runDogWalkFinder: forecast: live fetch failed — serving cache fetched ' +
+      forecast.ageMinutes + ' minutes ago');
+  } else {
+    var why = forecast.source === 'cache'
+      ? 'the only cache available is ' + forecast.ageMinutes + ' minutes old, past the ' + DOG_WALK_CACHE_MAX_AGE_MIN + '-minute usability limit'
+      : 'no cache is available either';
+    Logger.log('runDogWalkFinder: forecast: live fetch and cache both unavailable (' + why + ') — deferring all days this run.');
     return;
   }
 
@@ -728,7 +972,7 @@ function runDogWalkFinder() {
     var dow = walkDateTime_(ymd, '12:00').getDay(); // 0=Sun..6=Sat; noon avoids DST-edge ambiguity
     if (dow === 0 || dow === 6) continue; // FR-005: weekends out of scope entirely
     try {
-      processDogWalkDay_(ymd, rows, sourceEvents, forecast, settings);
+      processDogWalkDay_(ymd, rows, sourceEvents, forecast.map, settings);
     } catch (err) {
       console.error('runDogWalkFinder: day ' + ymd + ' failed: ' + (err && err.stack ? err.stack : err));
     }
@@ -744,14 +988,415 @@ function runDogWalkFinder() {
  */
 function installDogWalkTrigger() {
   ScriptApp.getProjectTriggers().forEach(function (t) {
-    if (t.getHandlerFunction() === 'runDogWalkFinder') ScriptApp.deleteTrigger(t);
+    var fn = t.getHandlerFunction();
+    if (fn === 'runDogWalkFinder' || fn === 'warmForecastCache') ScriptApp.deleteTrigger(t);
   });
   ScriptApp.newTrigger('runDogWalkFinder')
     .timeBased()
     .atHour(DOG_WALK_TRIGGER_HOUR)
     .everyDays(1)
     .create();
-  Logger.log('installDogWalkTrigger: nightly trigger installed at hour ' + DOG_WALK_TRIGGER_HOUR);
+  // feature 031 research R3: an independent-hour warm-up trigger so the cache has a writer
+  // other than the finder trigger itself — the one that gets rate-limited.
+  ScriptApp.newTrigger('warmForecastCache')
+    .timeBased()
+    .atHour(DOG_WALK_WARM_HOUR)
+    .everyDays(1)
+    .create();
+  Logger.log('installDogWalkTrigger: nightly finder trigger installed at hour ' + DOG_WALK_TRIGGER_HOUR +
+    ', warm-cache trigger installed at hour ' + DOG_WALK_WARM_HOUR + '.');
+}
+
+/**
+ * Trigger handler / editor-runnable entry point (no trailing underscore — CLAUDE.md
+ * feature-004 gotcha: a trailing underscore hides a function from both the Run menu and
+ * eligibility as a trigger handler, and the failure is silent). Fetches the forecast and
+ * writes the cache; nothing else — no ledger read, no booking. An independent draw against
+ * rate-limit congestion at an hour unrelated to the finder trigger (research R3).
+ */
+function warmForecastCache() {
+  var settings = readDogWalkSettings_();
+  var map = fetchForecast_(settings); // writes the cache itself on success (T012)
+  Logger.log(map ? 'warmForecastCache: forecast fetched and cached.' : 'warmForecastCache: fetch failed; cache left unchanged.');
+}
+
+// ---------------------------------------------------------------------------
+// Day plan assembly (feature 031 US2, contracts/dogwalks-planner-api.md §dogwalks.day):
+// composes the engine's own functions into the planner's response. No gate or selection
+// logic lives here — everything is delegated to computeAvailability_/gateHour_/
+// selectWindow_/secondWalkPlan_, which is what keeps FR-015 structurally true rather than a
+// promise to keep a second implementation in sync.
+// ---------------------------------------------------------------------------
+
+/**
+ * The day's busy blocks for the planner (FR-009): the same all-day/ignore-list filtering
+ * and [earliestStart, latestStart] clipping `computeAvailability_` applies, so displayed
+ * free time matches the finder's actual free time — but kept per-event (owner, title)
+ * instead of collapsed into the free-time complement, since the planner needs to say whose
+ * calendar each block came from (owner coloring, PRODUCT.md). Deliberately not merged
+ * across owners/not deduplicated with computeAvailability_'s internals: T022 gates the one
+ * change allowed to existing decision logic (weatherGate_/gateHour_) at T021, and
+ * computeAvailability_ is not part of that change — this stays a separate, read-only,
+ * additive function.
+ */
+function dogWalkBusyBlocks_(sourceEventsByCal, ymd, settings) {
+  var dayStart = walkDateTime_(ymd, settings.earliestStart);
+  var dayEnd = walkDateTime_(ymd, settings.latestStart);
+  if (dayEnd <= dayStart) return [];
+
+  var blocks = [];
+  ['max', 'jaz', 'household'].forEach(function (key) {
+    var owner = key === 'household' ? 'both' : key;
+    (sourceEventsByCal[key] || []).forEach(function (ev) {
+      if (ev.allDay) return; // day-context, never blocks (research R4) — mirrors computeAvailability_
+      if (ev.title && settings.ignoreList.indexOf(String(ev.title).trim().toLowerCase()) >= 0) return;
+      var s = ev.start, e = ev.end;
+      if (e <= dayStart || s >= dayEnd) return;
+      blocks.push({
+        start: s < dayStart ? dayStart : s,
+        end: e > dayEnd ? dayEnd : e,
+        owner: owner,
+        title: ev.title || null
+      });
+    });
+  });
+  blocks.sort(function (a, b) { return a.start - b.start; });
+  return blocks;
+}
+
+/**
+ * Per-hour weather + gate detail for the planner (FR-010), one entry per hour in the
+ * walk-eligible band — the same band `dogWalkCacheHourBand_` trims the cache to (T006), so
+ * the planner shows exactly the hours the forecast cache and the gates actually cover.
+ * Delegates every pass/fail decision to `gateHour_` (T021) — no gate logic of its own.
+ */
+function dogWalkHourlyGates_(forecastMap, ymd, settings) {
+  if (!forecastMap) return [];
+  var band = dogWalkCacheHourBand_(settings);
+  var hours = [];
+  for (var h = band.startHour; h <= band.endHour; h++) {
+    var key = ymd + 'T' + (h < 10 ? '0' + h : '' + h);
+    var metrics = forecastMap[key];
+    var gate = gateHour_(forecastMap, key, settings);
+    hours.push({
+      hour: key,
+      tempF: metrics ? Number(metrics.temp) : null,
+      precipProbPct: metrics ? Number(metrics.precipProb) : null,
+      wmoCode: metrics ? Number(metrics.code) : null,
+      passes: gate.passes,
+      failedGates: gate.failedGates
+    });
+  }
+  return hours;
+}
+
+/**
+ * Every configured duration's best candidate window (FR-011), not just the one
+ * `selectWindow_` would return — reuses `bestCandidatesForDuration_`, the exact per-duration
+ * scan `selectWindow_` itself uses, for every duration instead of stopping at the first that
+ * fits. `chosen` marks the same winner `selectWindow_` would return (the longest duration
+ * with any fit, in-band preferred) — no selection logic is reimplemented (FR-015).
+ */
+function enumerateCandidateWindows_(freeIntervals, forecast, durationsMin, settings) {
+  var bandStartMin = hhmmToMinutes_(settings.bandStart);
+  var bandEndMin = hhmmToMinutes_(settings.bandEnd);
+  var candidates = [];
+  var chosenIndex = -1;
+
+  for (var di = 0; di < durationsMin.length; di++) {
+    var durationMin = durationsMin[di];
+    var bestInBand = null, bestAny = null;
+    for (var i = 0; i < freeIntervals.length; i++) {
+      var got = bestCandidatesForDuration_(freeIntervals[i], forecast, durationMin, bandStartMin, bandEndMin, settings);
+      if (got.inBand && (!bestInBand || got.inBand.dist < bestInBand.dist ||
+          (got.inBand.dist === bestInBand.dist && got.inBand.start < bestInBand.start))) bestInBand = got.inBand;
+      if (got.any && (!bestAny || got.any.dist < bestAny.dist ||
+          (got.any.dist === bestAny.dist && got.any.start < bestAny.start))) bestAny = got.any;
+    }
+    var winner = bestInBand || bestAny;
+    if (winner) {
+      candidates.push({ start: winner.start, end: new Date(winner.start.getTime() + durationMin * 60000), durationMin: durationMin, chosen: false });
+      if (chosenIndex === -1) chosenIndex = candidates.length - 1; // longest duration with any fit wins, mirroring selectWindow_
+    }
+  }
+  if (chosenIndex >= 0) candidates[chosenIndex].chosen = true;
+  return candidates;
+}
+
+/** The second slot's one candidate, if `secondWalkPlan_` finds an eligible window — reuses
+ *  it directly rather than re-scanning (there is only one target duration for this slot, so
+ *  there is nothing else to enumerate). */
+function enumerateSecondCandidateWindows_(primaryEffective, freeIntervals, forecast, settings) {
+  var plan = secondWalkPlan_(primaryEffective, freeIntervals, forecast, settings);
+  return plan ? [{ start: plan.windowStart, end: plan.windowEnd, durationMin: plan.durationMin, chosen: true }] : [];
+}
+
+/**
+ * If `row` is a real booked walk, its window is authoritative (FR-015: the planner must
+ * never contradict the ledger's actual decision, e.g. a frozen/never-cancelled walk whose
+ * forecast has since turned bad) — mark the matching freshly-computed candidate chosen, or
+ * inject the booked window as an extra candidate if none matches. No-op (leaving the fresh
+ * computation's own `chosen` marker standing) when there is no booked row.
+ */
+function dogWalkApplyExistingChoice_(candidates, row) {
+  if (!row || row.status !== 'booked' || !row.windowStart || !row.windowEnd) return;
+  var start = parseIsoWithOffset_(row.windowStart);
+  var end = parseIsoWithOffset_(row.windowEnd);
+  if (!start || !end) return;
+  candidates.forEach(function (c) { c.chosen = false; });
+  var match = candidates.filter(function (c) { return c.start.getTime() === start.getTime() && c.end.getTime() === end.getTime(); })[0];
+  if (match) {
+    match.chosen = true;
+  } else {
+    candidates.push({ start: start, end: end, durationMin: Number(row.durationMin) || Math.round((end - start) / 60000), chosen: true });
+  }
+}
+
+function dogWalkCandidateOut_(c, timezone) {
+  return { start: isoWithOffset_(c.start, timezone), end: isoWithOffset_(c.end, timezone), durationMin: c.durationMin, chosen: !!c.chosen, slot: c.slot };
+}
+
+function dogWalkBusyBlockOut_(b, timezone) {
+  return { start: isoWithOffset_(b.start, timezone), end: isoWithOffset_(b.end, timezone), owner: b.owner, title: b.title };
+}
+
+/** Shapes a DogWalks row for the `dogwalks.day` `walks` array — same fields as
+ *  `listUpcomingDogWalks_`, plus `decidedBy` (data-model §1; blank/absent reads as null so
+ *  this is forward-compatible before the column exists). */
+function dogWalkWalkOut_(r) {
+  return {
+    id: r.id, slot: r.slot, status: r.status,
+    windowStart: r.windowStart || null, windowEnd: r.windowEnd || null,
+    durationMin: r.durationMin ? Number(r.durationMin) : null,
+    reason: r.reason || null,
+    decidedBy: dogWalkNormalizeDecidedBy_(r.decidedBy) || null
+  };
+}
+
+/**
+ * Assemble the `dogwalks.day` response (contracts/dogwalks-planner-api.md) for one date.
+ * Composes `fetchAllSourceEvents_`, `computeAvailability_`, `gateHour_`/`dogWalkHourlyGates_`,
+ * and `selectWindow_`/`secondWalkPlan_` (via the enumerate helpers above) — implements no
+ * gate or selection logic of its own (T023). Read-only except for the forecast-cache side
+ * effect inherited from `getForecastWithFallback_`: a successful live fetch here warms the
+ * cache, the interactive path research R3 relies on.
+ */
+function buildDayPlan_(ymd, settings) {
+  if (!isValidType_('date', ymd)) fail_('BAD_REQUEST', 'date must be a valid YYYY-MM-DD date.', 'date');
+  var today = todayYmd_();
+  var horizonLastDay = addDays_(today, settings.outerDays);
+  if (ymd < today || ymd > horizonLastDay) {
+    fail_('BAD_REQUEST', 'date must fall within [' + today + ', ' + horizonLastDay + '].', 'date');
+  }
+
+  var dayStart = walkDateTime_(ymd, '00:00');
+  var dayEnd = walkDateTime_(addDays_(ymd, 1), '00:00');
+  var rows = readDogWalkRows_();
+  var primaryRow = findRow_(rows, ymd, 'primary');
+  var secondRow = findRow_(rows, ymd, 'second');
+
+  var sourceEvents = fetchAllSourceEvents_(settings, dayStart, dayEnd);
+  var calendarsReadable = sourceEvents.max !== null && sourceEvents.jaz !== null; // FR-014
+  var busyBlocks = calendarsReadable ? dogWalkBusyBlocks_(sourceEvents, ymd, settings) : [];
+
+  var forecastResult = getForecastWithFallback_(settings);
+  var forecast = {
+    source: forecastResult.source,
+    fetchedAt: forecastResult.fetchedAt,
+    ageMinutes: forecastResult.ageMinutes,
+    usableForBooking: forecastResult.usableForBooking,
+    reliable: ymd <= addDays_(today, settings.reliableDays) // FR-013
+  };
+  var hours = dogWalkHourlyGates_(forecastResult.map, ymd, settings);
+
+  var primaryAvail = calendarsReadable ? computeAvailability_(sourceEvents, ymd, settings, ownWindowOf_(primaryRow)) : null;
+  var primaryCandidates = primaryAvail ? enumerateCandidateWindows_(primaryAvail, forecastResult.map, settings.durationsMin, settings) : [];
+  dogWalkApplyExistingChoice_(primaryCandidates, primaryRow);
+
+  var primaryChosen = primaryCandidates.filter(function (c) { return c.chosen; })[0] || null;
+  var primaryEffective = primaryChosen ? { windowStart: primaryChosen.start, windowEnd: primaryChosen.end, durationMin: primaryChosen.durationMin } : null;
+
+  var secondAvail = calendarsReadable ? computeAvailability_(sourceEvents, ymd, settings, ownWindowOf_(secondRow)) : null;
+  var secondCandidates = (secondAvail && primaryEffective)
+    ? enumerateSecondCandidateWindows_(primaryEffective, secondAvail, forecastResult.map, settings)
+    : [];
+  dogWalkApplyExistingChoice_(secondCandidates, secondRow);
+
+  primaryCandidates.forEach(function (c) { c.slot = 'primary'; });
+  secondCandidates.forEach(function (c) { c.slot = 'second'; });
+
+  return {
+    date: ymd,
+    forecast: forecast,
+    calendarsReadable: calendarsReadable,
+    busyBlocks: busyBlocks.map(function (b) { return dogWalkBusyBlockOut_(b, settings.timezone); }),
+    hours: hours,
+    candidates: primaryCandidates.concat(secondCandidates).map(function (c) { return dogWalkCandidateOut_(c, settings.timezone); }),
+    walks: [primaryRow, secondRow].filter(Boolean).map(dogWalkWalkOut_),
+    // feature 031 US3 (deviation, written back to contracts/dogwalks-planner-api.md): the
+    // configured durations, so the frontend can propose booking a specific hour even when
+    // every candidate for that duration was rejected by a weather gate — `candidates` never
+    // contains a gate-failing window (enumerateCandidateWindows_ filters those out before
+    // they're ever built), so without this the client would have no duration to book with
+    // for the exact case FR-021a exists for (overriding a gate-failing/busy hour).
+    primaryDurationsMin: settings.durationsMin,
+    secondDurationMin: settings.secondDurationMin
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Manual booking (feature 031 US3, contracts/dogwalks-planner-api.md): book/unbook/release,
+// all routed through the existing bookOrReconcileWalk_/withLock_ path so invites, the
+// ledger row shape, and idempotency are inherited rather than reimplemented (FR-018/FR-019).
+// ---------------------------------------------------------------------------
+
+/** Union of every named gate failure across `[windowStart, windowEnd)`, via `gateHour_` —
+ *  no gate logic of its own (FR-015/FR-021a). */
+function dogWalkWindowFailedGates_(forecastMap, windowStart, windowEnd, settings) {
+  var tz = settings.timezone;
+  var cursor = new Date(windowStart.getTime());
+  cursor.setMinutes(0, 0, 0);
+  var seen = {};
+  var failed = [];
+  while (cursor < windowEnd) {
+    var key = Utilities.formatDate(cursor, tz, "yyyy-MM-dd'T'HH");
+    gateHour_(forecastMap, key, settings).failedGates.forEach(function (g) {
+      if (!seen[g]) { seen[g] = true; failed.push(g); }
+    });
+    cursor = new Date(cursor.getTime() + 3600000);
+  }
+  return failed;
+}
+
+/** Busy blocks (via `dogWalkBusyBlocks_`) overlapping `[windowStart, windowEnd)` — no
+ *  availability logic of its own beyond the shared busy-block builder (FR-021a). */
+function dogWalkWindowConflicts_(sourceEvents, ymd, settings, windowStart, windowEnd) {
+  return dogWalkBusyBlocks_(sourceEvents, ymd, settings).filter(function (b) {
+    return b.start < windowEnd && b.end > windowStart;
+  });
+}
+
+/**
+ * Validate then book a manual (date, slot, window) (T039-T042): the same
+ * `bookOrReconcileWalk_` path `resolveSlot_` uses, so invites/ledger shape and idempotency
+ * (FR-019) are inherited rather than reimplemented. Throws `BAD_REQUEST` for a malformed
+ * window, out-of-range date, or a duration outside the configured set (FR-023), and
+ * `OVERRIDE_REQUIRED` — naming the specific failed gates/conflicts — for a gate-failing or
+ * busy window unless `payload.confirmOverride === true` (FR-021a). Sets `decidedBy` to the
+ * resolved actor in the same atomic write that books the window (FR-021).
+ */
+function bookWalkManually_(payload, actor, settings) {
+  var ymd = String(payload.date || '').trim();
+  var slot = String(payload.slot || '').trim();
+  var durationMin = Number(payload.durationMin);
+  var windowStart = parseIsoWithOffset_(payload.windowStart);
+  var windowEnd = parseIsoWithOffset_(payload.windowEnd);
+
+  if (!isValidType_('date', ymd)) fail_('BAD_REQUEST', 'date must be a valid YYYY-MM-DD date.', 'date');
+  if (slot !== 'primary' && slot !== 'second') fail_('BAD_REQUEST', 'slot must be "primary" or "second".', 'slot');
+  if (!windowStart || !windowEnd || windowEnd <= windowStart) {
+    fail_('BAD_REQUEST', 'windowStart/windowEnd must form a valid, non-empty window.', 'windowStart');
+  }
+
+  var allowedDurations = slot === 'second' ? [settings.secondDurationMin] : settings.durationsMin;
+  var actualDurationMin = Math.round((windowEnd.getTime() - windowStart.getTime()) / 60000);
+  if (allowedDurations.indexOf(durationMin) === -1 || actualDurationMin !== durationMin) {
+    fail_('BAD_REQUEST', 'durationMin must be one of the configured durations and match windowEnd - windowStart.', 'durationMin');
+  }
+
+  var dayStart = walkDateTime_(ymd, '00:00');
+  var dayEnd = walkDateTime_(addDays_(ymd, 1), '00:00');
+  if (windowStart < dayStart || windowEnd > dayEnd) {
+    fail_('BAD_REQUEST', 'window must fall on the requested date in household tz.', 'windowStart');
+  }
+  if (windowStart.getTime() <= dogWalkNow_().getTime()) {
+    fail_('BAD_REQUEST', 'window has already started.', 'windowStart'); // FR-023
+  }
+
+  if (payload.confirmOverride !== true) {
+    var rangeStart = walkDateTime_(ymd, '00:00');
+    var rangeEnd = walkDateTime_(addDays_(ymd, 1), '00:00');
+    var sourceEvents = fetchAllSourceEvents_(settings, rangeStart, rangeEnd);
+    var forecastResult = getForecastWithFallback_(settings);
+
+    var failedGates = dogWalkWindowFailedGates_(forecastResult.map, windowStart, windowEnd, settings);
+    var conflicts = dogWalkWindowConflicts_(sourceEvents, ymd, settings, windowStart, windowEnd);
+
+    if (failedGates.length > 0 || conflicts.length > 0) {
+      fail_('OVERRIDE_REQUIRED', 'Window fails a check.', undefined, {
+        failedGates: failedGates,
+        conflicts: conflicts.map(function (c) {
+          return { owner: c.owner, title: c.title, start: isoWithOffset_(c.start, settings.timezone), end: isoWithOffset_(c.end, settings.timezone) };
+        })
+      });
+    }
+  }
+
+  var rows = readDogWalkRows_();
+  var existingRow = findRow_(rows, ymd, slot);
+  var row = bookOrReconcileWalk_(
+    existingRow,
+    { ymd: ymd, slot: slot, windowStart: windowStart, windowEnd: windowEnd, durationMin: durationMin },
+    settings,
+    { actor: actor, action: 'dogwalk.book' },
+    { decidedBy: actor }
+  );
+  return dogWalkWalkOut_(row);
+}
+
+/**
+ * Remove a booked walk (T043): deletes both stored invites (best-effort — a user's manual
+ * deletion is tolerated, not an error), sets `status: 'skipped'` with `decidedBy` (FR-017,
+ * FR-021), and clears the now-stale window/invite-id fields. Idempotent: unbooking an
+ * already-skipped day is a no-op that returns the row unchanged.
+ */
+function unbookWalkManually_(payload, actor) {
+  var ymd = String(payload.date || '').trim();
+  var slot = String(payload.slot || '').trim();
+  if (!isValidType_('date', ymd)) fail_('BAD_REQUEST', 'date must be a valid YYYY-MM-DD date.', 'date');
+  if (slot !== 'primary' && slot !== 'second') fail_('BAD_REQUEST', 'slot must be "primary" or "second".', 'slot');
+
+  var rows = readDogWalkRows_();
+  var existingRow = findRow_(rows, ymd, slot);
+  if (!existingRow) fail_('NOT_FOUND', 'No dog-walk row exists for that date/slot.', 'date');
+  if (existingRow.status === 'skipped') return dogWalkWalkOut_(existingRow);
+
+  var cal = CalendarApp.getDefaultCalendar();
+  [existingRow.maxGcalEventId, existingRow.jazGcalEventId].forEach(function (id) {
+    if (!id) return;
+    try {
+      var evt = resolveGcalEvent_(cal, id);
+      if (evt) evt.deleteEvent();
+    } catch (e) { /* best-effort — a user's own manual deletion is not an error */ }
+  });
+
+  var updated = upsertDogWalkRow_({
+    id: existingRow.id, date: ymd, slot: slot, status: 'skipped', decidedBy: actor,
+    windowStart: '', windowEnd: '', durationMin: '', maxGcalEventId: '', jazGcalEventId: '', reason: ''
+  });
+  appendLog_(actor, 'dogwalk.unbook', updated.id, ymd + ' ' + slot + ' walk unbooked');
+  return dogWalkWalkOut_(updated);
+}
+
+/**
+ * Clear `decidedBy` only (T044), handing the day back to the finder (FR-022) — status and
+ * window are left exactly as they are, whether booked or skipped. Equivalent to clearing the
+ * `decidedBy` cell by hand in the Sheet (Principle II) — the app affordance and the hand-edit
+ * are the same operation.
+ */
+function releaseWalkDecision_(payload, actor) {
+  var ymd = String(payload.date || '').trim();
+  var slot = String(payload.slot || '').trim();
+  if (!isValidType_('date', ymd)) fail_('BAD_REQUEST', 'date must be a valid YYYY-MM-DD date.', 'date');
+  if (slot !== 'primary' && slot !== 'second') fail_('BAD_REQUEST', 'slot must be "primary" or "second".', 'slot');
+
+  var rows = readDogWalkRows_();
+  var existingRow = findRow_(rows, ymd, slot);
+  if (!existingRow) fail_('NOT_FOUND', 'No dog-walk row exists for that date/slot.', 'date');
+
+  var updated = upsertDogWalkRow_({ id: existingRow.id, date: ymd, slot: slot, decidedBy: '' });
+  appendLog_(actor, 'dogwalk.release', updated.id, ymd + ' ' + slot + ' returned to automatic handling');
+  return dogWalkWalkOut_(updated);
 }
 
 // ---------------------------------------------------------------------------
@@ -815,7 +1460,8 @@ function listUpcomingDogWalks_() {
         id: r.id, date: r.date, slot: r.slot, status: r.status,
         windowStart: r.windowStart || null, windowEnd: r.windowEnd || null,
         durationMin: r.durationMin ? Number(r.durationMin) : null,
-        reason: r.reason || null
+        reason: r.reason || null,
+        decidedBy: dogWalkNormalizeDecidedBy_(r.decidedBy) || null
       };
     });
 }

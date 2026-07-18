@@ -19,6 +19,7 @@ import { SevenDayStrip } from '@/components/dashboard/SevenDayStrip'
 import { DayPeekPanel } from '@/components/dashboard/DayPeekPanel'
 import { AckNotices } from '@/components/dashboard/AckNotices'
 import { DogWalkNotice } from '@/components/dashboard/DogWalkNotice'
+import { DogWalkPlanner } from '@/components/dashboard/DogWalkPlanner'
 import { GroceryNudge } from '@/components/dashboard/GroceryNudge'
 import { TaskDetailSheet } from '@/components/task/TaskDetailSheet'
 import { EventDetailSheet } from '@/components/event/EventDetailSheet'
@@ -39,6 +40,7 @@ export function DashboardHome({ onOpenDate }: DashboardHomeProps) {
   const [peekDateKey, setPeekDateKey] = useState<string | null>(null)
   const [detailTask, setDetailTask] = useState<Task | null>(null)
   const [detailEventId, setDetailEventId] = useState<string | null>(null)
+  const [plannerDateKey, setPlannerDateKey] = useState<string | null>(null)
 
   const isPending = tasksQuery.isPending || eventsQuery.isPending || recurringQuery.isPending
   const isError = tasksQuery.isError || eventsQuery.isError || recurringQuery.isError
@@ -143,6 +145,7 @@ export function DashboardHome({ onOpenDate }: DashboardHomeProps) {
           onOpenCalendar={onOpenDate}
           onOpenTask={setDetailTask}
           onOpenEvent={(event) => setDetailEventId(event.id)}
+          onOpenWalkPlanner={setPlannerDateKey}
         />
       )}
       <SmartViews views={views} timezone={timezone} />
@@ -150,6 +153,9 @@ export function DashboardHome({ onOpenDate }: DashboardHomeProps) {
       <Highlights items={highlightItems} />
       {detailTask && <TaskDetailSheet task={detailTask} onClose={() => setDetailTask(null)} />}
       {detailEvent && <EventDetailSheet event={detailEvent} timezone={timezone} onClose={() => setDetailEventId(null)} />}
+      {plannerDateKey && (
+        <DogWalkPlanner dateKey={plannerDateKey} timezone={timezone} onClose={() => setPlannerDateKey(null)} />
+      )}
     </div>
   )
 }
