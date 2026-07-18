@@ -166,4 +166,28 @@ describe('DogWalkPlanner', () => {
 
     expect(unbookMutate).toHaveBeenCalledWith({ date: '2026-07-20', slot: 'primary' }, expect.any(Object))
   })
+  // Regression (031 follow-up): the deployed backend briefly omitted `primaryDurationsMin`,
+  // so `plan.primaryDurationsMin.length` threw inside the click handler. React swallowed the
+  // TypeError, leaving every hour tap a silent no-op while the UI still invited the user to
+  // "tap an hour above to book anyway". Both halves are pinned below.
+  it('opens the booking confirmation when an hour is tapped (FR-021a)', () => {
+    mockUseDogWalkDay.mockReturnValue({ data: basePlan(), isPending: false, isError: false })
+    render(<DogWalkPlanner dateKey="2026-07-20" timezone={TZ} onClose={vi.fn()} />)
+
+    fireEvent.click(screen.getByRole('button', { name: /8:00 AM.*tap to book the primary walk here/ }))
+
+    expect(screen.getByText(/Book .*\(60m, primary\)\?/)).toBeInTheDocument()
+  })
+
+  it('surfaces a toast instead of dying silently when the plan carries no durations', () => {
+    const plan = basePlan()
+    delete (plan as Partial<DogWalkDayPlan>).primaryDurationsMin
+    mockUseDogWalkDay.mockReturnValue({ data: plan, isPending: false, isError: false })
+    render(<DogWalkPlanner dateKey="2026-07-20" timezone={TZ} onClose={vi.fn()} />)
+
+    fireEvent.click(screen.getByRole('button', { name: /8:00 AM.*tap to book the primary walk here/ }))
+
+    expect(toastShow).toHaveBeenCalledWith("Can't book by hour — the server didn't send walk durations")
+    expect(screen.queryByText(/Book .*primary\)\?/)).not.toBeInTheDocument()
+  })
 })

@@ -71,3 +71,51 @@ function mintDevSessionToken() {
   Logger.log(token);
   return token;
 }
+
+/**
+ * Find (and optionally delete) orphaned dog-walk calendar invites: events tagged
+ * `hhqKind=dogwalk` whose `hhqId` no longer matches any row in the DogWalks ledger.
+ *
+ * These strand when a ledger row is deleted while its invites survive — the failure mode
+ * the old self-test scratch dates caused (they deleted real rows for today+5/+6/+7). An
+ * orphan is not cosmetic: with no row, `ownWindowOf_` can't union that window back as free,
+ * so the finder reads the ghost invite as a genuine busy block and routes future walks
+ * around it forever.
+ *
+ * Dry-run by default — pass `true` to actually delete. Returns the events considered either
+ * way, so the dry run is the review step.
+ */
+function cleanupOrphanedDogWalkInvites(reallyDelete) {
+  var cal = CalendarApp.getDefaultCalendar();
+  var settings = readDogWalkSettings_();
+  var from = walkDateTime_(todayYmd_(), '00:00');
+  var to = walkDateTime_(addDays_(todayYmd_(), settings.outerDays + 1), '00:00');
+
+  var liveIds = {};
+  readDogWalkRows_().forEach(function (r) { if (r.id) liveIds[r.id] = true; });
+
+  var orphans = cal.getEvents(from, to).filter(function (ev) {
+    return ev.getTag('hhqKind') === 'dogwalk' && !liveIds[ev.getTag('hhqId')];
+  });
+
+  var report = orphans.map(function (ev) {
+    return {
+      title: ev.getTitle(),
+      start: isoWithOffset_(ev.getStartTime(), settings.timezone),
+      end: isoWithOffset_(ev.getEndTime(), settings.timezone),
+      person: ev.getTag('hhqPerson'),
+      orphanedId: ev.getTag('hhqId')
+    };
+  });
+
+  if (reallyDelete === true) {
+    orphans.forEach(function (ev) {
+      try { ev.deleteEvent(); } catch (e) { console.error('cleanupOrphanedDogWalkInvites: ' + e); }
+    });
+    appendLog_('system', 'dogwalk-orphan-cleanup', '', 'deleted ' + orphans.length + ' orphaned dog-walk invite(s)');
+  }
+
+  Logger.log('cleanupOrphanedDogWalkInvites (' + (reallyDelete === true ? 'DELETED' : 'dry run') +
+    '): ' + JSON.stringify(report, null, 1));
+  return { deleted: reallyDelete === true, count: report.length, events: report };
+}
