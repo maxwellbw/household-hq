@@ -55,7 +55,9 @@ own functions so it cannot drift from what the nightly run decides (FR-015).
         "windowStart": "2026-07-20T10:30:00-07:00",
         "windowEnd": "2026-07-20T11:30:00-07:00",
         "durationMin": 60, "reason": null, "decidedBy": null }
-    ]
+    ],
+    "primaryDurationsMin": [60, 45, 30],
+    "secondDurationMin": 30
   }
 }
 ```
@@ -206,3 +208,24 @@ Public entry points have **no trailing underscore** (CLAUDE.md trigger/editor go
 
 `data.bootstrap` is **not** extended — the planner loads on demand (research R7), keeping
 feature 030's cold-load work intact.
+
+## Implementation deviations (written back per CLAUDE.md Definition of Done)
+
+- **`readForecastCache_(settings)` takes `settings` explicitly**, not the no-arg signature
+  shown above. Every sibling helper (`writeForecastCache_(map, settings)`,
+  `getForecastWithFallback_(settings)`) already takes `settings` as a parameter; a no-arg
+  `readForecastCache_()` would have to call `readDogWalkSettings_()` internally, making it
+  silently depend on live Settings-sheet state and impossible to unit-test with a synthetic
+  settings object (as `unitDogWalkFetchRetry_` already does for `fetchForecast_`). Behavior
+  is unchanged — only the coordinate source moved from an internal read to the caller.
+- **A fourth test seam, `dogWalkSleep_`**, wraps the `Utilities.sleep` call in
+  `fetchForecast_`'s retry loop, alongside `dogWalkFetch_`/`dogWalkProps_`/`dogWalkNow_`.
+  Without it, a self-test exercising the 429 backoff schedule (T019) would actually sleep
+  ~3.5 real minutes per assertion. Swapped out in tests to record the schedule instead.
+- **`dogwalks.day` gains `primaryDurationsMin`/`secondDurationMin`**, not shown in the
+  response schema above. `enumerateCandidateWindows_` filters out any start that fails
+  `weatherGate_` *before* a candidate is ever built, so `candidates` structurally never
+  contains a gate-failing or busy window — meaning the client has no duration to book with
+  for the exact case FR-021a exists for (naming a failed gate/conflict and letting the user
+  override it). Exposing the configured durations lets the planner propose a booking at any
+  displayed hour, not only at a pre-computed (necessarily gate-passing) candidate.

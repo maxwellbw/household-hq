@@ -125,9 +125,11 @@ export interface Session {
   actingPerson?: 'max' | 'jaz'
 }
 
-// Feature 011 — weather-aware dog-walk finder (contracts/dogwalks-api.md). Read-only:
-// the backend engine owns all writes; the app only ever lists.
-export type DogWalkStatus = 'booked' | 'suggested' | 'needs-decision' | 'deferred'
+// Feature 011 — weather-aware dog-walk finder (contracts/dogwalks-api.md). Read-only in
+// 011/029; feature 031 US3 adds a write path (dogwalks.book/unbook/release) and the
+// 'skipped' status (a user removed the walk — distinct from 'needs-decision', where the
+// finder itself couldn't decide; data-model.md §1).
+export type DogWalkStatus = 'booked' | 'suggested' | 'needs-decision' | 'deferred' | 'skipped'
 
 export interface DogWalk {
   id: string
@@ -138,4 +140,59 @@ export interface DogWalk {
   windowEnd: string | null // ISO datetime
   durationMin: number | null
   reason: string | null // set for needs-decision
+  // Feature 031 US3: who made this decision by hand — max/jaz, or null when the finder owns
+  // the row and may move/replace/flag it freely (data-model §1).
+  decidedBy?: 'max' | 'jaz' | null
+}
+
+// Feature 031 — dog-walk day planner (contracts/dogwalks-planner-api.md `dogwalks.day`).
+// Assembled server-side from the finder engine's own functions, so it cannot drift from
+// what the nightly run decides (FR-015) — the frontend only ever renders this, never
+// recomputes gates or window selection itself.
+export interface ForecastProvenance {
+  source: 'live' | 'cache' | 'none'
+  fetchedAt: string | null // ISO datetime, household tz offset; null when source is 'none'
+  ageMinutes: number | null
+  usableForBooking: boolean // false once the cache is older than the 24h freshness limit (FR-006)
+  reliable: boolean // false when the date falls beyond the reliable-forecast horizon (FR-013)
+}
+
+export type WeatherGateName = 'heat' | 'cold' | 'precip' | 'snowIce' | 'noForecast'
+
+export interface BusyBlock {
+  start: string // ISO datetime
+  end: string // ISO datetime
+  owner: Owner
+  title: string | null // null when the source event is private/free-busy-only
+}
+
+export interface HourGate {
+  hour: string // 'YYYY-MM-DDTHH'
+  tempF: number | null
+  precipProbPct: number | null
+  wmoCode: number | null
+  passes: boolean
+  failedGates: WeatherGateName[]
+}
+
+export interface CandidateWindow {
+  start: string // ISO datetime
+  end: string // ISO datetime
+  durationMin: number
+  chosen: boolean
+  slot: 'primary' | 'second'
+}
+
+export interface DogWalkDayPlan {
+  date: string // YYYY-MM-DD
+  forecast: ForecastProvenance
+  calendarsReadable: boolean // false when a source calendar threw (FR-014) — busyBlocks is then incomplete
+  busyBlocks: BusyBlock[]
+  hours: HourGate[]
+  candidates: CandidateWindow[]
+  walks: DogWalk[]
+  // Feature 031 US3 (contract deviation — see dogwalks-planner-api.md): the configured
+  // durations, needed to book an hour that has no gate-passing candidate at all.
+  primaryDurationsMin: number[]
+  secondDurationMin: number
 }

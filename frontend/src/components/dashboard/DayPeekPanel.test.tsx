@@ -44,6 +44,7 @@ describe('DayPeekPanel', () => {
         onOpenCalendar={vi.fn()}
         onOpenTask={vi.fn()}
         onOpenEvent={vi.fn()}
+        onOpenWalkPlanner={vi.fn()}
       />,
     )
     expect(screen.getByRole('region', { name: /Saturday, July 11/ })).toBeInTheDocument()
@@ -60,6 +61,7 @@ describe('DayPeekPanel', () => {
         onOpenCalendar={vi.fn()}
         onOpenTask={vi.fn()}
         onOpenEvent={vi.fn()}
+        onOpenWalkPlanner={vi.fn()}
       />,
     )
     expect(screen.getByText('Dentist')).toBeInTheDocument()
@@ -77,6 +79,7 @@ describe('DayPeekPanel', () => {
         onOpenCalendar={vi.fn()}
         onOpenTask={vi.fn()}
         onOpenEvent={vi.fn()}
+        onOpenWalkPlanner={vi.fn()}
       />,
     )
     expect(screen.getByText('Nothing on this day.')).toBeInTheDocument()
@@ -94,6 +97,7 @@ describe('DayPeekPanel', () => {
         onOpenCalendar={onOpenCalendar}
         onOpenTask={vi.fn()}
         onOpenEvent={vi.fn()}
+        onOpenWalkPlanner={vi.fn()}
       />,
     )
     fireEvent.click(screen.getByRole('button', { name: 'Open in calendar' }))
@@ -113,6 +117,7 @@ describe('DayPeekPanel', () => {
         onOpenCalendar={vi.fn()}
         onOpenTask={onOpenTask}
         onOpenEvent={onOpenEvent}
+        onOpenWalkPlanner={vi.fn()}
       />,
     )
     fireEvent.click(screen.getByText('Dentist'))
@@ -132,6 +137,7 @@ describe('DayPeekPanel', () => {
         onOpenCalendar={vi.fn()}
         onOpenTask={vi.fn()}
         onOpenEvent={vi.fn()}
+        onOpenWalkPlanner={vi.fn()}
       />,
     )
     expect(screen.getByText('Dog walk')).toBeInTheDocument()
@@ -150,6 +156,7 @@ describe('DayPeekPanel', () => {
         onOpenCalendar={vi.fn()}
         onOpenTask={vi.fn()}
         onOpenEvent={vi.fn()}
+        onOpenWalkPlanner={vi.fn()}
       />,
     )
     expect(screen.getByText(/needs a decision/)).toBeInTheDocument()
@@ -166,10 +173,30 @@ describe('DayPeekPanel', () => {
         onOpenCalendar={vi.fn()}
         onOpenTask={vi.fn()}
         onOpenEvent={vi.fn()}
+        onOpenWalkPlanner={vi.fn()}
       />,
     )
     expect(screen.queryByText('Dog walk')).not.toBeInTheDocument()
     expect(screen.getByText('Dentist')).toBeInTheDocument()
     expect(screen.getByText('Buy milk')).toBeInTheDocument()
+  })
+
+  it('calls onOpenWalkPlanner with the dateKey when the walk row is tapped (feature 031)', () => {
+    const onOpenWalkPlanner = vi.fn()
+    render(
+      <DayPeekPanel
+        dateKey="2026-07-11"
+        events={[]}
+        tasks={[]}
+        walks={[walk]}
+        timezone={TZ}
+        onOpenCalendar={vi.fn()}
+        onOpenTask={vi.fn()}
+        onOpenEvent={vi.fn()}
+        onOpenWalkPlanner={onOpenWalkPlanner}
+      />,
+    )
+    fireEvent.click(screen.getByText('Dog walk'))
+    expect(onOpenWalkPlanner).toHaveBeenCalledWith('2026-07-11')
   })
 })

@@ -242,6 +242,41 @@ weather, and the dog-walk finder are **feature 011**, not this feature. Design r
 - **Logging.** Every calendar create/update/delete (including orphan-sweep deletes) appends
   one `gcal-sync` ActivityLog row under actor `system`; no-op syncs write nothing.
 
+## Dog-walk finder + day planner (features 011, 031)
+
+Weather-aware window finder ([`specs/011-dog-walk-finder/`](../specs/011-dog-walk-finder/))
+plus the day planner UI and forecast-resilience fix
+([`specs/031-dog-walk-day-planner/`](../specs/031-dog-walk-day-planner/)). Design rationale
+for 031: [`research.md`](../specs/031-dog-walk-day-planner/research.md).
+
+- **Two nightly triggers**, installed together by `installDogWalkTrigger()` (idempotent —
+  replaces both rather than stacking): `runDogWalkFinder` at `DOG_WALK_TRIGGER_HOUR` (3) and
+  `warmForecastCache` at `DOG_WALK_WARM_HOUR` (21). Moved off the original hour-1 slot
+  because Apps Script's shared top-of-hour trigger infrastructure got HTTP 429'd from
+  Open-Meteo on 2026-07-18 — see research R1 for the incident and hypothesis.
+- **Forecast cache** — one script property, `hq.dogwalk.forecastCache` (`Config.js`'s
+  `DOG_WALK_FORECAST_CACHE_KEY`), written by every successful Open-Meteo fetch (the finder,
+  the warm trigger, or an interactive `dogwalks.day` call) and read as a fallback when a live
+  fetch fails. Durable across executions/deploys (`PropertiesService`, not `CacheService` —
+  research R2), disposable, and never a source of truth (Principle II). To debug or reset it:
+  open the editor (`clasp open-script`) → Project Settings → Script properties, or run
+  `PropertiesService.getScriptProperties().deleteProperty('hq.dogwalk.forecastCache')` from
+  the editor's console. Deleting it costs at most one run's fallback.
+- **Retry backoff** distinguishes HTTP 429 (rate-limited: 45s then 150s,
+  `DOG_WALK_BACKOFF_RATELIMIT_MS`) from a generic transient failure (2s then 8s,
+  `DOG_WALK_BACKOFF_TRANSIENT_MS`) — replaces the old flat 500ms that put all three attempts
+  inside one second.
+- **The day planner** (`dogwalks.day`) assembles its response entirely from the finder
+  engine's own functions (`computeAvailability_`, `gateHour_`, `selectWindow_`) — no gate or
+  selection logic is duplicated, so the planner cannot drift from what the nightly run
+  decides (FR-015).
+- **Manual booking** (`dogwalks.book`/`.unbook`/`.release`) routes through the same
+  `bookOrReconcileWalk_` path the automatic finder uses, so invites and the ledger row are
+  indistinguishable in shape from an automatic booking. A booked/skipped row gets `decidedBy`
+  (`max`/`jaz`) set, which freezes it against the automatic run (`isFrozen_`) — clear the
+  cell by hand in the Sheet, or use the planner's release action, to hand a day back.
+- **`selfTestDogWalk()`** covers all of the above (15 suites) — run it after any change here.
+
 ## Deployed endpoint
 
 Web-app URL (deployment `@1`, stable across redeploys — refresh with
@@ -266,13 +301,15 @@ and yields "Page Not Found".
    re-run. Fill in `maxEmail` / `jazEmail` / `sharedEmails` and `OAUTH_CLIENT_ID`
    (`Config.js`) by hand — see feature 002 quickstart.
 4. **Validate:** follow [`quickstart.md`](../specs/001-sheets-schema-and-api/quickstart.md),
-   or run the five self-test chunks (`selfTest1Core()` … `selfTest4CalendarAndComms()`,
-   `selfTestDogWalk()`) — each logs `ALL PASS`. (`selfTest()` itself is a fail-loud guard,
-   not a runner.)
+   or run the seven self-test chunks (`selfTest1Core()`, `selfTest2Recurring()`,
+   `selfTest3SeedAndLists()`, `selfTest4CalendarA()`, `selfTest4CalendarB()`,
+   `selfTest5Comms()`, `selfTestDogWalk()`) — each logs `ALL PASS`. (`selfTest()` itself is a
+   fail-loud guard, not a runner.)
 5. **Install the nightly triggers:** in the editor, run `installRecurringEventsTrigger()`
    (feature 025), `installRecurringTrigger()` (feature 004), `installPrepTrigger()` (feature
-   005), and `installCalendarTrigger()` (feature 007) once each. Re-running any of them is
-   safe (it replaces rather than stacks the trigger).
+   005), `installCalendarTrigger()` (feature 007), and `installDogWalkTrigger()` (features
+   011/031 — installs both the finder and the forecast warm-up trigger) once each. Re-running
+   any of them is safe (it replaces rather than stacks the trigger).
 5a. **Optional starter chores (feature 015):** run `seedRecurringPack()` once to populate the
     `Recurring` tab with the starter pack (bins, HVAC filter, gutters, etc.) — correct the
     seeded anchor dates to the household's real schedule afterward. Safe to re-run.

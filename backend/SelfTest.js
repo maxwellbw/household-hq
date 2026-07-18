@@ -35,12 +35,16 @@ var SELFTEST_PREFIX = 'selftest-';
  *   selfTest5Comms()              (3): unitDigests_, liveSettingsUpdate_, unitPush_ (feature
  *     010: unitPush_ replaces the retired unitNtfy_; the crypto proof itself lives in the
  *     separate selfTestPush() runner)
- *   selfTestDogWalk()             (5): unitDogWalkAvailability_, unitDogWalkSelection_,
- *     unitDogWalkWeatherGate_, unitDogWalkSecondWalk_, liveDogWalkBookingLifecycle_
- *     (feature 011, also runnable alone as chunk 7/7)
+ *   selfTestDogWalk()            (15): unitDogWalkAvailability_, unitDogWalkSelection_,
+ *     unitDogWalkWeatherGate_, unitDogWalkGateHour_, unitDogWalkSecondWalk_,
+ *     unitDogWalkFetchRetry_, unitDogWalkCacheRoundTrip_, unitDogWalkCacheValidity_,
+ *     unitDogWalkBackoff_, unitDogWalkForecastFallback_, liveDogWalkDayPlan_,
+ *     unitDogWalkFreeze_, liveDogWalkManualBooking_, liveDogWalkBookingGuards_,
+ *     liveDogWalkBookingLifecycle_ (feature 011 + feature 031 US1 forecast-cache/backoff +
+ *     US2 gate-hour/day-plan + US3 manual-booking additions, also runnable alone as chunk 7/7)
  *
- *   Total: 15 + 12 + 8 + 3 + 2 + 3 + 5 = 48 suites (42 original + 5 feature-011 + 1
- *   feature-030 addition). selfTest4CalendarAndComms() (feature 028's original chunk 4) was
+ *   Total: 15 + 12 + 8 + 3 + 2 + 3 + 15 = 58 suites (42 original + 5 feature-011 + 1
+ *   feature-030 + 9 feature-031 additions). selfTest4CalendarAndComms() (feature 028's original chunk 4) was
  *   itself split here (feature 030 T028, 2026-07-18): a clean, isolated re-run still overran
  *   the 6-minute cap — `clasp run` hangs on that overrun rather than erroring, so the symptom
  *   is a stuck CLI call, not a thrown assertion. A first cut (only pulling the fast
@@ -171,8 +175,17 @@ function selfTestDogWalk() {
   unitDogWalkAvailability_();
   unitDogWalkSelection_();
   unitDogWalkWeatherGate_();
+  unitDogWalkGateHour_();
   unitDogWalkSecondWalk_();
   unitDogWalkFetchRetry_();
+  unitDogWalkCacheRoundTrip_();
+  unitDogWalkCacheValidity_();
+  unitDogWalkBackoff_();
+  unitDogWalkForecastFallback_();
+  liveDogWalkDayPlan_();
+  unitDogWalkFreeze_();
+  liveDogWalkManualBooking_();
+  liveDogWalkBookingGuards_();
   liveDogWalkBookingLifecycle_();
   Logger.log('DOG WALK: ALL PASS');
 }
@@ -2804,6 +2817,31 @@ function unitDogWalkWeatherGate_() {
   Logger.log('unit dog-walk weather gate: pass');
 }
 
+/** T021/T022: gateHour_ names every failing gate (not just the first, unlike weatherGate_'s
+ *  short-circuit), and reports 'noForecast' alone for a missing hour — the extraction the
+ *  planner's per-hour display (FR-010) depends on. */
+function unitDogWalkGateHour_() {
+  var ymd = addDays_(todayYmd_(), 30);
+  var settings = { weatherHeatF: 80, weatherColdFloorF: 20, weatherPrecipPct: 50 };
+  var forecast = dogWalkAllGoodForecast_(ymd, 8, 16);
+  var key = ymd + 'T09';
+
+  var good = gateHour_(forecast, key, settings);
+  assert_(good.passes === true && good.failedGates.length === 0, 'a good hour passes with no failed gates');
+
+  dogWalkForecastHour_(forecast, ymd, 9, 95, 60, 71); // hot + wet + snow, all at once
+  var multi = gateHour_(forecast, key, settings);
+  assert_(multi.passes === false &&
+    multi.failedGates.indexOf('heat') >= 0 && multi.failedGates.indexOf('precip') >= 0 && multi.failedGates.indexOf('snowIce') >= 0,
+    'gateHour_ names every gate an hour fails, not just the first');
+
+  var missing = gateHour_(forecast, ymd + 'T23', settings);
+  assert_(missing.passes === false && missing.failedGates.length === 1 && missing.failedGates[0] === 'noForecast',
+    'a missing hour fails with noForecast alone');
+
+  Logger.log('unit dog-walk gate-hour: pass');
+}
+
 // ---------------------------------------------------------------------------
 // Unit: second-walk rule — fires only when the primary starts early, books after the
 // afternoon cutoff, weather-gated, silent skip otherwise (US4; FR-009). Pure.
@@ -2890,6 +2928,194 @@ function unitDogWalkFetchRetry_() {
 }
 
 // ---------------------------------------------------------------------------
+// Unit: forecast cache — encode/decode round-trip, size ceiling, rejection paths, backoff
+// schedule, and the live-fallback entry point (feature 031 US1; T017-T020). Cache tests swap
+// in an in-memory `dogWalkProps_` store so they never touch real script properties.
+// ---------------------------------------------------------------------------
+
+/** In-memory PropertiesService-shaped store for dog-walk cache self-tests — swapped in via
+ *  the `dogWalkProps_` seam so tests never touch real script properties. */
+function dogWalkFakePropsStore_() {
+  var data = {};
+  return {
+    getProperty: function (k) { return data.hasOwnProperty(k) ? data[k] : null; },
+    setProperty: function (k, v) { data[k] = v; },
+    deleteProperty: function (k) { delete data[k]; }
+  };
+}
+
+/** T017: `writeForecastCache_` -> `readForecastCache_` round-trips a forecast map exactly,
+ *  and a full reliable-horizon encode stays under the size ceiling. */
+function unitDogWalkCacheRoundTrip_() {
+  var originalProps = dogWalkProps_;
+  var originalNow = dogWalkNow_;
+  try {
+    var store = dogWalkFakePropsStore_();
+    dogWalkProps_ = function () { return store; };
+    var fixedNow = walkDateTime_(addDays_(todayYmd_(), 30), '12:00');
+    dogWalkNow_ = function () { return fixedNow; };
+
+    var settings = { timezone: getTimezone_(), lat: 47.6062, lon: -122.3321, reliableDays: 14,
+      earliestStart: '08:00', latestStart: '16:00', durationsMin: [60, 45, 30] };
+    var today = todayYmd_();
+    var map = {};
+    for (var offset = 0; offset <= settings.reliableDays; offset++) {
+      var ymd = addDays_(today, offset);
+      for (var h = 0; h < 24; h++) dogWalkForecastHour_(map, ymd, h, 65 + h, 10, 1);
+    }
+
+    writeForecastCache_(map, settings);
+    var raw = store.getProperty(DOG_WALK_FORECAST_CACHE_KEY);
+    assert_(raw && raw.length <= DOG_WALK_CACHE_MAX_BYTES,
+      'a full reliable-horizon encode stays under the ' + DOG_WALK_CACHE_MAX_BYTES + '-byte ceiling (' + (raw ? raw.length : 0) + ' bytes)');
+
+    var read = readForecastCache_(settings);
+    assert_(read !== null, 'a freshly written cache reads back non-null');
+    assert_(read.usableForBooking === true, 'a freshly written cache is usable for booking');
+    assert_(read.ageMinutes === 0, 'a cache read at the same instant it was written has zero age');
+
+    var hourBand = dogWalkCacheHourBand_(settings);
+    var inBandKey = today + 'T' + (hourBand.startHour < 10 ? '0' + hourBand.startHour : hourBand.startHour);
+    assert_(read.map[inBandKey] && read.map[inBandKey].temp === map[inBandKey].temp &&
+      read.map[inBandKey].precipProb === map[inBandKey].precipProb && read.map[inBandKey].code === map[inBandKey].code,
+      'a walk-eligible hour round-trips exactly (temp/precipProb/code)');
+
+    assert_(read.map[today + 'T23'] === undefined,
+      'hours outside the walk-eligible band are trimmed on write, not just ignored on read');
+  } finally {
+    dogWalkProps_ = originalProps;
+    dogWalkNow_ = originalNow;
+  }
+  Logger.log('unit dog-walk cache round-trip: pass');
+}
+
+/** T018: cache rejection paths — mismatched coordinates discard outright, age beyond the
+ *  freshness limit marks unusable-for-booking (but still returned), and a corrupt or
+ *  version-mismatched payload degrades to `null` rather than throwing. */
+function unitDogWalkCacheValidity_() {
+  var originalProps = dogWalkProps_;
+  var originalNow = dogWalkNow_;
+  try {
+    var store = dogWalkFakePropsStore_();
+    dogWalkProps_ = function () { return store; };
+    var settings = { timezone: getTimezone_(), lat: 47.6062, lon: -122.3321, reliableDays: 3,
+      earliestStart: '08:00', latestStart: '16:00', durationsMin: [60] };
+    var ymd = addDays_(todayYmd_(), 30);
+    var map = dogWalkAllGoodForecast_(ymd, 8, 17);
+
+    var fixedNow = walkDateTime_(ymd, '08:00');
+    dogWalkNow_ = function () { return fixedNow; };
+    writeForecastCache_(map, settings);
+
+    var wrongCoords = { timezone: settings.timezone, lat: 10, lon: 10 };
+    assert_(readForecastCache_(wrongCoords) === null, 'a cache read with mismatched coordinates is discarded outright');
+
+    dogWalkNow_ = function () { return new Date(fixedNow.getTime() + (DOG_WALK_CACHE_MAX_AGE_MIN + 1) * 60000); };
+    var stale = readForecastCache_(settings);
+    assert_(stale !== null && stale.usableForBooking === false,
+      'a cache older than the freshness limit is still returned but marked unusable for booking (FR-006)');
+
+    dogWalkNow_ = function () { return new Date(fixedNow.getTime() + (DOG_WALK_CACHE_MAX_AGE_MIN - 1) * 60000); };
+    var fresh = readForecastCache_(settings);
+    assert_(fresh !== null && fresh.usableForBooking === true, 'a cache just inside the freshness limit is usable for booking');
+
+    store.setProperty(DOG_WALK_FORECAST_CACHE_KEY, 'v0|' + isoWithOffset_(fixedNow, settings.timezone) + '|47.6|-122.3');
+    assert_(readForecastCache_(settings) === null, 'a version-mismatched cache decodes to null rather than throwing');
+
+    store.setProperty(DOG_WALK_FORECAST_CACHE_KEY, 'not even close to the right format');
+    assert_(readForecastCache_(settings) === null, 'a malformed payload decodes to null rather than throwing');
+
+    store.setProperty(DOG_WALK_FORECAST_CACHE_KEY, '');
+    assert_(readForecastCache_(settings) === null, 'an empty cache property reads as no cache');
+  } finally {
+    dogWalkProps_ = originalProps;
+    dogWalkNow_ = originalNow;
+  }
+  Logger.log('unit dog-walk cache validity: pass');
+}
+
+/** T019: a 429 backs off on the rate-limit schedule, a generic failure on the transient
+ *  schedule, and both escalate between attempts — using the `dogWalkFetch_`/`dogWalkSleep_`
+ *  seams so nothing actually sleeps or hits the network. */
+function unitDogWalkBackoff_() {
+  var originalFetch = dogWalkFetch_;
+  var originalSleep = dogWalkSleep_;
+  try {
+    var settings = { lat: 47.6, lon: -122.3, timezone: 'America/Los_Angeles' };
+    var sleeps = [];
+    dogWalkSleep_ = function (ms) { sleeps.push(ms); };
+
+    dogWalkFetch_ = function () { return dogWalkFakeResponse_(429, '{"reason":"rate limited"}'); };
+    fetchForecast_(settings);
+    assert_(sleeps.length === 2 && sleeps[0] === DOG_WALK_BACKOFF_RATELIMIT_MS[0] && sleeps[1] === DOG_WALK_BACKOFF_RATELIMIT_MS[1],
+      'a 429 backs off on the rate-limit schedule');
+    assert_(sleeps[1] > sleeps[0], 'the rate-limit backoff increases between attempts');
+
+    sleeps = [];
+    dogWalkFetch_ = function () { return dogWalkFakeResponse_(500, ''); };
+    fetchForecast_(settings);
+    assert_(sleeps.length === 2 && sleeps[0] === DOG_WALK_BACKOFF_TRANSIENT_MS[0] && sleeps[1] === DOG_WALK_BACKOFF_TRANSIENT_MS[1],
+      'a generic transient failure backs off on the transient schedule');
+    assert_(sleeps[1] > sleeps[0], 'the transient backoff increases between attempts');
+
+    assert_(DOG_WALK_BACKOFF_RATELIMIT_MS[0] > DOG_WALK_BACKOFF_TRANSIENT_MS[1],
+      'the rate-limit schedule waits longer than the transient one at every step (FR-003)');
+  } finally {
+    dogWalkFetch_ = originalFetch;
+    dogWalkSleep_ = originalSleep;
+  }
+  Logger.log('unit dog-walk backoff: pass');
+}
+
+/** T020: `getForecastWithFallback_` returns `source: 'cache'` when the live fetch fails with
+ *  a warm cache and `source: 'none'` when both are unavailable — and `warmForecastCache()`
+ *  is exercised as the public entry point (not its inner helper), guarding the exact
+ *  feature-004 trailing-underscore trap named in plan.md. Requires `householdLat`/
+ *  `householdLon` to already be configured in Settings (the same precondition
+ *  `liveDogWalkBookingLifecycle_` and every live suite in this file share). */
+function unitDogWalkForecastFallback_() {
+  var originalFetch = dogWalkFetch_;
+  var originalProps = dogWalkProps_;
+  var originalSleep = dogWalkSleep_;
+  try {
+    dogWalkSleep_ = function () {}; // no real waiting in this test
+    var store = dogWalkFakePropsStore_();
+    dogWalkProps_ = function () { return store; };
+
+    var settings = readDogWalkSettings_();
+    assert_(settings.lat != null && settings.lon != null,
+      'unitDogWalkForecastFallback_ requires householdLat/householdLon configured in Settings');
+
+    var okBody = JSON.stringify({
+      hourly: {
+        time: ['2026-01-01T00:00', '2026-01-01T01:00'],
+        temperature_2m: [60, 61], precipitation_probability: [0, 0], weathercode: [0, 0]
+      }
+    });
+
+    dogWalkFetch_ = function () { return dogWalkFakeResponse_(500, ''); };
+    var none = getForecastWithFallback_(settings);
+    assert_(none.source === 'none' && none.map === null, 'no cache + a failed live fetch -> source none');
+
+    // T020: warmForecastCache exercised as the public entry point, not just its inner
+    // helper — a trigger handler with a trailing underscore silently never fires (CLAUDE.md).
+    dogWalkFetch_ = function () { return dogWalkFakeResponse_(200, okBody); };
+    warmForecastCache();
+    assert_(store.getProperty(DOG_WALK_FORECAST_CACHE_KEY) !== null, 'warmForecastCache() (public entry point) populates the cache');
+
+    dogWalkFetch_ = function () { return dogWalkFakeResponse_(500, ''); };
+    var cached = getForecastWithFallback_(settings);
+    assert_(cached.source === 'cache' && cached.map !== null, 'a failed live fetch with a warm cache falls back to it (source cache)');
+    assert_(cached.usableForBooking === true, 'a cache warmForecastCache just wrote is usable for booking');
+  } finally {
+    dogWalkFetch_ = originalFetch;
+    dogWalkProps_ = originalProps;
+    dogWalkSleep_ = originalSleep;
+  }
+  Logger.log('unit dog-walk forecast fallback: pass');
+}
+
+// ---------------------------------------------------------------------------
 // Live: booking lifecycle — book, idempotent reconcile, move, never-cancel flag,
 // notifiedAt guard, past-start freeze, suggest-only + upgrade (US1/US3/US5). Uses
 // `CalendarApp.getDefaultCalendar()` directly (always available — no Settings needed) with
@@ -2898,8 +3124,9 @@ function unitDogWalkFetchRetry_() {
 // ledger row in a `finally` block.
 // ---------------------------------------------------------------------------
 
-/** Test-only cleanup: DogWalks has no write API by design (contracts §Non-goals), so
- *  self-test removes its own scratch rows directly via the Sheets primitives. */
+/** Test-only cleanup: deletes rows directly via the Sheets primitives rather than through
+ *  `dogwalks.unbook` (feature 031 US3 added a write API, but unbook only *skips* a row —
+ *  it never deletes it — so scratch test rows still need this direct removal). */
 function deleteDogWalkTestRows_(ymds) {
   withLock_(function () {
     var t = readTableForWrite_(TABS.DOG_WALKS);
@@ -2908,6 +3135,182 @@ function deleteDogWalkTestRows_(ymds) {
       .sort(function (a, b) { return b._row - a._row; }); // bottom-up so row indices stay valid
     toDelete.forEach(function (r) { t.sheet.deleteRow(r._row); });
   });
+}
+
+// ---------------------------------------------------------------------------
+// Live: day-plan assembly (feature 031 US2/T022 companion) — buildDayPlan_'s contract shape
+// and the FR-015 guarantee that an existing booked row is authoritative over a fresh
+// recompute. Live like the rest of this file's dog-walk suites (real Settings/Calendar);
+// self-cleaning.
+// ---------------------------------------------------------------------------
+
+function liveDogWalkDayPlan_() {
+  var timezone = getTimezone_();
+  var settings = readDogWalkSettings_();
+  // Must fall within [today, today + outerDays] (buildDayPlan_'s own range check) — a small,
+  // configuration-independent offset, distinct from the +30/+40/+41 offsets other dog-walk
+  // suites use for their own scratch dates.
+  var ymd = addDays_(todayYmd_(), 5);
+
+  try {
+    var windowStart = walkDateTime_(ymd, '10:00');
+    var windowEnd = walkDateTime_(ymd, '11:00');
+    var row = upsertDogWalkRow_({
+      id: Utilities.getUuid(), date: ymd, slot: 'primary', status: 'booked',
+      windowStart: isoWithOffset_(windowStart, timezone), windowEnd: isoWithOffset_(windowEnd, timezone),
+      durationMin: 60, maxGcalEventId: '', jazGcalEventId: '', reason: ''
+    });
+
+    var plan = buildDayPlan_(ymd, settings);
+    assert_(plan.date === ymd, 'buildDayPlan_ echoes the requested date');
+    assert_(['live', 'cache', 'none'].indexOf(plan.forecast.source) >= 0, 'forecast.source is one of live/cache/none');
+    assert_(typeof plan.calendarsReadable === 'boolean', 'calendarsReadable is a boolean');
+    assert_(Array.isArray(plan.busyBlocks) && Array.isArray(plan.hours) && Array.isArray(plan.candidates) && Array.isArray(plan.walks),
+      'busyBlocks/hours/candidates/walks are all arrays');
+
+    var chosenPrimary = plan.candidates.filter(function (c) { return c.slot === 'primary' && c.chosen; })[0];
+    assert_(chosenPrimary && chosenPrimary.start === row.windowStart && chosenPrimary.end === row.windowEnd,
+      'an existing booked row is authoritative: its window is the chosen primary candidate (FR-015)');
+
+    var walkOut = plan.walks.filter(function (w) { return w.id === row.id; })[0];
+    assert_(walkOut && walkOut.status === 'booked', 'the booked row appears in walks');
+
+    var pastDate = addDays_(todayYmd_(), -1);
+    assertFails_('BAD_REQUEST', function () { buildDayPlan_(pastDate, settings); }, 'a date before today is rejected');
+    var farFuture = addDays_(todayYmd_(), settings.outerDays + 5);
+    assertFails_('BAD_REQUEST', function () { buildDayPlan_(farFuture, settings); }, 'a date beyond the outer horizon is rejected');
+  } finally {
+    deleteDogWalkTestRows_([ymd]);
+  }
+  Logger.log('live dog-walk day plan: pass');
+}
+
+// ---------------------------------------------------------------------------
+// Unit/Live: manual booking (feature 031 US3; T051-T053) — freeze on decidedBy, idempotent
+// re-booking, and the BAD_REQUEST/OVERRIDE_REQUIRED validation guards.
+// ---------------------------------------------------------------------------
+
+/** T051: a non-blank `decidedBy` freezes a row regardless of window time or status
+ *  (FR-021, SC-004), and `processDogWalkDay_` returns before ever touching sourceEvents/
+ *  forecast for a frozen primary row — proven by poisoning both with `null` so any further
+ *  use would throw. Pure: no Sheet/Calendar access. */
+function unitDogWalkFreeze_() {
+  var ymd = addDays_(todayYmd_(), 30);
+  var timezone = getTimezone_();
+  var futureRow = {
+    date: ymd, slot: 'primary', status: 'booked', decidedBy: 'max',
+    windowStart: isoWithOffset_(walkDateTime_(ymd, '10:00'), timezone),
+    windowEnd: isoWithOffset_(walkDateTime_(ymd, '11:00'), timezone), durationMin: '60'
+  };
+  assert_(isFrozen_(futureRow) === true, 'a non-blank decidedBy freezes a row even with a future window (FR-021)');
+  assert_(isFrozen_({ status: 'skipped', decidedBy: 'jaz' }) === true, 'a skipped+decidedBy row is frozen too (data-model state diagram)');
+  assert_(isFrozen_({ date: ymd, slot: 'primary', decidedBy: '' }) === false, 'a blank decidedBy does not freeze on its own');
+  assert_(isFrozen_({ date: ymd, slot: 'primary', decidedBy: 'garbage' }) === false, 'an invalid decidedBy value normalizes to blank (Principle II)');
+
+  processDogWalkDay_(ymd, [futureRow], null, null, {}); // must return before touching null sourceEvents/forecast
+  Logger.log('unit dog-walk freeze: pass');
+}
+
+/** T052: booking the same (date, slot) twice yields one row and reuses the stored invite ids
+ *  (FR-019, SC-005) — inherited from `bookOrReconcileWalk_`'s existing idempotency, not
+ *  reimplemented. Live: real Settings/Calendar, self-cleaning. */
+function liveDogWalkManualBooking_() {
+  var timezone = getTimezone_();
+  var settings = readDogWalkSettings_();
+  var ymd = addDays_(todayYmd_(), 6);
+  var actor = 'max'; // decidedBy only accepts max/jaz (data-model §1) — matches what the real auth layer resolves
+  var payload = {
+    date: ymd, slot: 'primary', durationMin: 60,
+    windowStart: isoWithOffset_(walkDateTime_(ymd, '10:00'), timezone),
+    windowEnd: isoWithOffset_(walkDateTime_(ymd, '11:00'), timezone),
+    confirmOverride: true
+  };
+
+  try {
+    var first = bookWalkManually_(payload, actor, settings);
+    assert_(first.status === 'booked' || first.status === 'suggested', 'a manual booking books (or suggests, per autoBook) the window');
+    assert_(first.decidedBy === actor, 'a manual booking marks decidedBy with the acting person (T042)');
+    assert_(countDogWalkTestRows_(ymd, 'primary') === 1, 'a manual booking creates exactly one row');
+
+    var idsAfterFirst = findRow_(readDogWalkRows_(), ymd, 'primary');
+    var second = bookWalkManually_(payload, actor, settings);
+    assert_(second.id === first.id, 'booking the same (date, slot) twice reuses the same row (FR-019/SC-005)');
+    assert_(countDogWalkTestRows_(ymd, 'primary') === 1, 're-booking creates no duplicate row');
+
+    var idsAfterSecond = findRow_(readDogWalkRows_(), ymd, 'primary');
+    assert_(idsAfterSecond.maxGcalEventId === idsAfterFirst.maxGcalEventId && idsAfterSecond.jazGcalEventId === idsAfterFirst.jazGcalEventId,
+      'repeated manual booking reuses the same invite ids, not new ones (FR-019)');
+  } finally {
+    var cal = CalendarApp.getDefaultCalendar();
+    var cleanup = findRow_(readDogWalkRows_(), ymd, 'primary');
+    if (cleanup) {
+      [cleanup.maxGcalEventId, cleanup.jazGcalEventId].forEach(function (id) {
+        if (!id) return;
+        try { var e = cal.getEventById(id); if (e) e.deleteEvent(); } catch (e2) { /* best-effort */ }
+      });
+    }
+    deleteDogWalkTestRows_([ymd]);
+  }
+  Logger.log('live dog-walk manual booking: pass');
+}
+
+/** T053: the validation guards — a started window and a bad duration are BAD_REQUEST; an
+ *  unconfirmed gate-failing/no-forecast window raises OVERRIDE_REQUIRED naming the failed
+ *  gate(s) (FR-021a), and `confirmOverride: true` on the same window then succeeds.
+ *  `settings.autoBook: false` keeps this suggest-only — no real invites created. */
+function liveDogWalkBookingGuards_() {
+  var timezone = getTimezone_();
+  var ymd = addDays_(todayYmd_(), 7);
+  var actor = 'jaz'; // decidedBy only accepts max/jaz (data-model §1) — matches what the real auth layer resolves
+  var settings = {
+    timezone: timezone, autoBook: false, title: SELFTEST_PREFIX + 'walk',
+    maxWorkEmail: '', jazWorkEmail: '', durationsMin: [60, 45, 30], secondDurationMin: 30,
+    weatherHeatF: 80, weatherColdFloorF: 20, weatherPrecipPct: 50, ignoreList: [],
+    maxWorkCalId: '', jazWorkCalId: '', lat: null, lon: null, reliableDays: 14,
+    earliestStart: '08:00', latestStart: '16:00'
+  };
+
+  try {
+    var pastWindow = {
+      date: ymd, slot: 'primary', durationMin: 60,
+      windowStart: isoWithOffset_(new Date(Date.now() - 3600000), timezone),
+      windowEnd: isoWithOffset_(new Date(Date.now() - 1800000), timezone)
+    };
+    assertFails_('BAD_REQUEST', function () { bookWalkManually_(pastWindow, actor, settings); },
+      'a window that already started is rejected (FR-023)');
+
+    var badDuration = {
+      date: ymd, slot: 'primary', durationMin: 37,
+      windowStart: isoWithOffset_(walkDateTime_(ymd, '10:00'), timezone),
+      windowEnd: isoWithOffset_(walkDateTime_(ymd, '10:37'), timezone)
+    };
+    assertFails_('BAD_REQUEST', function () { bookWalkManually_(badDuration, actor, settings); },
+      'a duration outside the configured set is rejected');
+
+    var goodWindow = {
+      date: ymd, slot: 'primary', durationMin: 60,
+      windowStart: isoWithOffset_(walkDateTime_(ymd, '10:00'), timezone),
+      windowEnd: isoWithOffset_(walkDateTime_(ymd, '11:00'), timezone)
+    };
+    try {
+      bookWalkManually_(goodWindow, actor, settings);
+      assert_(false, 'expected OVERRIDE_REQUIRED for a window with no forecast configured (unset lat/lon)');
+    } catch (err) {
+      assert_(err && err.isAppError && err.code === 'OVERRIDE_REQUIRED', 'an unconfirmed no-forecast window raises OVERRIDE_REQUIRED (FR-021a)');
+      assert_(err.details && err.details.failedGates && err.details.failedGates.indexOf('noForecast') >= 0,
+        'OVERRIDE_REQUIRED names the specific failed gate(s)');
+    }
+
+    var confirmed = {
+      date: ymd, slot: 'primary', durationMin: 60,
+      windowStart: goodWindow.windowStart, windowEnd: goodWindow.windowEnd, confirmOverride: true
+    };
+    var booked = bookWalkManually_(confirmed, actor, settings);
+    assert_(booked.status === 'suggested', 'confirmOverride proceeds past the override check (suggest-only here since autoBook is false)');
+  } finally {
+    deleteDogWalkTestRows_([ymd]);
+  }
+  Logger.log('live dog-walk booking guards: pass');
 }
 
 function liveDogWalkBookingLifecycle_() {

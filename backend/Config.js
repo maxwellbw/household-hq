@@ -84,9 +84,11 @@ var HEADERS = {
   // Feature 010 — one row per device enabled for web push (data-model.md).
   PushSubscriptions: ['id', 'person', 'endpoint', 'p256dh', 'auth', 'deviceLabel',
                        'createdAt', 'lastUsedAt'],
-  // Feature 011 — dog-walk ledger: one row per (date, slot) (data-model.md).
+  // Feature 011 — dog-walk ledger: one row per (date, slot) (data-model.md). Feature 031
+  // adds decidedBy: max/jaz/blank — who made this decision by hand; blank means the finder
+  // owns the row (data-model.md §1).
   DogWalks: ['id', 'date', 'slot', 'status', 'windowStart', 'windowEnd', 'durationMin',
-             'maxGcalEventId', 'jazGcalEventId', 'reason', 'notifiedAt', 'updatedAt']
+             'maxGcalEventId', 'jazGcalEventId', 'reason', 'notifiedAt', 'updatedAt', 'decidedBy']
 };
 
 /** Tabs whose rows carry a UUID `id` (eligible for blank-ID adoption, FR-022). */
@@ -140,16 +142,23 @@ var ACTION_VERBS = {
   'push-notify': 'sent a push notification',
   // Feature 011 — weather-aware dog-walk finder.
   'dogwalk-book': 'booked a dog walk', 'dogwalk-move': 'moved a dog walk',
-  'dogwalk-suggest': 'suggested a dog-walk window', 'dogwalk-needs-decision': 'flagged a dog walk for a decision'
+  'dogwalk-suggest': 'suggested a dog-walk window', 'dogwalk-needs-decision': 'flagged a dog walk for a decision',
+  // Feature 031 US3: manual actions from the planner — distinct verbs from the automatic
+  // finder's above, so the activity feed can tell "a human decided" from "the finder decided".
+  'dogwalk.book': 'booked a dog walk', 'dogwalk.unbook': 'removed a dog walk',
+  'dogwalk.release': 'returned a dog walk to automatic scheduling'
 };
 
 /**
  * A write action mutates the Sheet. Shared-account callers must confirm an acting-person
  * on these (feature 002 FR-014/A5); reads and `auth.whoami` do not. Any `*.create`,
- * `*.update`, or `*.delete` counts.
+ * `*.update`, or `*.delete` counts. Feature 031: `book`/`unbook`/`release` added — without
+ * this, a shared-account caller would reach `bookWalkManually_`/etc. with `actor === null`
+ * instead of being asked to confirm Max or Jaz (FR-020's ActivityLog attribution depends on
+ * a real actor).
  */
 function isWriteAction_(action) {
-  return /\.(create|update|delete|complete|reopen|snooze|unsnooze|acknowledge|rank|toggle|subscribe|unsubscribe)$/.test(String(action));
+  return /\.(create|update|delete|complete|reopen|snooze|unsnooze|acknowledge|rank|toggle|subscribe|unsubscribe|book|unbook|release)$/.test(String(action));
 }
 
 /**
@@ -250,10 +259,18 @@ var DIGEST_TRIGGER_HOUR = 6;
 // Feature 011 — weather-aware dog-walk finder (research R8)
 // ---------------------------------------------------------------------------
 
-/** Hour (household tz) the nightly dog-walk finder trigger runs at — earliest of the
- *  nightly jobs (004/005/007/008 run at 3/4/5/6) so a booked walk is in place before the
- *  household's day and before the digest email that might mention it. */
-var DOG_WALK_TRIGGER_HOUR = 1;
+/** Hour (household tz) the nightly dog-walk finder trigger runs at. Moved 1 -> 3 (feature
+ *  031 research R1/R3): hour 1 sits in the extremely congested top-of-hour band where a huge
+ *  cohort of scheduled scripts fires, and Open-Meteo rate-limits per source IP — the
+ *  2026-07-18 incident. Hour 3 is less congested and doubles as the R1 discriminating
+ *  experiment: if it stops seeing 429s, that supports the shared-egress hypothesis. */
+var DOG_WALK_TRIGGER_HOUR = 3;
+
+/** Hour (household tz) the forecast warm-up trigger (`warmForecastCache`) runs at (feature
+ *  031 research R3) — deliberately far from `DOG_WALK_TRIGGER_HOUR` so the two triggers are
+ *  an independent draw against rate-limit congestion, not both stuck at the same top-of-hour
+ *  window. A rate-limited hour-3 finder run then falls back to a cache at most ~6h old. */
+var DOG_WALK_WARM_HOUR = 21;
 
 /** Discretization step (minutes) for scanning a free interval's candidate start times in
  *  `selectWindow_`/`secondWalkPlan_` — fine enough to find the real best window, coarse
@@ -263,6 +280,34 @@ var DOG_WALK_STEP_MIN = 15;
 /** WMO weather codes treated as snow/ice/freezing (research R5): snow (71,73,75,77), snow
  *  showers (85,86), freezing rain (66,67), freezing drizzle (56,57). */
 var DOG_WALK_WMO_SNOW_ICE = [56, 57, 66, 67, 71, 73, 75, 77, 85, 86];
+
+// ---------------------------------------------------------------------------
+// Feature 031 — forecast cache + retry backoff (research R2/R4)
+// ---------------------------------------------------------------------------
+
+/** Script-property key for the durable forecast cache (data-model.md §2). Not a Sheet tab —
+ *  disposable machine data, never a source of truth (Principle II). */
+var DOG_WALK_FORECAST_CACHE_KEY = 'hq.dogwalk.forecastCache';
+
+/** A cached forecast older than this is unusable for booking decisions, though it may still
+ *  be displayed with its age (FR-006). */
+var DOG_WALK_CACHE_MAX_AGE_MIN = 1440; // 24h
+
+/** Safety ceiling for the encoded cache value, comfortably under the ~9KB script-property
+ *  cap (research R2). The writer sheds furthest-out days first if it would exceed this. */
+var DOG_WALK_CACHE_MAX_BYTES = 8000;
+
+/** Cache encoding version, checked on read; a mismatch (or any malformed payload) decodes
+ *  to `null` rather than throwing — a corrupt cache degrades to "no cache" (data-model §2). */
+var DOG_WALK_CACHE_VERSION = 'v1';
+
+/** Escalating backoff (ms) between fetch attempts when Open-Meteo responds 429 — spans
+ *  ~3.5 minutes to cross a per-minute limiter and let a top-of-hour burst drain (research R4). */
+var DOG_WALK_BACKOFF_RATELIMIT_MS = [45000, 150000];
+
+/** Escalating backoff (ms) between fetch attempts for a generic transient failure (non-429
+ *  non-200, or a thrown exception) — no benefit to waiting minutes for these (research R4). */
+var DOG_WALK_BACKOFF_TRANSIENT_MS = [2000, 8000];
 
 /** Owner → inline HTML color for digest emails (DESIGN.md owner hues; email clients strip
  *  external CSS, so these are applied inline at render time — research D4). */
