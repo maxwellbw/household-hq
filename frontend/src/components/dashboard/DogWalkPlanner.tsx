@@ -423,8 +423,15 @@ export function DogWalkPlanner({ dateKey, timezone, onClose }: DogWalkPlannerPro
   }
 
   function handleHourTap(hour: HourGate) {
-    if (!plan || plan.primaryDurationsMin.length === 0) return
-    const durationMin = plan.primaryDurationsMin[0]
+    if (!plan) return
+    // Optional-chained on purpose: a backend too old to send `primaryDurationsMin` used to
+    // throw here, and React swallowed it — every hour tap became a silent no-op with the
+    // "tap an hour above to book anyway" hint still on screen. Degrade loudly instead.
+    const durationMin = plan.primaryDurationsMin?.[0]
+    if (durationMin == null) {
+      toast.show("Can't book by hour — the server didn't send walk durations")
+      return
+    }
     const { start, end } = hourWindowIso(hour.hour, durationMin, timezone)
     setOverrideInfo(null)
     setPendingBook({

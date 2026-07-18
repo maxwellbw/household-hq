@@ -3124,10 +3124,31 @@ function unitDogWalkForecastFallback_() {
 // ledger row in a `finally` block.
 // ---------------------------------------------------------------------------
 
+/**
+ * A scratch date for the dog-walk suites, `daysBeyondHorizon` past the nightly finder's
+ * write horizon (`today + reliableDays`). Suites must pick dates through here rather than
+ * with a small hand-rolled `addDays_` offset: `deleteDogWalkTestRows_` deletes by DATE, so
+ * a scratch date inside the horizon silently deletes that day's real production row and
+ * strands its calendar invites (which is exactly what happened once, on real days, when
+ * these suites used today+5/+6/+7).
+ */
+function dogWalkScratchDate_(daysBeyondHorizon) {
+  return addDays_(todayYmd_(), readDogWalkSettings_().reliableDays + daysBeyondHorizon);
+}
+
 /** Test-only cleanup: deletes rows directly via the Sheets primitives rather than through
  *  `dogwalks.unbook` (feature 031 US3 added a write API, but unbook only *skips* a row —
- *  it never deletes it — so scratch test rows still need this direct removal). */
+ *  it never deletes it — so scratch test rows still need this direct removal). Deletes by
+ *  date, so it refuses any date the nightly finder writes to — see `dogWalkScratchDate_`. */
 function deleteDogWalkTestRows_(ymds) {
+  var horizonEnd = addDays_(todayYmd_(), readDogWalkSettings_().reliableDays);
+  ymds.forEach(function (ymd) {
+    if (ymd >= todayYmd_() && ymd <= horizonEnd) {
+      throw new Error('deleteDogWalkTestRows_: refusing to delete ' + ymd + ' — it is inside the ' +
+        'finder horizon [' + todayYmd_() + ', ' + horizonEnd + '] and may hold a real walk. ' +
+        'Pick scratch dates with dogWalkScratchDate_().');
+    }
+  });
   withLock_(function () {
     var t = readTableForWrite_(TABS.DOG_WALKS);
     var toDelete = t.records
@@ -3147,10 +3168,13 @@ function deleteDogWalkTestRows_(ymds) {
 function liveDogWalkDayPlan_() {
   var timezone = getTimezone_();
   var settings = readDogWalkSettings_();
-  // Must fall within [today, today + outerDays] (buildDayPlan_'s own range check) — a small,
-  // configuration-independent offset, distinct from the +30/+40/+41 offsets other dog-walk
-  // suites use for their own scratch dates.
-  var ymd = addDays_(todayYmd_(), 5);
+  // Must fall within [today, today + outerDays] (buildDayPlan_'s own range check) but
+  // outside the finder's write horizon (today + reliableDays), so the cleanup below can't
+  // delete a real walk — the band between the two horizons is the only window that satisfies
+  // both, hence a small offset past reliableDays rather than a small offset past today.
+  var ymd = dogWalkScratchDate_(3);
+  assert_(ymd <= addDays_(todayYmd_(), settings.outerDays),
+    'liveDogWalkDayPlan_ scratch date must stay inside outerDays — widen the gap between reliableDays and outerDays in Settings');
 
   try {
     var windowStart = walkDateTime_(ymd, '10:00');
@@ -3217,7 +3241,9 @@ function unitDogWalkFreeze_() {
 function liveDogWalkManualBooking_() {
   var timezone = getTimezone_();
   var settings = readDogWalkSettings_();
-  var ymd = addDays_(todayYmd_(), 6);
+  // Beyond the finder's write horizon: this suite books with REAL settings (real title, real
+  // work-calendar guests), so a date the finder also owns would collide with a production row.
+  var ymd = dogWalkScratchDate_(20);
   var actor = 'max'; // decidedBy only accepts max/jaz (data-model §1) — matches what the real auth layer resolves
   var payload = {
     date: ymd, slot: 'primary', durationMin: 60,
@@ -3260,7 +3286,7 @@ function liveDogWalkManualBooking_() {
  *  `settings.autoBook: false` keeps this suggest-only — no real invites created. */
 function liveDogWalkBookingGuards_() {
   var timezone = getTimezone_();
-  var ymd = addDays_(todayYmd_(), 7);
+  var ymd = dogWalkScratchDate_(21);
   var actor = 'jaz'; // decidedBy only accepts max/jaz (data-model §1) — matches what the real auth layer resolves
   var settings = {
     timezone: timezone, autoBook: false, title: SELFTEST_PREFIX + 'walk',
