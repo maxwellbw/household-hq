@@ -5,6 +5,10 @@
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL as string
 
+const TIMEOUT_MS = 15_000
+
+const TRANSIENT_CODES = new Set(['NETWORK_ERROR', 'TIMEOUT', 'BAD_RESPONSE'])
+
 export class ApiError extends Error {
   code: string
   field?: string
@@ -15,6 +19,12 @@ export class ApiError extends Error {
     this.code = code
     this.field = field
   }
+}
+
+// FR-012/014 (feature 030): distinguishes a self-healing blip (network/timeout/parse) from a
+// genuine error that would waste the retry budget or mask a real auth rejection.
+export function isTransientError(err: unknown): boolean {
+  return err instanceof ApiError && TRANSIENT_CODES.has(err.code)
 }
 
 interface Envelope<T> {
@@ -39,15 +49,24 @@ export async function apiCall<T>(
     body.payload = { ...payload, actingPerson: options.actingPerson }
   }
 
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS)
+
   let res: Response
   try {
     res = await fetch(API_BASE_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify(body),
+      signal: controller.signal,
     })
-  } catch {
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      throw new ApiError('TIMEOUT', 'The server took too long to respond.')
+    }
     throw new ApiError('NETWORK_ERROR', 'Could not reach the server. Check your connection.')
+  } finally {
+    clearTimeout(timer)
   }
 
   let envelope: Envelope<T>

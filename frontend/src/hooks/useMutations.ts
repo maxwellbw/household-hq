@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '@/hooks/useAuth'
 import { useToast } from '@/hooks/useToast'
-import type { Event, Owner, Task } from '@/types/domain'
+import type { Event, Owner, RecurringRule, Task } from '@/types/domain'
 import type { NewEventInput, NewOneTimeTaskInput, NewRecurringInput } from '@/lib/quickAdd'
 import { buildEventPayload, buildOneTimeTaskPayload, buildRecurringPayload } from '@/lib/quickAdd'
 import type { ScheduleDraft } from '@/lib/schedule'
@@ -61,20 +61,53 @@ export function useCreateEvent() {
   }
 }
 
+/** Create a recurring rule from quick-add (US4 030) — optimistic insert into ['recurring']
+ *  using a client-minted id, same id-replay pattern as useCreateEvent; instances themselves
+ *  materialize via the existing nightly generator so ['tasks'] isn't touched optimistically,
+ *  only invalidated on settle as a safety net (unchanged from before this conversion). */
 export function useCreateRecurring() {
   const { authedCall, handleAuthError } = useAuth()
   const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: async (input: NewRecurringInput) => {
+  const toast = useToast()
+  const mutation = useMutation({
+    mutationFn: async (input: NewRecurringInput & { id: string }) => {
       try {
-        return await authedCall('recurring.create', buildRecurringPayload(input))
+        return await authedCall('recurring.create', { ...buildRecurringPayload(input), id: input.id })
       } catch (err) {
         handleAuthError(err)
         throw err
       }
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tasks'] }),
+    onMutate: async (input: NewRecurringInput & { id: string }) => {
+      await queryClient.cancelQueries({ queryKey: ['recurring'] })
+      const previous = queryClient.getQueryData<RecurringRule[]>(['recurring'])
+      const optimistic: RecurringRule = {
+        id: input.id,
+        title: input.title,
+        cadence: input.cadence,
+        anchorDate: input.anchorDate,
+        defaultOwner: input.defaultOwner,
+        lastGenerated: '',
+      }
+      queryClient.setQueryData<RecurringRule[] | undefined>(['recurring'], (old) => (old ? [...old, optimistic] : [optimistic]))
+      return { previous }
+    },
+    onError: (_err, _input, context) => {
+      if (context?.previous) queryClient.setQueryData(['recurring'], context.previous)
+      toast.show(SAVE_ERROR_MESSAGE)
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['recurring'] })
+      queryClient.invalidateQueries({ queryKey: ['tasks'] })
+    },
   })
+
+  const withId = (input: NewRecurringInput): NewRecurringInput & { id: string } => ({ ...input, id: crypto.randomUUID() })
+  return {
+    ...mutation,
+    mutate: (input: NewRecurringInput, options?: Parameters<typeof mutation.mutate>[1]) => mutation.mutate(withId(input), options),
+    mutateAsync: (input: NewRecurringInput) => mutation.mutateAsync(withId(input)),
+  }
 }
 
 /** Create a one-time task (US5/US2 R2) — optimistic insert using a client-minted id, same
@@ -227,7 +260,9 @@ export function useSnoozeTask() {
   })
 }
 
-/** Schedule a someday task by setting its dueDate + owner via tasks.update (FR-009). */
+/** Schedule a someday task by setting its dueDate + owner via tasks.update (FR-009).
+ *  Optimistic patch (US4 030) — revert on failure (ScheduleTaskDialog surfaces its own
+ *  toast from the rejected mutateAsync), invalidate on settle. */
 export function useScheduleTask() {
   const { authedCall, handleAuthError } = useAuth()
   const queryClient = useQueryClient()
@@ -240,7 +275,19 @@ export function useScheduleTask() {
         throw err
       }
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tasks'] }),
+    onMutate: async (draft: ScheduleDraft) => {
+      await queryClient.cancelQueries({ queryKey: ['tasks'] })
+      const previous = queryClient.getQueryData<Task[]>(['tasks'])
+      const payload = buildSchedulePayload(draft)
+      queryClient.setQueryData<Task[] | undefined>(['tasks'], (old) =>
+        old?.map((t) => (t.id === payload.id ? { ...t, dueDate: payload.dueDate, owner: payload.owner } : t)),
+      )
+      return { previous }
+    },
+    onError: (_err, _draft, context) => {
+      if (context?.previous) queryClient.setQueryData(['tasks'], context.previous)
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['tasks'] }),
   })
 }
 
@@ -277,7 +324,8 @@ export function useUpdateTask() {
 
 /** Persist a completed force-rank session as the shared household Someday order (021 US2) —
  *  `order` is task IDs best-to-worst; the backend writes dense ranks in one batch and clears
- *  any rank no longer in the list. Invalidates tasks so the Someday order updates everywhere. */
+ *  any rank no longer in the list. Optimistic patch (US4 030) mirrors that exactly — revert
+ *  on failure (ForceRankDialog surfaces its own toast/retry), invalidate on settle. */
 export function useRankTasks() {
   const { authedCall, handleAuthError } = useAuth()
   const queryClient = useQueryClient()
@@ -290,12 +338,27 @@ export function useRankTasks() {
         throw err
       }
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tasks'] }),
+    onMutate: async (order: string[]) => {
+      await queryClient.cancelQueries({ queryKey: ['tasks'] })
+      const previous = queryClient.getQueryData<Task[]>(['tasks'])
+      const rankOf = new Map(order.map((id, i) => [id, String(i + 1)]))
+      queryClient.setQueryData<Task[] | undefined>(['tasks'], (old) =>
+        old?.map((t) => ({ ...t, somedayRank: rankOf.get(t.id) ?? '' })),
+      )
+      return { previous }
+    },
+    onError: (_err, _order, context) => {
+      if (context?.previous) queryClient.setQueryData(['tasks'], context.previous)
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['tasks'] }),
   })
 }
 
 /** Delete a task (022 US2) — server hard-deletes + mirror cleanup; instance-only for
- *  recurring-generated tasks (rule untouched). No optimistic removal: rare/destructive. */
+ *  recurring-generated tasks (rule untouched). Optimistic removal (US4 030) — revert on
+ *  failure (TaskDetailSheet surfaces its own error toast at the call site), invalidate on
+ *  settle. Supersedes the prior "no optimistic removal: rare/destructive" stance now that
+ *  revert-on-failure is the established recovery path for every save in the app. */
 export function useDeleteTask() {
   const { authedCall, handleAuthError } = useAuth()
   const queryClient = useQueryClient()
@@ -308,12 +371,23 @@ export function useDeleteTask() {
         throw err
       }
     },
+    onMutate: async (taskId: string) => {
+      await queryClient.cancelQueries({ queryKey: ['tasks'] })
+      const previous = queryClient.getQueryData<Task[]>(['tasks'])
+      queryClient.setQueryData<Task[] | undefined>(['tasks'], (old) => old?.filter((t) => t.id !== taskId))
+      return { previous }
+    },
+    onError: (_err, _taskId, context) => {
+      if (context?.previous) queryClient.setQueryData(['tasks'], context.previous)
+    },
     onSettled: () => queryClient.invalidateQueries({ queryKey: ['tasks'] }),
   })
 }
 
 /** Delete an event (022 US2) — server hard-deletes, purges all its prep tasks (done +
- *  outstanding), and removes the calendar mirror. Invalidates both events and tasks. */
+ *  outstanding), and removes the calendar mirror. Optimistic removal (US4 030) of both the
+ *  event and its cascaded prep tasks, revert on failure (EventDetailSheet surfaces its own
+ *  error toast at the call site), invalidate both on settle. */
 export function useDeleteEvent() {
   const { authedCall, handleAuthError } = useAuth()
   const queryClient = useQueryClient()
@@ -325,6 +399,19 @@ export function useDeleteEvent() {
         handleAuthError(err)
         throw err
       }
+    },
+    onMutate: async (eventId: string) => {
+      await queryClient.cancelQueries({ queryKey: ['events'] })
+      await queryClient.cancelQueries({ queryKey: ['tasks'] })
+      const previousEvents = queryClient.getQueryData<Event[]>(['events'])
+      const previousTasks = queryClient.getQueryData<Task[]>(['tasks'])
+      queryClient.setQueryData<Event[] | undefined>(['events'], (old) => old?.filter((e) => e.id !== eventId))
+      queryClient.setQueryData<Task[] | undefined>(['tasks'], (old) => old?.filter((t) => t.eventId !== eventId))
+      return { previousEvents, previousTasks }
+    },
+    onError: (_err, _eventId, context) => {
+      if (context?.previousEvents) queryClient.setQueryData(['events'], context.previousEvents)
+      if (context?.previousTasks) queryClient.setQueryData(['tasks'], context.previousTasks)
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['events'] })

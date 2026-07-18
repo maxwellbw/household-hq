@@ -99,13 +99,35 @@ describe('boot restore', () => {
     expect(sessionStore.getSessionToken()).toBeNull()
   })
 
-  it('keeps the stored token on a transient network failure so the next launch can retry', async () => {
+  it('auto-retries a transient network failure, then lands on restore-error with the token preserved (feature 030 FR-007)', async () => {
     sessionStore.setSessionToken('hqs1.stored.sig')
     fetchWhoAmIMock.mockRejectedValue(new ApiError('NETWORK_ERROR', 'offline'))
 
     const { result } = renderHook(() => useAuth(), { wrapper })
-    await waitFor(() => expect(result.current.status).toBe('signed-out'))
+    await waitFor(() => expect(result.current.status).toBe('restore-error'), { timeout: 4000 })
+
+    // Initial attempt + 2 bounded backoff retries — never the sign-in wall (FR-007).
+    expect(fetchWhoAmIMock).toHaveBeenCalledTimes(3)
     expect(sessionStore.getSessionToken()).toBe('hqs1.stored.sig')
+  })
+
+  it('recovers to signed-in from restore-error via retryRestore, with no Google re-auth', async () => {
+    sessionStore.setSessionToken('hqs1.stored.sig')
+    fetchWhoAmIMock.mockRejectedValue(new ApiError('NETWORK_ERROR', 'offline'))
+
+    const { result } = renderHook(() => useAuth(), { wrapper })
+    await waitFor(() => expect(result.current.status).toBe('restore-error'), { timeout: 4000 })
+
+    fetchWhoAmIMock.mockResolvedValue(PERSONAL_WHO)
+    await act(async () => {
+      await result.current.retryRestore()
+    })
+
+    await waitFor(() => expect(result.current.status).toBe('signed-in'))
+    expect(result.current.session?.token).toBe('hqs1.fresh.sig')
+    expect(sessionStore.getSessionToken()).toBe('hqs1.fresh.sig')
+    // No Google sign-in flow was ever invoked — recovery is whoami-only.
+    expect(setupGisMock).not.toHaveBeenCalled()
   })
 })
 

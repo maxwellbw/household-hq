@@ -33,8 +33,10 @@ interface UpdateSettingsResult {
   digestTriggerReinstalled: boolean
 }
 
-/** Saves only the changed curated-settings fields via `settings.update` (feature 020) and
- *  refreshes the `['settings']` query so the form reflects what actually persisted. */
+/** Saves only the changed curated-settings fields via `settings.update` (feature 020) —
+ *  optimistic merge into the `['settings']` cache (US4 030), revert on failure (the caller,
+ *  SettingsView, already surfaces its own field/form error from the rejected promise),
+ *  invalidate on settle so the form reflects what actually persisted. */
 export function useUpdateSettings() {
   const { authedCall, handleAuthError } = useAuth()
   const queryClient = useQueryClient()
@@ -51,6 +53,17 @@ export function useUpdateSettings() {
         throw err
       }
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['settings'] }),
+    onMutate: async (payload) => {
+      await queryClient.cancelQueries({ queryKey: ['settings'] })
+      const previous = queryClient.getQueryData<{ settings: Settings }>(['settings'])
+      queryClient.setQueryData<{ settings: Settings } | undefined>(['settings'], (old) =>
+        old ? { ...old, settings: { ...old.settings, ...payload } as Settings } : old,
+      )
+      return { previous }
+    },
+    onError: (_err, _payload, context) => {
+      if (context?.previous) queryClient.setQueryData(['settings'], context.previous)
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['settings'] }),
   })
 }

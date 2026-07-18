@@ -23,7 +23,7 @@ order confirmed by Jaz 2026-07-11, including 010/011 — definitely a go, slotte
 | 8 | 011 | Weather-aware dog-walk window finder | ✅ merged (live-validated suggest-only; real auto-book run pending — see Shipped notes) | specs/011-dog-walk-finder | [#29](https://github.com/maxwellbw/household-hq/pull/29) |
 | 9 | **PRIV** | **Public-repo personal-data scrub (git history rewrite)** | ✅ done 2026-07-17 | specs/PRIV-privacy-scrub | — |
 | 10 | 029 | Bug-fix batch 4 (calendar glitch, scroll lock, dismissals, done strikethrough, walks in day peek + times, walk-trigger reliability, prep-template picker) | ✅ merged | specs/029-bug-fix-batch-4 | [#30](https://github.com/maxwellbw/household-hq/pull/30) |
-| 11 | 030 | Perf & resilience (data.bootstrap batching, code splitting, remaining optimistic saves, fetch timeout/retry, boot-restore hardening) | ⬜ not started | — | — |
+| 11 | 030 | Perf & resilience (data.bootstrap batching, code splitting, remaining optimistic saves, fetch timeout/retry, boot-restore hardening) | 🟢 implemented, pending PR | specs/030-perf-resilience | — |
 | 12 | 031 | Dog-walk day planner (view busy blocks + hourly weather, book from the app) | ⬜ not started | — | — |
 | 13 | 032 | Mobile rework (audit-driven, own spec) | ⬜ not started | — | — |
 | 14 | 026 | Inbound gcal import (personal calendars) | ⬜ not started | — | — |
@@ -265,6 +265,47 @@ grocery lists + inbound gcal import from the parked list · Phase 2.8 (028) plan
 010 promoted ahead of 026 for iPhone push.
 
 ### Post-merge notes & open follow-ups
+
+**2026-07-18 — 030 (Perf & resilience) implemented, all 31 tasks done (T001–T031), all 5
+stories live-validated, not yet merged.** Baseline 432 frontend tests → 488 (+56); `npm run
+build` type-clean, chunk split confirmed (`schedule-x`/`CalendarHome`/`MoreView` vendor
+chunks absent from `dist/index.html`'s eager references). Backend: all 42+6 suites green
+across **7** `clasp run` chunks (`selfTest1Core` → `selfTest4CalendarA` → `selfTest4CalendarB`
+→ `selfTest5Comms` → `selfTestDogWalk`) — the old chunk 4 (`selfTest4CalendarAndComms`) had to
+be split further mid-validation after a clean re-run still hung past the 6-minute Apps Script
+cap (`clasp run` hangs rather than errors on that overrun, per the existing documented
+caveat); deployed via `clasp deploy -i` to the stable head deployment (now @27, no
+`appsscript.json` scope changes so no re-auth needed).
+- **US1 (one-request bootstrap)**: live-confirmed exactly one `data.bootstrap` POST on cold
+  load (the two near-simultaneous `whoami` calls seen in the Network tab are a React 18
+  StrictMode dev-only double-invoke artifact, not a production duplicate); real data
+  rendered across home/calendar/tasks/lists from that one response; a task completion still
+  fired its normal targeted refetch afterward.
+- **US2 (boot-restore hardening)**: live-confirmed the genuine-rejection guard — an
+  invalid/corrupted stored token correctly routes to the sign-in wall, never the recoverable
+  screen (FR-009 not masked). The transient/offline auto-retry path itself relies on the
+  passing `useAuth.test.tsx`/`useBootstrap.test.ts` unit suites plus the live verification
+  already recorded in `tasks.md`'s implementation notes; simulating true network offline
+  wasn't practical in this sandboxed browser.
+- **US3 (timeout/retry)**: verified via the passing `api.test.ts`/`queryClient.test.ts` unit
+  suites (timeout abort, transient-retry-with-backoff, genuine-error-no-retry); not
+  independently re-verified live (no network-shaping tool available in this session).
+- **US4 (remaining optimistic saves)**: live-confirmed a list-item create and delete both
+  reflect instantly (optimistic) before the backend confirms, matching the established
+  feature-028 pattern.
+- **US5 (code splitting)**: live-confirmed the Calendar and More tabs lazy-load correctly
+  (including a forced chunk-load failure showing `LazyBoundary`'s area-scoped "Couldn't load
+  Calendar." retry screen while the rest of the app — nav, dashboard, owner filters — kept
+  working); build output confirms the eager/deferred chunk split structurally.
+- **`/impeccable audit`** on `BootErrorGate`/`LazyBoundary` scored 19/20 — one real P1 found
+  and fixed live: both components' Retry buttons were 36px (below the 44px touch-target floor
+  DESIGN.md requires and the rest of the app already works around in `AppShell` via
+  `min-h-[44px]`); added the same override to both, live-remeasured at 44px.
+- **Found, out of scope, flagged separately**: the More → Feed activity screen always shows
+  "Could not load activity" — a pre-existing field-name mismatch (backend's `listActivity_`
+  returns `{ activity }`, frontend's `useActivity` destructures `{ entries }`), confirmed via
+  `git diff main` to predate this branch entirely. Spun off as its own follow-up task, not
+  fixed as part of this feature.
 
 **2026-07-17 — 029 (Bug-fix batch 4) implemented, all 39 tasks done, all 7 stories
 live-validated, merged ([PR #30](https://github.com/maxwellbw/household-hq/pull/30)).**

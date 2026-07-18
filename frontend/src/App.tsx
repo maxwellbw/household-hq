@@ -1,24 +1,37 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '@/hooks/useAuth'
+import { useBootstrap } from '@/hooks/useBootstrap'
 import { listenForDeepLinks } from '@/lib/deeplink'
 import { AppShell } from '@/components/shell/AppShell'
+import { LazyBoundary } from '@/components/shell/LazyBoundary'
 import { SignInGate } from '@/components/auth/SignInGate'
 import { RestoringGate } from '@/components/auth/RestoringGate'
+import { BootErrorGate } from '@/components/auth/BootErrorGate'
 import { ActingPersonPrompt } from '@/components/auth/ActingPersonPrompt'
 import { ActingPersonAffirm } from '@/components/auth/ActingPersonAffirm'
-import { CalendarHome } from '@/components/calendar/CalendarHome'
+import type { CalendarHomeProps } from '@/components/calendar/CalendarHome'
 import { OwnerFilterChips } from '@/components/calendar/OwnerFilterChips'
 import { useOwnerFilter } from '@/hooks/useOwnerFilter'
 import { SomedayList } from '@/components/task/SomedayList'
 import { ScheduleTaskDialog } from '@/components/task/ScheduleTaskDialog'
 import { TasksView } from '@/components/task/TasksView'
 import { ListsView } from '@/components/lists/ListsView'
-import { MoreView } from '@/components/more/MoreView'
 import { DashboardHome } from '@/components/dashboard/DashboardHome'
 import type { NavSection } from '@/components/shell/navItems'
 
+// Feature 030 US5 (FR-018/019): Schedule-X (the calendar view's dependency) and the More
+// view (activity feed) are the heaviest and least-cold-critical parts of the bundle — kept
+// out of the initial chunk and fetched on demand via LazyBoundary. Dashboard/tasks/lists
+// are the landing path and stay eager.
+const loadCalendarHome = () =>
+  import('@/components/calendar/CalendarHome').then((m) => ({ default: m.CalendarHome }))
+const loadMoreView = () => import('@/components/more/MoreView').then((m) => ({ default: m.MoreView }))
+
 function App() {
   const { status, session } = useAuth()
+  // Feature 030 US1: one cold-load bootstrap seeds every primary-view dataset's cache;
+  // `enabled: !!session` inside the hook means this is idle (not loading) pre-sign-in.
+  const bootstrap = useBootstrap()
   const { visibleOwners, toggle } = useOwnerFilter()
   const [active, setActive] = useState<NavSection>('home')
   const [schedulingTaskId, setSchedulingTaskId] = useState<string | null>(null)
@@ -53,12 +66,24 @@ function App() {
     return <RestoringGate />
   }
 
+  // Feature 030 US2 (FR-007/010): a transient whoami or bootstrap failure lands here —
+  // session preserved, recoverable via manual retry — rather than the sign-in wall.
+  if (status === 'restore-error') {
+    return <BootErrorGate />
+  }
+
   if (status !== 'signed-in' || !session) {
     return <SignInGate />
   }
 
   if (session.who.needsActingPerson && !session.actingPerson) {
     return <ActingPersonPrompt />
+  }
+
+  // Gate the primary views' first render on the bootstrap request settling (success or
+  // exhausted retries) so they never render from an empty, unseeded cache (SC-001).
+  if (bootstrap.isLoading) {
+    return <RestoringGate />
   }
 
   function openScheduleDialog(taskId: string, date = '') {
@@ -80,13 +105,19 @@ function App() {
       {active === 'calendar' && (
         <div className="flex flex-col">
           <OwnerFilterChips visibleOwners={visibleOwners} onToggle={toggle} />
-          <CalendarHome visibleOwners={visibleOwners} focusDate={calendarFocusDate ?? undefined} />
+          <LazyBoundary<CalendarHomeProps>
+            label="Calendar"
+            loader={loadCalendarHome}
+            componentProps={{ visibleOwners, focusDate: calendarFocusDate ?? undefined }}
+          />
           <SomedayList visibleOwners={visibleOwners} onSchedule={openScheduleDialog} />
         </div>
       )}
       {active === 'tasks' && <TasksView onScheduleSomeday={openScheduleDialog} />}
       {active === 'lists' && <ListsView />}
-      {active === 'more' && <MoreView />}
+      {active === 'more' && (
+        <LazyBoundary<Record<string, never>> label="More" loader={loadMoreView} componentProps={{}} />
+      )}
 
       {schedulingTaskId && (
         <ScheduleTaskDialog

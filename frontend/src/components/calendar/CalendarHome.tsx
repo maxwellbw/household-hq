@@ -53,7 +53,7 @@ const CUSTOM_COMPONENTS = { monthGridEvent: EventContent, monthAgendaEvent: Even
 // app's desktop widths.
 const MONTH_GRID_EVENTS_PER_DAY = 3
 
-interface CalendarHomeProps {
+export interface CalendarHomeProps {
   visibleOwners: Set<Owner>
   focusDate?: string
 }
