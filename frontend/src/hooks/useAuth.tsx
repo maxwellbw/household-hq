@@ -1,10 +1,15 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { fetchWhoAmI, renderSignInButton, setupGis, signOut as gisSignOut } from '@/lib/auth'
-import { apiCall, ApiError } from '@/lib/api'
+import { apiCall, ApiError, isTransientError } from '@/lib/api'
 import * as sessionStore from '@/lib/session-store'
 import type { Session, WhoAmI } from '@/types/domain'
 
-type AuthStatus = 'restoring' | 'signed-out' | 'authenticating' | 'signed-in' | 'forbidden' | 'error'
+type AuthStatus = 'restoring' | 'signed-out' | 'authenticating' | 'signed-in' | 'forbidden' | 'error' | 'restore-error'
+
+// Feature 030 US2 (FR-007): bounded auto-retry with backoff before the transient boot-restore
+// path falls back to the recoverable 'restore-error' screen instead of the sign-in wall.
+const MAX_RESTORE_RETRIES = 2
+const RESTORE_RETRY_DELAY_MS = [500, 1500]
 
 interface AuthContextValue {
   status: AuthStatus
@@ -18,6 +23,10 @@ interface AuthContextValue {
   handleAuthError: (err: unknown) => boolean
   /** Authenticated API call using the current household session token (feature 018 rev.). */
   authedCall: <T>(action: string, payload?: Record<string, unknown>) => Promise<T>
+  /** Re-runs boot restore (whoami) from the stored token; used by the manual "Retry" screen. */
+  retryRestore: () => Promise<void>
+  /** Called by useBootstrap when bootstrap fails after a successful whoami (FR-010). */
+  reportBootError: () => void
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
@@ -67,39 +76,68 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setStatus('signed-out')
   }, [])
 
+  // Guards each restore() run: incremented at the start of every call (mount, manual
+  // retry) and on unmount, so a superseded/unmounted run stops touching state instead of
+  // racing a newer one.
+  const restoreGenerationRef = useRef(0)
+
   // Boot: restore from the persisted session token — one whoami round-trip, no
   // Google involvement (FR-001/FR-005). Nothing stored → the sign-in wall.
-  useEffect(() => {
-    let cancelled = false
+  // Transient failures (offline, server hiccup, timeout, malformed response) auto-retry a
+  // bounded number of times with backoff, then land on the recoverable 'restore-error'
+  // state with the stored token intact (FR-007) — genuine forbidden/expired rejections are
+  // untouched (FR-009).
+  const restore = useCallback(async () => {
+    const guard = ++restoreGenerationRef.current
+    const stored = sessionStore.getSessionToken()
+    if (!stored) {
+      setStatus('signed-out')
+      return
+    }
+    setStatus('restoring')
 
-    async function restore() {
-      const stored = sessionStore.getSessionToken()
-      if (!stored) {
-        setStatus('signed-out')
-        return
-      }
+    let attempt = 0
+    while (restoreGenerationRef.current === guard) {
       const result = await applyCredential(stored)
-      if (cancelled) return
+      if (restoreGenerationRef.current !== guard) return
       if (result.ok) {
         commitSignedIn(result.who)
-      } else if (isForbidden(result.err)) {
+        return
+      }
+      if (isForbidden(result.err)) {
         sessionStore.clearSessionToken()
         setStatus('forbidden')
         setErrorMessage(result.err.message)
-      } else if (isAuthExpired(result.err)) {
-        dropSession()
-      } else {
-        // Transient failure (offline, server hiccup): keep the stored token so
-        // the next launch restores silently; this visit falls back to the wall.
-        setStatus('signed-out')
+        return
       }
+      if (isAuthExpired(result.err)) {
+        dropSession()
+        return
+      }
+      // Transient — or an unexpected error shape whoami shouldn't produce; either way it
+      // isn't a genuine forbidden/expired rejection, so it's handled recoverably. A
+      // non-transient ApiError skips straight to restore-error rather than spending the
+      // retry budget on something that won't change (FR-014).
+      if (isTransientError(result.err) && attempt < MAX_RESTORE_RETRIES) {
+        await new Promise((resolve) => setTimeout(resolve, RESTORE_RETRY_DELAY_MS[attempt]))
+        attempt += 1
+        continue
+      }
+      setStatus('restore-error')
+      return
     }
+  }, [applyCredential, commitSignedIn, dropSession])
 
+  useEffect(() => {
     void restore()
     return () => {
-      cancelled = true
+      restoreGenerationRef.current += 1
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const reportBootError = useCallback(() => {
+    setStatus('restore-error')
   }, [])
 
   const handleCredential = useCallback(
@@ -184,8 +222,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setActingPerson,
       handleAuthError,
       authedCall,
+      retryRestore: restore,
+      reportBootError,
     }),
-    [status, session, errorMessage, initSignInButton, signOut, setActingPerson, handleAuthError, authedCall],
+    [
+      status,
+      session,
+      errorMessage,
+      initSignInButton,
+      signOut,
+      setActingPerson,
+      handleAuthError,
+      authedCall,
+      restore,
+      reportBootError,
+    ],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

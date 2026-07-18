@@ -308,8 +308,8 @@ editor runs. One-time setup already done:
 Usage (from `backend/`; runs against the **head** deployment, i.e. the last `clasp push`):
 
 ```bash
-clasp run selfTest1Core          # …2Recurring, 3SeedAndLists, 4CalendarAndComms,
-                                 # then selfTestDogWalk (chunk 5/5)
+clasp run selfTest1Core          # …2Recurring, 3SeedAndLists, 4CalendarA, 4CalendarB,
+                                 # 5Comms, then selfTestDogWalk (chunk 7/7)
 clasp run setupDatabase
 clasp run cleanupSelfTestResidue # sweep selftest- rows/ledger keys after a failed suite
 clasp run mintDevSessionToken    # prints a 7-day hqs1. session token (see below)
@@ -317,7 +317,10 @@ clasp run mintDevSessionToken    # prints a 7-day hqs1. session token (see below
 
 Caveat: an execution that exceeds the 6-minute Apps Script cap makes `clasp run` **hang
 indefinitely** rather than error — kill it and check the execution's fate in the Apps
-Script dashboard. Chunk 4 currently runs ~5m30s; if it starts hanging, split it further.
+Script dashboard. The old chunk 4 (`selfTest4CalendarAndComms`) ran ~5m30s right at the cap
+and was split (feature 030) into `selfTest4CalendarA`/`selfTest4CalendarB` (the four live-
+Calendar suites, the real bottleneck) + `selfTest5Comms`; if any chunk starts hanging again,
+split it further the same way.
 
 **Dev session tokens (browser access without Google OAuth):** `mintDevSessionToken()`
 (`DevTools.js`) mints a short-lived household session token for Max's allowlisted email.

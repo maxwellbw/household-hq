@@ -151,7 +151,25 @@ var HANDLERS = {
   'auth.whoami':    function (p, actor, identity) { return whoami_(identity); },
 
   // Feature 011: dog-walk finder — read-only; the engine owns all writes (contracts/dogwalks-api.md).
-  'dogwalks.list':  function () { return { dogWalks: listUpcomingDogWalks_() }; }
+  'dogwalks.list':  function () { return { dogWalks: listUpcomingDogWalks_() }; },
+
+  // Feature 030 US1: single-request cold-load bootstrap — composes the nine *.list helpers
+  // above into one response (contracts/api-bootstrap.md). Read-only; excludes activity
+  // (lazy More-tab load). Passes (p, actor, identity) through to listTasks_ so task scoping
+  // is identical to tasks.list for the same actor (FR-002/FR-003).
+  'data.bootstrap': function (p, actor, identity) {
+    return {
+      events: listRecords_(TABS.EVENTS),
+      tasks: listTasks_(p, actor, identity).tasks,
+      recurring: listRecords_(TABS.RECURRING),
+      recurringEvents: listRecords_(TABS.RECURRING_EVENTS),
+      lists: listLists_().lists,
+      listItems: listListItems_(p).items,
+      templates: listRecords_(TABS.TEMPLATES),
+      settings: readSettingsMap_(),
+      dogWalks: listUpcomingDogWalks_()
+    };
+  }
 };
 
 // ---------------------------------------------------------------------------

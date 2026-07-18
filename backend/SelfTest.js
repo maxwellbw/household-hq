@@ -10,17 +10,18 @@
 var SELFTEST_PREFIX = 'selftest-';
 
 /**
- * Chunk coverage map (feature 028 US7, research R8) — the monolithic `selfTest()` grew past
- * the Apps Script 6-minute execution limit (the live-Calendar suites make real Calendar API
- * calls and dominate wall time), so it is split into four public, editor-runnable chunks.
- * This is a flat regrouping of the exact same 42 suite calls in their original relative
- * order, split by dependency cluster — no suite's internal behavior changed. Union of the
- * four chunks == the old monolith's coverage; each suite appears in exactly one chunk:
+ * Chunk coverage map (feature 028 US7, research R8; re-split feature 030 T028) — the
+ * monolithic `selfTest()` grew past the Apps Script 6-minute execution limit (the
+ * live-Calendar suites make real Calendar API calls and dominate wall time), so it is split
+ * into seven public, editor-runnable chunks. This is a flat regrouping of the exact same 48
+ * suite calls in their original relative order, split by dependency cluster — no suite's
+ * internal behavior changed. Union of the seven chunks == the old monolith's coverage; each
+ * suite appears in exactly one chunk:
  *
- *   selfTest1Core()            (14): unitValidators_, unitAuth_, unitSessionTokens_,
+ *   selfTest1Core()            (15): unitValidators_, unitAuth_, unitSessionTokens_,
  *     liveCrudRoundTrip_, liveTaskSlices_, liveActivityFeed_, liveErrorCases_,
  *     liveHandEditResilience_, liveEventCrud_, liveTemplateCrud_, liveSnooze_,
- *     liveTaskNotes_, liveAcknowledge_, liveTasksRank_
+ *     liveTaskNotes_, liveAcknowledge_, liveTasksRank_, liveBootstrapParity_ (feature 030)
  *   selfTest2Recurring()        (12): unitOccurrenceMath_, unitThanksgivingAndOrdinals_,
  *     liveRecurringGeneration_, liveRecurringCrud_, liveRecurringCatchUp_,
  *     unitRecurringEventMath_, liveRecurringEventGeneration_, liveRecurringEventPrep_,
@@ -28,26 +29,35 @@ var SELFTEST_PREFIX = 'selftest-';
  *   selfTest3SeedAndLists()      (8): liveSeedEventsAndTemplates_, unitSeedPack_,
  *     liveSeedPack_, unitAlternatingBins_, liveSeedTripTemplateOnEvent_, liveListsCrud_,
  *     liveListItemsCrud_, liveSeedLists_
- *   selfTest4CalendarAndComms() (13): unitCalendarSync_, liveCalendarEventSync_,
- *     liveCalendarTaskSync_, liveCalendarReconcile_, unitDigests_, liveSettingsUpdate_,
- *     unitPush_, liveCalendarLocationSync_ (feature 010: unitPush_ replaces the retired
- *     unitNtfy_; the crypto proof itself lives in the separate selfTestPush() runner),
- *     unitDogWalkAvailability_, unitDogWalkSelection_, unitDogWalkWeatherGate_,
- *     unitDogWalkSecondWalk_, liveDogWalkBookingLifecycle_ (feature 011, also runnable
- *     alone via selfTestDogWalk())
+ *   selfTest4CalendarA()          (3): unitCalendarSync_, liveCalendarEventSync_,
+ *     liveCalendarTaskSync_
+ *   selfTest4CalendarB()          (2): liveCalendarReconcile_, liveCalendarLocationSync_
+ *   selfTest5Comms()              (3): unitDigests_, liveSettingsUpdate_, unitPush_ (feature
+ *     010: unitPush_ replaces the retired unitNtfy_; the crypto proof itself lives in the
+ *     separate selfTestPush() runner)
+ *   selfTestDogWalk()             (5): unitDogWalkAvailability_, unitDogWalkSelection_,
+ *     unitDogWalkWeatherGate_, unitDogWalkSecondWalk_, liveDogWalkBookingLifecycle_
+ *     (feature 011, also runnable alone as chunk 7/7)
  *
- *   Total: 14 + 12 + 8 + 13 = 47 suites (42 original + 5 feature-011 additions).
+ *   Total: 15 + 12 + 8 + 3 + 2 + 3 + 5 = 48 suites (42 original + 5 feature-011 + 1
+ *   feature-030 addition). selfTest4CalendarAndComms() (feature 028's original chunk 4) was
+ *   itself split here (feature 030 T028, 2026-07-18): a clean, isolated re-run still overran
+ *   the 6-minute cap — `clasp run` hangs on that overrun rather than erroring, so the symptom
+ *   is a stuck CLI call, not a thrown assertion. A first cut (only pulling the fast
+ *   unitDigests_/liveSettingsUpdate_/unitPush_ suites into their own chunk) still hung, since
+ *   nearly all the wall time was already concentrated in the four live-Calendar suites — so
+ *   those are now split across selfTest4CalendarA()/selfTest4CalendarB() too.
  *
  * `selfTestSeedPack()` and `selfTestSessionTokens()` (below) are unrelated targeted runners
  * from earlier features and are untouched.
  */
 function selfTest() {
   Logger.log('selfTest() no longer runs the suite directly — the full run exceeds the Apps ' +
-    'Script 6-minute execution limit. Run these five chunks from the editor or `clasp run`, ' +
+    'Script 6-minute execution limit. Run these seven chunks from the editor or `clasp run`, ' +
     'in order: selfTest1Core(), selfTest2Recurring(), selfTest3SeedAndLists(), ' +
-    'selfTest4CalendarAndComms(), selfTestDogWalk().');
+    'selfTest4CalendarA(), selfTest4CalendarB(), selfTest5Comms(), selfTestDogWalk().');
   throw new Error('selfTest() is a fail-loud guard, not a runner. See the Logger output above ' +
-    'for the five chunk functions to run instead — never trust a partial run as a pass.');
+    'for the seven chunk functions to run instead — never trust a partial run as a pass.');
 }
 
 function selfTest1Core() {
@@ -65,6 +75,7 @@ function selfTest1Core() {
   liveTaskNotes_();
   liveAcknowledge_();
   liveTasksRank_();
+  liveBootstrapParity_();
   Logger.log('SELFTEST 1/5 (Core): ALL PASS');
 }
 
@@ -96,22 +107,36 @@ function selfTest3SeedAndLists() {
   Logger.log('SELFTEST 3/5 (SeedAndLists): ALL PASS');
 }
 
-function selfTest4CalendarAndComms() {
+function selfTest4CalendarA() {
   unitCalendarSync_();
   liveCalendarEventSync_();
   liveCalendarTaskSync_();
+  Logger.log('SELFTEST 4/7 (CalendarA): ALL PASS');
+}
+
+function selfTest4CalendarB() {
   liveCalendarReconcile_();
+  liveCalendarLocationSync_();
+  Logger.log('SELFTEST 5/7 (CalendarB): ALL PASS');
+}
+
+function selfTest5Comms() {
   unitDigests_();
   liveSettingsUpdate_();
   unitPush_();
-  liveCalendarLocationSync_();
-  Logger.log('SELFTEST 4/5 (CalendarAndComms): ALL PASS');
+  Logger.log('SELFTEST 6/7 (Comms): ALL PASS');
 }
-// The dog-walk suites that used to close this chunk (the 5 run by selfTestDogWalk()) are
-// the suite's fifth chunk: with them inline, chunk 4 overran the 6-minute execution cap
-// (first observed on the first-ever live run, 2026-07-17 — the live calendar suites plus
-// the live booking lifecycle together exceed it). selfTestDogWalk() was already their
-// dedicated public runner; run it as chunk 5/5.
+// selfTest4CalendarAndComms() (feature 028 US7) was itself split here (feature 030 T028,
+// 2026-07-18): a clean isolated re-run still overran the 6-minute Apps Script execution cap
+// (~9 min observed, past even the ~5m31s/close-to-the-cap timing noted after feature 029) —
+// `clasp run` hangs rather than errors on that overrun (known failure mode, see BACKLOG.md),
+// so the symptom is a stuck CLI call, not a thrown assertion. First cut (pulling only the
+// fast unitDigests_/liveSettingsUpdate_/unitPush_ suites into their own chunk) still hung at
+// 7+ min, because nearly all the wall time was already concentrated in the four live-Calendar
+// suites, not spread across the original 8 — so the real-Calendar-API suites themselves are
+// now split in two (selfTest4CalendarA/B), same pattern as the dog-walk suites' earlier
+// extraction. unitDigests_/liveSettingsUpdate_/unitPush_ (no live Calendar calls) are now
+// selfTest5Comms(). The dog-walk suites (selfTestDogWalk(), unchanged) are chunk 7/7.
 
 /**
  * Feature-015 targeted runner. The full `selfTest()` suite has grown past the 6-minute Apps
@@ -2443,6 +2468,45 @@ function liveTasksRank_() {
 
   [a, b, c].forEach(function (id) { deleteRecordById_(TABS.TASKS, id, actor); });
   Logger.log('live tasks.rank: pass');
+}
+
+// ---------------------------------------------------------------------------
+// Live: data.bootstrap shape parity (feature 030 US1, FR-002/003, contracts/api-bootstrap.md)
+// ---------------------------------------------------------------------------
+
+/**
+ * Every key in `data.bootstrap`'s response must equal what the corresponding `*.list`
+ * action returns for the same actor at the same instant (FR-002), and `activity` must be
+ * absent (it stays a lazy More-tab load). Read-only — this suite writes nothing itself.
+ */
+function liveBootstrapParity_() {
+  var actor = 'max';
+  var identity = null;
+
+  var boot = HANDLERS['data.bootstrap']({}, actor, identity);
+
+  assert_(!boot.hasOwnProperty('activity'), 'bootstrap excludes the activity feed');
+
+  assert_(JSON.stringify(boot.events) === JSON.stringify(listRecords_(TABS.EVENTS)),
+    'bootstrap events matches events.list');
+  assert_(JSON.stringify(boot.tasks) === JSON.stringify(listTasks_({}, actor, identity).tasks),
+    'bootstrap tasks matches tasks.list for the same actor');
+  assert_(JSON.stringify(boot.recurring) === JSON.stringify(listRecords_(TABS.RECURRING)),
+    'bootstrap recurring matches recurring.list');
+  assert_(JSON.stringify(boot.recurringEvents) === JSON.stringify(listRecords_(TABS.RECURRING_EVENTS)),
+    'bootstrap recurringEvents matches recurringEvents.list');
+  assert_(JSON.stringify(boot.lists) === JSON.stringify(listLists_().lists),
+    'bootstrap lists matches lists.list');
+  assert_(JSON.stringify(boot.listItems) === JSON.stringify(listListItems_({}).items),
+    'bootstrap listItems matches listItems.list (all lists at once)');
+  assert_(JSON.stringify(boot.templates) === JSON.stringify(listRecords_(TABS.TEMPLATES)),
+    'bootstrap templates matches templates.list');
+  assert_(JSON.stringify(boot.settings) === JSON.stringify(readSettingsMap_()),
+    'bootstrap settings matches settings.list');
+  assert_(JSON.stringify(boot.dogWalks) === JSON.stringify(listUpcomingDogWalks_()),
+    'bootstrap dogWalks matches dogwalks.list');
+
+  Logger.log('live bootstrap parity: pass');
 }
 
 // ---------------------------------------------------------------------------
