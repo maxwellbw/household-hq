@@ -23,7 +23,7 @@ order confirmed by Jaz 2026-07-11, including 010/011 — definitely a go, slotte
 | 8 | 011 | Weather-aware dog-walk window finder | ✅ merged (live-validated suggest-only; real auto-book run pending — see Shipped notes) | specs/011-dog-walk-finder | [#29](https://github.com/maxwellbw/household-hq/pull/29) |
 | 9 | **PRIV** | **Public-repo personal-data scrub (git history rewrite)** | ✅ done 2026-07-17 | specs/PRIV-privacy-scrub | — |
 | 10 | 029 | Bug-fix batch 4 (calendar glitch, scroll lock, dismissals, done strikethrough, walks in day peek + times, walk-trigger reliability, prep-template picker) | ✅ merged | specs/029-bug-fix-batch-4 | [#30](https://github.com/maxwellbw/household-hq/pull/30) |
-| 11 | 030 | Perf & resilience (data.bootstrap batching, code splitting, remaining optimistic saves, fetch timeout/retry, boot-restore hardening) | 🟢 implemented, pending PR | specs/030-perf-resilience | — |
+| 11 | 030 | Perf & resilience (data.bootstrap batching, code splitting, remaining optimistic saves, fetch timeout/retry, boot-restore hardening) | ✅ merged | specs/030-perf-resilience | [#31](https://github.com/maxwellbw/household-hq/pull/31) |
 | 12 | 031 | Dog-walk day planner (view busy blocks + hourly weather, book from the app) | ⬜ not started | — | — |
 | 13 | 032 | Mobile rework (audit-driven, own spec) | ⬜ not started | — | — |
 | 14 | 026 | Inbound gcal import (personal calendars) | ⬜ not started | — | — |
@@ -253,6 +253,7 @@ prep template).
 | 010 | PWA install + web push (vendored SJCL for RFC 8291/8292 crypto; ntfy.sh fully retired) | [specs/010-pwa-and-push](specs/010-pwa-and-push/spec.md) | [#28](https://github.com/maxwellbw/household-hq/pull/28) |
 | 011 | Weather-aware dog-walk window finder (Open-Meteo gates; Outlook→Google subscription; DogWalks ledger) | [specs/011-dog-walk-finder](specs/011-dog-walk-finder/spec.md) | [#29](https://github.com/maxwellbw/household-hq/pull/29) |
 | 029 | Bug-fix batch 4 (day-peek walks + times, done strikethrough everywhere, persisted notice dismissal, ref-counted scroll lock, prep-template picker, dog-walk finder retry, calendar-flash fix) | [specs/029-bug-fix-batch-4](specs/029-bug-fix-batch-4/spec.md) | [#30](https://github.com/maxwellbw/household-hq/pull/30) |
+| 030 | Perf & resilience (data.bootstrap batching, boot-restore hardening, fetch timeout/retry, remaining optimistic saves, code splitting) | [specs/030-perf-resilience](specs/030-perf-resilience/spec.md) | [#31](https://github.com/maxwellbw/household-hq/pull/31) |
 
 **Planning history:** Phase 1 (001–007) + Phase 2 (008–009) per brief §10 · Phase 2.5
 (012–015) planned 2026-07-09, Jaz's feedback round 1 — the backend had outrun the UI ·
@@ -267,7 +268,8 @@ grocery lists + inbound gcal import from the parked list · Phase 2.8 (028) plan
 ### Post-merge notes & open follow-ups
 
 **2026-07-18 — 030 (Perf & resilience) implemented, all 31 tasks done (T001–T031), all 5
-stories live-validated, not yet merged.** Baseline 432 frontend tests → 488 (+56); `npm run
+stories live-validated, merged ([PR #31](https://github.com/maxwellbw/household-hq/pull/31)).**
+Baseline 432 frontend tests → 488 (+56); `npm run
 build` type-clean, chunk split confirmed (`schedule-x`/`CalendarHome`/`MoreView` vendor
 chunks absent from `dist/index.html`'s eager references). Backend: all 42+6 suites green
 across **7** `clasp run` chunks (`selfTest1Core` → `selfTest4CalendarA` → `selfTest4CalendarB`
