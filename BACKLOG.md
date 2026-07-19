@@ -25,8 +25,9 @@ order confirmed by Jaz 2026-07-11, including 010/011 — definitely a go, slotte
 | 10 | 029 | Bug-fix batch 4 (calendar glitch, scroll lock, dismissals, done strikethrough, walks in day peek + times, walk-trigger reliability, prep-template picker) | ✅ merged | specs/029-bug-fix-batch-4 | [#30](https://github.com/maxwellbw/household-hq/pull/30) |
 | 11 | 030 | Perf & resilience (data.bootstrap batching, code splitting, remaining optimistic saves, fetch timeout/retry, boot-restore hardening) | ✅ merged | specs/030-perf-resilience | [#31](https://github.com/maxwellbw/household-hq/pull/31) |
 | 12 | 031 | Dog-walk day planner (view busy blocks + hourly weather, book from the app) | ✅ merged | specs/031-dog-walk-day-planner | [#32](https://github.com/maxwellbw/household-hq/pull/32) |
-| 13 | 032 | Mobile rework (audit-driven, own spec) | ⬜ not started | — | — |
-| 14 | 026 | Inbound gcal import (personal calendars) | ⬜ not started | — | — |
+| 13 | 032 | Theming (dark mode) & systemic UI hygiene (audit-driven; audit doc in spec folder) | 🔵 tasks generated — implement next | [specs/032-ui-ux-audit](specs/032-ui-ux-audit/spec.md) | — |
+| 14 | 033 | Dog-walk planner rework + dashboard↔calendar parity (audit findings F-02..F-33; specced after 032 ships) | ⬜ not started (scoped in [032's audit.md](specs/032-ui-ux-audit/audit.md)) | — | — |
+| 15 | 026 | Inbound gcal import (personal calendars) | ⬜ not started | — | — |
 
 **Phase 0 tooling (no spec folder — infra, 2026-07-16/17):** `clasp run` works from the CLI
 (standard GCP project `household-hq-501817` associated, `executionApi` manifest block, Desktop
