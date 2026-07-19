@@ -11,23 +11,13 @@ order confirmed by Jaz 2026-07-11, including 010/011 — definitely a go, slotte
 
 ## The queue — up next, in order
 
+Shipped features have moved to the **Shipped** table below. This queue now holds only
+work not yet merged.
+
 | Order | # | Feature | Stage | Spec folder | PR |
 |---|---|---|---|---|---|
-| 1 | 021 | Someday force-rank + Tasks-tab Someday section | ✅ merged | specs/021-someday-force-rank | [#21](https://github.com/maxwellbw/household-hq/pull/21) |
-| 2 | 023 | Dog-care recurring seed rows | ✅ merged | specs/023-dog-care-seed-rows | [#22](https://github.com/maxwellbw/household-hq/pull/22) |
-| 3 | 024 | Grocery & household lists | ✅ merged | specs/024-grocery-household-lists | [#23](https://github.com/maxwellbw/household-hq/pull/23) |
-| 4 | 025 | Recurring events | ✅ merged | specs/025-recurring-events | [#24](https://github.com/maxwellbw/household-hq/pull/24) |
-| 5 | 027 | Household seed data + engine extensions | ✅ merged | specs/027-household-seed-data | [#25](https://github.com/maxwellbw/household-hq/pull/25) |
-| 6 | 028 | UX fix batch 3 (mobile polish + save speed + event lookahead) | ✅ merged | specs/028-ux-fix-batch-3 | [#27](https://github.com/maxwellbw/household-hq/pull/27) |
-| 7 | 010 | PWA install + web push | ✅ merged (real-iPhone checks still pending — see Shipped notes) | specs/010-pwa-and-push | [#28](https://github.com/maxwellbw/household-hq/pull/28) |
-| 8 | 011 | Weather-aware dog-walk window finder | ✅ merged (live-validated suggest-only; real auto-book run pending — see Shipped notes) | specs/011-dog-walk-finder | [#29](https://github.com/maxwellbw/household-hq/pull/29) |
-| 9 | **PRIV** | **Public-repo personal-data scrub (git history rewrite)** | ✅ done 2026-07-17 | specs/PRIV-privacy-scrub | — |
-| 10 | 029 | Bug-fix batch 4 (calendar glitch, scroll lock, dismissals, done strikethrough, walks in day peek + times, walk-trigger reliability, prep-template picker) | ✅ merged | specs/029-bug-fix-batch-4 | [#30](https://github.com/maxwellbw/household-hq/pull/30) |
-| 11 | 030 | Perf & resilience (data.bootstrap batching, code splitting, remaining optimistic saves, fetch timeout/retry, boot-restore hardening) | ✅ merged | specs/030-perf-resilience | [#31](https://github.com/maxwellbw/household-hq/pull/31) |
-| 12 | 031 | Dog-walk day planner (view busy blocks + hourly weather, book from the app) | ✅ merged | specs/031-dog-walk-day-planner | [#32](https://github.com/maxwellbw/household-hq/pull/32) |
-| 13 | 032 | Theming (dark mode) & systemic UI hygiene (audit-driven; audit doc in spec folder) | 🟡 implemented — all 36 tasks (US1–US6 + Phase 9 polish: a11y sweep, full quickstart validation, 20/20 impeccable audit) done on branch `032-ui-ux-audit-theming`; awaiting review/merge | [specs/032-ui-ux-audit](specs/032-ui-ux-audit/spec.md) | — |
-| 14 | 033 | Dog-walk planner rework + dashboard↔calendar parity (audit findings F-02..F-33; specced after 032 ships) | ⬜ not started (scoped in [032's audit.md](specs/032-ui-ux-audit/audit.md)) | — | — |
-| 15 | 026 | Inbound gcal import (personal calendars) | ⬜ not started | — | — |
+| 1 | 033 | Dog-walk planner rework + dashboard↔calendar parity (audit findings F-02..F-33; specced after 032 ships) | ⬜ not started (scoped in [032's audit.md](specs/032-ui-ux-audit/audit.md)) | — | — |
+| 2 | 026 | Inbound gcal import (personal calendars) | ⬜ not started | — | — |
 
 **Phase 0 tooling (no spec folder — infra, 2026-07-16/17):** `clasp run` works from the CLI
 (standard GCP project `household-hq-501817` associated, `executionApi` manifest block, Desktop
@@ -249,13 +239,18 @@ prep template).
 | 022 | UX fix batch 2 (snooze on calendar, delete, collapsible Open) | [specs/022-ux-fix-batch-2](specs/022-ux-fix-batch-2/spec.md) | [#18](https://github.com/maxwellbw/household-hq/pull/18) |
 | 019 | Task & event details + collaboration | [specs/019-details-collaboration](specs/019-details-collaboration/spec.md) | [#19](https://github.com/maxwellbw/household-hq/pull/19) |
 | 020 | Settings editor under More | [specs/020-settings-editor](specs/020-settings-editor/spec.md) | [#20](https://github.com/maxwellbw/household-hq/pull/20) |
+| 021 | Someday force-rank + Tasks-tab Someday section | [specs/021-someday-force-rank](specs/021-someday-force-rank/spec.md) | [#21](https://github.com/maxwellbw/household-hq/pull/21) |
 | 023 | Dog-care recurring seed rows (`sixweekly`/`eightweekly` cadences added) | [specs/023-dog-care-seed-rows](specs/023-dog-care-seed-rows/spec.md) | [#22](https://github.com/maxwellbw/household-hq/pull/22) |
+| 024 | Grocery & household lists (standalone need⇄stocked lists, store sections, staples nudge) | [specs/024-grocery-household-lists](specs/024-grocery-household-lists/spec.md) | [#23](https://github.com/maxwellbw/household-hq/pull/23) |
+| 025 | Recurring events (task-engine parity + prep templates on the rule) | [specs/025-recurring-events](specs/025-recurring-events/spec.md) | [#24](https://github.com/maxwellbw/household-hq/pull/24) |
+| 027 | Household seed data + engine extensions (`semiannually`/`thanksgiving-sat` cadences, `{nth}` token) | [specs/027-household-seed-data](specs/027-household-seed-data/spec.md) | [#25](https://github.com/maxwellbw/household-hq/pull/25) |
 | 028 | UX fix batch 3 (yearly lookahead, optimistic saves, mobile feel, day peek, ack redesign, selfTest split) | [specs/028-ux-fix-batch-3](specs/028-ux-fix-batch-3/spec.md) | [#27](https://github.com/maxwellbw/household-hq/pull/27) |
 | 010 | PWA install + web push (vendored SJCL for RFC 8291/8292 crypto; ntfy.sh fully retired) | [specs/010-pwa-and-push](specs/010-pwa-and-push/spec.md) | [#28](https://github.com/maxwellbw/household-hq/pull/28) |
 | 011 | Weather-aware dog-walk window finder (Open-Meteo gates; Outlook→Google subscription; DogWalks ledger) | [specs/011-dog-walk-finder](specs/011-dog-walk-finder/spec.md) | [#29](https://github.com/maxwellbw/household-hq/pull/29) |
 | 029 | Bug-fix batch 4 (day-peek walks + times, done strikethrough everywhere, persisted notice dismissal, ref-counted scroll lock, prep-template picker, dog-walk finder retry, calendar-flash fix) | [specs/029-bug-fix-batch-4](specs/029-bug-fix-batch-4/spec.md) | [#30](https://github.com/maxwellbw/household-hq/pull/30) |
 | 030 | Perf & resilience (data.bootstrap batching, boot-restore hardening, fetch timeout/retry, remaining optimistic saves, code splitting) | [specs/030-perf-resilience](specs/030-perf-resilience/spec.md) | [#31](https://github.com/maxwellbw/household-hq/pull/31) |
 | 031 | Dog-walk day planner (forecast cache + 429 backoff fix, read-only busy/weather/candidate timeline, manual book/unbook/release with decidedBy freeze) | [specs/031-dog-walk-day-planner](specs/031-dog-walk-day-planner/spec.md) | [#32](https://github.com/maxwellbw/household-hq/pull/32) |
+| 032 | Theming (dark mode) & systemic UI hygiene (audit-driven; a11y sweep, 20/20 impeccable audit) | [specs/032-ui-ux-audit](specs/032-ui-ux-audit/spec.md) | [#34](https://github.com/maxwellbw/household-hq/pull/34) |
 
 **Planning history:** Phase 1 (001–007) + Phase 2 (008–009) per brief §10 · Phase 2.5
 (012–015) planned 2026-07-09, Jaz's feedback round 1 — the backend had outrun the UI ·
@@ -268,6 +263,13 @@ grocery lists + inbound gcal import from the parked list · Phase 2.8 (028) plan
 010 promoted ahead of 026 for iPhone push.
 
 ### Post-merge notes & open follow-ups
+
+**2026-07-19 — 032 (Theming & systemic UI hygiene) implemented, all 36 tasks done
+(US1–US6 + Phase 9 polish: a11y sweep, full quickstart validation, 20/20 impeccable
+audit), merged ([PR #34](https://github.com/maxwellbw/household-hq/pull/34)).**
+Audit-driven dark mode + systemic UI hygiene (audit doc in `specs/032-ui-ux-audit/`).
+Follow-on rework of the deeper audit findings (F-02..F-33) is scoped as feature 033,
+now the head of the queue.
 
 **2026-07-18 — 031 (Dog-walk day planner) implemented, all 59 tasks done (T001–T059
 minus T058), merged ([PR #32](https://github.com/maxwellbw/household-hq/pull/32)).**
