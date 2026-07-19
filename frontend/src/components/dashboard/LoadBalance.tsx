@@ -8,19 +8,13 @@ interface Props {
   viewer: 'max' | 'jaz' | null
 }
 
-const OWNER_META: Record<'max' | 'jaz' | 'both', { fullName: string; initial: string }> = {
+const OWNER_META: Record<'max' | 'jaz', { fullName: string; initial: string }> = {
   max: { fullName: 'Max', initial: 'M' },
   jaz: { fullName: 'Jaz', initial: 'J' },
-  both: { fullName: 'Both', initial: 'MJ' },
-}
-
-function displayName(owner: 'max' | 'jaz' | 'both', viewer: 'max' | 'jaz' | null): string {
-  if (owner !== 'both' && viewer === owner) return 'You'
-  return OWNER_META[owner].fullName
 }
 
 function OwnerDot({ owner }: { owner: Owner }) {
-  const { initial } = OWNER_META[owner]
+  const initial = owner === 'both' ? 'MJ' : OWNER_META[owner].initial
   return (
     <span
       className={cn(
@@ -36,62 +30,29 @@ function OwnerDot({ owner }: { owner: Owner }) {
   )
 }
 
-interface PeriodProps {
-  headingId: string
-  label: string
-  balance: LoadBalanceResult
-  viewer: 'max' | 'jaz' | null
+/** Plain-sentence leader description (feature 032 US2, FR-011, audit F-19): replaces the
+ *  three-row breakdown + cryptic "MORE" chip with one quiet line, using the "You" vs owner
+ *  name convention already established by TaskRow/LoadBalance's own dashboard neighbors. */
+function periodLine(balance: LoadBalanceResult, viewer: 'max' | 'jaz' | null, periodLabel: string): { text: string; leader: 'max' | 'jaz' | null } {
+  if (balance.max === 0 && balance.jaz === 0 && balance.both === 0) {
+    return { text: `Nothing tracked ${periodLabel}.`, leader: null }
+  }
+  if (balance.max === balance.jaz) {
+    return { text: `Max and Jaz are evenly matched ${periodLabel}.`, leader: null }
+  }
+  const leader = balance.max > balance.jaz ? 'max' : 'jaz'
+  const isViewer = viewer === leader
+  const name = isViewer ? 'You' : OWNER_META[leader].fullName
+  const verb = isViewer ? "'re" : ' is'
+  return { text: `${name}${verb} carrying more ${periodLabel}.`, leader }
 }
 
-function PeriodSection({ headingId, label, balance, viewer }: PeriodProps) {
-  const maxLeads = balance.max > balance.jaz
-  const jazLeads = balance.jaz > balance.max
-
-  const rows: Array<{ owner: 'max' | 'jaz' | 'both'; leads: boolean }> = [
-    { owner: 'max', leads: maxLeads },
-    { owner: 'jaz', leads: jazLeads },
-    { owner: 'both', leads: false },
-  ]
-
+function PeriodLine({ label, balance, viewer }: { label: string; balance: LoadBalanceResult; viewer: 'max' | 'jaz' | null }) {
+  const { text, leader } = periodLine(balance, viewer, label)
   return (
-    <div>
-      <p id={headingId} className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-muted">
-        {label}
-      </p>
-      <ul
-        role="list"
-        aria-labelledby={headingId}
-        className="divide-y divide-border rounded-control border border-border bg-surface"
-      >
-        {rows.map(({ owner, leads }) => {
-          const name = displayName(owner, viewer)
-          return (
-            <li
-              key={owner}
-              className={cn('flex min-h-[44px] items-center gap-3 px-3 py-2', leads && 'bg-surface-alt')}
-            >
-              <OwnerDot owner={owner} />
-              <span className={cn('flex-1 text-sm', leads ? 'font-semibold text-ink' : 'text-ink')}>
-                {name}
-              </span>
-              {leads && (
-                <span className="shrink-0 text-[10px] font-medium uppercase tracking-wide text-ink-muted">
-                  more
-                </span>
-              )}
-              <span
-                className={cn(
-                  'shrink-0 tabular-nums text-sm',
-                  leads ? 'font-semibold text-ink' : 'text-ink-muted',
-                )}
-                aria-label={`${name} — ${balance[owner]} task${balance[owner] === 1 ? '' : 's'}`}
-              >
-                {balance[owner]}
-              </span>
-            </li>
-          )
-        })}
-      </ul>
+    <div className="flex items-center gap-2.5 py-1">
+      {leader ? <OwnerDot owner={leader} /> : <span className="h-5 w-5 shrink-0" aria-hidden="true" />}
+      <p className={cn('text-sm', leader ? 'text-ink' : 'text-ink-muted')}>{text}</p>
     </div>
   )
 }
@@ -99,22 +60,12 @@ function PeriodSection({ headingId, label, balance, viewer }: PeriodProps) {
 export function LoadBalance({ weekBalance, monthBalance, viewer }: Props) {
   return (
     <section aria-labelledby="lb-heading" className="px-4 pb-2 pt-1">
-      <h2 id="lb-heading" className="mb-3 text-xs font-semibold uppercase tracking-wide text-ink-muted">
+      <h2 id="lb-heading" className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-muted">
         Load balance
       </h2>
-      <div className="flex flex-col gap-4">
-        <PeriodSection
-          headingId="lb-week"
-          label="This week"
-          balance={weekBalance}
-          viewer={viewer}
-        />
-        <PeriodSection
-          headingId="lb-month"
-          label="This month"
-          balance={monthBalance}
-          viewer={viewer}
-        />
+      <div className="flex flex-col">
+        <PeriodLine label="this week" balance={weekBalance} viewer={viewer} />
+        <PeriodLine label="this month" balance={monthBalance} viewer={viewer} />
       </div>
     </section>
   )

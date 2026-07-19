@@ -103,7 +103,11 @@ export interface TaskTemplate {
 export interface ActivityEntry {
   id?: string
   timestamp: string // ISO datetime
-  actor: 'max' | 'jaz'
+  // Live data showed values beyond the two people ('system' for digests/push/dog-walk
+  // moves, 'selftest' for backend self-test runs) — treat as an open string, not a closed
+  // union (feature 032 US2, audit F-09); `activityActorStyle` (lib/owners.ts) is the single
+  // place that maps an unrecognized actor to a safe fallback badge.
+  actor: 'max' | 'jaz' | (string & {})
   action: string
   targetId?: string
   detail?: string

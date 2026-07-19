@@ -69,3 +69,18 @@ origin — not something `clasp`/Actions can do.
 - **Calendar** (`src/components/calendar/CalendarHome.tsx`): Schedule-X,
   themed entirely through its CSS variables in `calendar-theme.css` to the
   DESIGN.md palette; events render via a fully custom `EventContent`.
+- **Theming** (feature 032): light tokens live in `:root`, dark in the single
+  `[data-theme="dark"]` block, both in `src/index.css` — no hex values
+  anywhere else except `calendar-theme.css` (contract C1). `useTheme` owns
+  the per-device `hq.theme` preference (System/Light/Dark), stamps
+  `<html data-theme>`, and syncs the `theme-color` metas; an inline script in
+  `index.html` pre-stamps the attribute so a dark cold load never flashes
+  light. `npm run check:contrast` gates every documented token pair at WCAG
+  AA in both themes.
+- **Icon platform limits** (feature 032): the browser-tab favicon
+  (`public/icon.svg`) adapts to the **OS** scheme via an internal
+  `prefers-color-scheme` media query — SVG cannot see the in-app preference.
+  The installed-PWA home-screen icon (`icon-*.png`) and the manifest's
+  splash colors cannot follow any theme on current platforms; the icon ships
+  with its own contained warm-ivory background so it sits acceptably on
+  light and dark home screens alike.

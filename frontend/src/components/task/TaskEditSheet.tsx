@@ -36,7 +36,7 @@ export function TaskEditSheet({ task, onClose }: TaskEditSheetProps) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-ink/30 sm:items-center" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-scrim sm:items-center" onClick={onClose}>
       <form
         ref={panelRef}
         role="dialog"

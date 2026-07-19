@@ -13,6 +13,10 @@ interface DayPeekPanelProps {
   onOpenTask: (task: Task) => void
   onOpenEvent: (event: Event) => void
   onOpenWalkPlanner: (dateKey: string) => void
+  /** Override for the empty-state line (feature 032 US2, FR-008): when this is today's card
+   *  and Overdue is also empty, the dashboard passes one merged "all clear" line here instead
+   *  of the generic per-day message, so the two regions never stack two empty lines. */
+  emptyMessage?: string
 }
 
 function ownerDotClass(owner: Event['owner']): string {
@@ -152,7 +156,7 @@ function PeekWalkRow({ walk, timezone, onOpen }: PeekWalkRowProps) {
  * Walks (feature 029 US1) come from a dedicated `walksForDay` selector — read-only, no
  * booking from the peek (that's feature 031).
  */
-export function DayPeekPanel({ dateKey, events, tasks, walks, timezone, onOpenCalendar, onOpenTask, onOpenEvent, onOpenWalkPlanner }: DayPeekPanelProps) {
+export function DayPeekPanel({ dateKey, events, tasks, walks, timezone, onOpenCalendar, onOpenTask, onOpenEvent, onOpenWalkPlanner, emptyMessage }: DayPeekPanelProps) {
   const isEmpty = events.length === 0 && tasks.length === 0 && walks.length === 0
   const longLabel = formatDayLabel(dateKey, { weekday: 'long', month: 'long', day: 'numeric' })
 
@@ -167,14 +171,14 @@ export function DayPeekPanel({ dateKey, events, tasks, walks, timezone, onOpenCa
         <button
           type="button"
           onClick={() => onOpenCalendar(dateKey)}
-          className="min-h-[44px] rounded-control px-2 text-xs font-medium text-accent hover:bg-accent-soft focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+          className="min-h-[44px] rounded-control px-2 text-xs font-medium text-accent-strong hover:bg-accent-soft focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
         >
           Open in calendar
         </button>
       </div>
 
       {isEmpty ? (
-        <p className="py-3 text-center font-display text-sm text-ink-muted">Nothing on this day.</p>
+        <p className="py-3 text-center font-display text-sm text-ink-muted">{emptyMessage ?? 'Nothing on this day.'}</p>
       ) : (
         <ul role="list">
           {events.map((e) => (

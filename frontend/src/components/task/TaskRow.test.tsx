@@ -12,8 +12,10 @@ vi.mock('@/hooks/useMutations', () => ({
   useAcknowledgeTask: () => ({ mutate: acknowledgeMutate, isPending: false }),
 }))
 
+const showToast = vi.fn()
+const showUndo = vi.fn()
 vi.mock('@/hooks/useToast', () => ({
-  useToast: () => ({ show: vi.fn() }),
+  useToast: () => ({ show: showToast, showUndo }),
 }))
 
 let mockIdentity: 'max' | 'jaz' = 'max'
@@ -68,5 +70,32 @@ describe('TaskRow — acknowledge/commit (019 US2, redesigned as a single chip p
     mockIdentity = 'max'
     render(<TaskRow task={task({ id: 't1', owner: 'both', status: 'open' })} timezone="America/Los_Angeles" />)
     expect(screen.queryByText('Not yet committed')).not.toBeInTheDocument()
+  })
+})
+
+describe('TaskRow — completing is undoable, not confirmed (feature 032 US3, contract C3)', () => {
+  it('completing commits immediately and shows an Undo toast instead of a plain one', () => {
+    showToast.mockClear()
+    completeMutate.mockImplementationOnce((_id: string, opts?: { onSuccess?: () => void }) => opts?.onSuccess?.())
+    render(<TaskRow task={task({ id: 't1', title: 'Water the plants', status: 'open' })} timezone="America/Los_Angeles" />)
+    fireEvent.click(screen.getByRole('button', { name: 'Mark Water the plants done' }))
+    expect(completeMutate).toHaveBeenCalledWith('t1', expect.anything())
+    expect(showUndo).toHaveBeenCalledWith('Done — Water the plants', expect.any(Function), undefined)
+    expect(showToast).not.toHaveBeenCalled()
+  })
+
+  it("Undo re-invokes reopen with the task's id", () => {
+    completeMutate.mockImplementationOnce((_id: string, opts?: { onSuccess?: () => void }) => opts?.onSuccess?.())
+    render(<TaskRow task={task({ id: 't1', title: 'Water the plants', status: 'open' })} timezone="America/Los_Angeles" />)
+    fireEvent.click(screen.getByRole('button', { name: 'Mark Water the plants done' }))
+    const onUndo = showUndo.mock.calls.at(-1)?.[1]
+    onUndo?.()
+    expect(reopenMutate).toHaveBeenCalledWith('t1')
+  })
+
+  it('reopening a done task (checkbox tap) calls reopen directly, without an Undo toast', () => {
+    render(<TaskRow task={task({ id: 't1', title: 'Water the plants', status: 'done' })} timezone="America/Los_Angeles" />)
+    fireEvent.click(screen.getByRole('button', { name: 'Reopen Water the plants' }))
+    expect(reopenMutate).toHaveBeenCalledWith('t1')
   })
 })

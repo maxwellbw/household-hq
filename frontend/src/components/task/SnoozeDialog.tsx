@@ -59,7 +59,7 @@ export function SnoozeDialog({ task, onClose }: SnoozeDialogProps) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-ink/30 sm:items-center"
+      className="fixed inset-0 z-50 flex items-end justify-center bg-scrim sm:items-center"
       onClick={onClose}
     >
       <div
@@ -98,7 +98,7 @@ export function SnoozeDialog({ task, onClose }: SnoozeDialogProps) {
               aria-pressed={selected === date}
               className={`flex-1 rounded-control border px-3 py-2 text-sm font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ${
                 selected === date
-                  ? 'border-accent bg-accent/10 text-accent'
+                  ? 'border-accent bg-accent/10 text-accent-strong'
                   : 'border-border bg-surface text-ink hover:bg-surface-alt'
               }`}
             >

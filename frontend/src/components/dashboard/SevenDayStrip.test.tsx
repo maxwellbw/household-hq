@@ -36,9 +36,10 @@ describe('SevenDayStrip', () => {
     expect(screen.getByText('1')).toBeInTheDocument()
   })
 
-  it('renders an empty tile as present-but-empty, not omitted (FR-018)', () => {
+  it('renders an empty tile as present-but-empty with a quiet label, not a bare dash (FR-018, contract C5)', () => {
     render(<SevenDayStrip tiles={tiles} activeDateKey={null} onToggleDate={vi.fn()} />)
-    const emptyTiles = screen.getAllByText('—')
+    expect(screen.queryByText('—')).not.toBeInTheDocument()
+    const emptyTiles = screen.getAllByText('Free')
     expect(emptyTiles.length).toBe(6)
   })
 
@@ -51,8 +52,8 @@ describe('SevenDayStrip', () => {
     render(<SevenDayStrip tiles={walkTiles} activeDateKey={null} onToggleDate={vi.fn()} />)
     expect(screen.getByLabelText('Dog walk')).toBeInTheDocument()
     expect(screen.getByLabelText('Dog walk needs a decision')).toBeInTheDocument()
-    // A needs-decision day shows the ⚠️ instead of the empty-dash placeholder.
-    expect(screen.getAllByText('—').length).toBe(5)
+    // A needs-decision day shows the ⚠️ instead of the empty placeholder.
+    expect(screen.getAllByText('Free').length).toBe(5)
   })
 
   it('calls onToggleDate with the tapped tile date', () => {

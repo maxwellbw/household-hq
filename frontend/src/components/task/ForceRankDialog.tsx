@@ -4,6 +4,7 @@ import { useForceRankSession } from '@/hooks/useForceRankSession'
 import { useRankTasks } from '@/hooks/useMutations'
 import { useToast } from '@/hooks/useToast'
 import { cn } from '@/lib/utils'
+import { ErrorState } from '@/components/shell/ErrorState'
 import type { Task } from '@/types/domain'
 
 interface ForceRankDialogProps {
@@ -65,7 +66,7 @@ export function ForceRankDialog({ somedayTasks, onClose }: ForceRankDialogProps)
       role="presentation"
       onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
     >
-      <div className="absolute inset-0 bg-ink/30 motion-safe:animate-in motion-safe:fade-in" aria-hidden="true" />
+      <div className="absolute inset-0 bg-scrim motion-safe:animate-in motion-safe:fade-in" aria-hidden="true" />
 
       <div
         ref={panelRef}
@@ -93,19 +94,14 @@ export function ForceRankDialog({ somedayTasks, onClose }: ForceRankDialogProps)
         </div>
 
         {order ? (
-          <div className="flex flex-col items-center gap-3 py-8 text-center">
+          <div className="flex flex-col items-center gap-3 py-4 text-center">
             {rank.isError ? (
-              <>
-                <p className="font-display text-base text-ink">Couldn't save</p>
-                <p className="text-sm text-ink-muted">Your new order didn't save. The old order is still in effect.</p>
-                <button
-                  type="button"
-                  onClick={retrySave}
-                  className="mt-2 min-h-[44px] rounded-control bg-accent-hover px-4 text-sm font-medium text-surface hover:brightness-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-                >
-                  Try again
-                </button>
-              </>
+              <ErrorState
+                title="Couldn't save"
+                copy="Your new order didn't save. The old order is still in effect."
+                onRetry={retrySave}
+                busy={rank.isPending}
+              />
             ) : (
               <p className="text-sm text-ink-muted" role="status" aria-live="polite">Saving your order…</p>
             )}

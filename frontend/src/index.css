@@ -24,13 +24,25 @@
   --accent: #c6613f;
   --accent-hover: #ad5133;
   --accent-soft: #f3ded3;
+  /* Text-safe terracotta (feature 032 T033, audit F-20). --accent is a *fill*
+   * color: at 3.76:1 on --bg it clears the 3:1 UI-component bar but fails the
+   * 4.5:1 body-text bar, and white-on---accent is only 4.05:1. --accent-strong
+   * is the same hue darkened until every small-text pair passes: 5.46 on --bg,
+   * 5.87 on --surface, 4.53 on --accent-soft (the hover background), and 5.87
+   * for --surface text sitting on it. Use it for accent-colored text and for
+   * accent fills that carry small text; keep --accent for large fills and
+   * borders. */
+  --accent-strong: #a34a2d;
 
   /* Owner identity (used consistently EVERYWHERE) */
   --owner-max: #3e6e68;
   --owner-max-soft: #dce9e7;
   --owner-jaz: #7e4a5e;
   --owner-jaz-soft: #eddde3;
-  --owner-both: var(--accent);
+  /* owner-both tracks --accent-strong, not --accent: its dominant use is the
+   * 10px "MJ" initial badge (white on the fill), which needs 4.5:1 — the plain
+   * accent gives 4.05 (T033 / audit F-20). Same hue, same identity. */
+  --owner-both: var(--accent-strong);
   --owner-both-soft: var(--accent-soft);
 
   /* Semantic */
@@ -42,19 +54,85 @@
   --radius-card: 14px;
   --radius-control: 10px;
   --shadow-card: 0 1px 2px rgba(42, 38, 31, 0.06), 0 4px 12px rgba(42, 38, 31, 0.05);
+  /* Dialog/sheet backdrop (feature 032): ink-toned dimming in light, deeper in
+   * dark — an ink-derived class (bg-ink/30) would invert into a light haze. */
+  --scrim: rgba(42, 38, 31, 0.3);
 
   color-scheme: light;
+}
+
+/*
+ * Feature 032 (US1): the dark theme — "the corkboard after dark" (research R2).
+ * Same warm identity, low glare: deep umber surfaces from --ink's hue family
+ * (never cool gray or black), warm off-white ink, owner hues lifted so
+ * Max-teal / Jaz-plum / Both-terracotta stay identity-legible on dark.
+ * This is the ONLY dark block (contract C1): every color/shadow token gets a
+ * value here; components never carry theme conditionals. Pairs validated by
+ * `npm run check:contrast`.
+ */
+[data-theme="dark"] {
+  /* Surfaces */
+  --bg: #201c16;
+  --surface: #2a251d;
+  --surface-alt: #363028;
+  --border: #453d31;
+
+  /* Ink */
+  --ink: #ede7dc;
+  --ink-muted: #b5ab97;
+  --ink-faint: #9c9280;
+
+  /* Brand accent */
+  --accent: #d97757;
+  --accent-hover: #e08a6d;
+  --accent-soft: #45291d;
+  /* Dark's text-safe terracotta moves the other way — *lighter*, not darker.
+   * --accent already clears --bg (5.43) but lands at 4.18 on --surface-alt and
+   * 4.24 on --accent-soft; this value clears every one of those (worst 4.98). */
+  --accent-strong: #e08a6d;
+
+  /* Owner identity — lifted for dark, same three identities */
+  --owner-max: #7fb3aa;
+  --owner-max-soft: #233833;
+  --owner-jaz: #c893a9;
+  --owner-jaz-soft: #3a2a32;
+  --owner-both: var(--accent-strong);
+  --owner-both-soft: var(--accent-soft);
+
+  /* Semantic */
+  --success: #85b183;
+  --warning: #d9a45b;
+  --danger: #e18d77;
+
+  /* Depth — shadows deepen; radii unchanged */
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 12px rgba(0, 0, 0, 0.35);
+  --scrim: rgba(12, 10, 7, 0.6);
+
+  color-scheme: dark;
 }
 
 /*
  * shadcn/ui primitives (Button, etc.) use standard semantic classes
  * (bg-primary, text-muted-foreground, ...). tailwind.config.ts maps that
  * whole vocabulary directly onto the DESIGN.md tokens above — no separate
- * "shadcn theme" CSS vars needed. Dark mode is deferred (DESIGN.md).
+ * "shadcn theme" CSS vars needed. Both themes flow through the same variables:
+ * the [data-theme="dark"] block above swaps values, never class vocabularies.
  */
 @layer base {
   body {
     @apply bg-background text-foreground;
+  }
+
+  /* Feature 032 T033: the viewport meta no longer sets user-scalable=no (WCAG
+   * 1.4.4), so sub-16px form controls would trigger iOS Safari's focus
+   * auto-zoom. Touch devices get 16px controls; pointer devices keep the
+   * app's tighter 14px sizing. */
+  @media (pointer: coarse) {
+    input,
+    select,
+    textarea {
+      font-size: 16px;
+    }
   }
 }
 

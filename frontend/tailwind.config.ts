@@ -27,6 +27,7 @@ export default {
           DEFAULT: 'var(--accent)',
           hover: 'var(--accent-hover)',
           soft: 'var(--accent-soft)',
+          strong: 'var(--accent-strong)',
         },
         owner: {
           max: 'var(--owner-max)',
@@ -39,6 +40,7 @@ export default {
         success: 'var(--success)',
         warning: 'var(--warning)',
         danger: 'var(--danger)',
+        scrim: 'var(--scrim)',
 
         // shadcn/ui semantic vocabulary — same underlying tokens
         background: 'var(--bg)',

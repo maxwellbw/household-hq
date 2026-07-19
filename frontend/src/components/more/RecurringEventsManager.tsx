@@ -11,6 +11,7 @@ import { useToast } from '@/hooks/useToast'
 import { ownerStyle, ALL_OWNERS } from '@/lib/owners'
 import { ApiError } from '@/lib/api'
 import { cn } from '@/lib/utils'
+import { ErrorState } from '@/components/shell/ErrorState'
 import type { Cadence, Owner, RecurringEventRule } from '@/types/domain'
 
 const CADENCE_LABELS: Record<Cadence, string> = {
@@ -441,7 +442,7 @@ function RuleRow({
 
 /** Full recurring-event manager: list + create/edit form + delete-with-confirm (feature 025). */
 export function RecurringEventsManager() {
-  const { data: rules, isPending, isError } = useRecurringEvents()
+  const { data: rules, isPending, isError, isFetching, refetch } = useRecurringEvents()
   const [formMode, setFormMode] = useState<FormMode | null>(null)
 
   if (formMode) {
@@ -471,7 +472,7 @@ export function RecurringEventsManager() {
         onClick={() => setFormMode({ type: 'create' })}
         className={cn(
           'flex min-h-[44px] w-full items-center justify-center gap-2 rounded-control border border-dashed border-border',
-          'text-sm text-ink-muted hover:border-accent hover:text-accent',
+          'text-sm text-ink-muted hover:border-accent hover:text-accent-strong',
           'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
         )}
       >
@@ -488,7 +489,12 @@ export function RecurringEventsManager() {
       )}
 
       {isError && (
-        <p className="text-sm text-danger">Could not load recurring events. Check your connection.</p>
+        <ErrorState
+          title="Could not load recurring events"
+          copy="Check your connection and try again."
+          onRetry={() => void refetch()}
+          busy={isFetching}
+        />
       )}
 
       {!isPending && !isError && rules && (

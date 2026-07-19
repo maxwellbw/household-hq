@@ -20,9 +20,9 @@ export function DayColumn({ dateKey, isToday, items, onItemClick }: DayColumnPro
 
   return (
     <div className="flex min-w-0 flex-1 flex-col gap-1 border-r border-border px-1.5 py-2 last:border-r-0">
-      <div className={cn('px-1 text-xs font-medium', isToday ? 'text-accent' : 'text-ink-muted')}>{label}</div>
+      <div className={cn('px-1 text-xs font-medium', isToday ? 'text-accent-strong' : 'text-ink-muted')}>{label}</div>
       <div className="flex flex-col gap-1">
-        {items.length === 0 && <div className="px-1 text-xs text-ink-muted">—</div>}
+        {items.length === 0 && <div className="px-1 text-xs text-ink-muted">Nothing scheduled</div>}
         {items.map((item) => (
           <button
             key={item.kind === 'task' ? `task-${item.id}` : item.id}

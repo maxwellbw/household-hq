@@ -45,14 +45,16 @@ export function DogWalkNotice({ notices, onOpenDate }: DogWalkNoticeProps) {
           className="flex items-center justify-between gap-3 rounded-control border-2 border-owner-both px-3 py-2.5 text-sm text-ink"
         >
           <span>
-            <span className="font-medium text-owner-both">Dog walk — {formatDayLabel(notice.date, { weekday: 'short', month: 'short', day: 'numeric' })}:</span>{' '}
+            {/* owner-both *is* the accent (index.css), so its text form takes the
+                text-safe variant — see --accent-strong (T033 / audit F-20). */}
+            <span className="font-medium text-accent-strong">Dog walk — {formatDayLabel(notice.date, { weekday: 'short', month: 'short', day: 'numeric' })}:</span>{' '}
             {reasonLabel(notice.reason)}
           </span>
           <div className="flex shrink-0 items-center gap-1">
             <button
               type="button"
               onClick={() => onOpenDate(notice.date)}
-              className="min-h-[44px] rounded-control px-2 text-xs font-medium text-accent hover:bg-accent-soft focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+              className="min-h-[44px] rounded-control px-2 text-xs font-medium text-accent-strong hover:bg-accent-soft focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
             >
               Open in calendar
             </button>

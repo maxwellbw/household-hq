@@ -10,6 +10,7 @@ import { useToast } from '@/hooks/useToast'
 import { ownerStyle, ALL_OWNERS } from '@/lib/owners'
 import { ApiError } from '@/lib/api'
 import { cn } from '@/lib/utils'
+import { ErrorState } from '@/components/shell/ErrorState'
 import type { Owner, TaskTemplate } from '@/types/domain'
 
 type FormMode = { type: 'create' } | { type: 'edit'; template: TaskTemplate }
@@ -298,7 +299,7 @@ function TemplateRow({
 
 /** Full template manager: list + create/edit form + delete-with-confirm (T031). */
 export function TemplatesManager() {
-  const { data: templates, isPending, isError } = useTemplates()
+  const { data: templates, isPending, isError, isFetching, refetch } = useTemplates()
   const [formMode, setFormMode] = useState<FormMode | null>(null)
 
   if (formMode) {
@@ -328,7 +329,7 @@ export function TemplatesManager() {
         onClick={() => setFormMode({ type: 'create' })}
         className={cn(
           'flex min-h-[44px] w-full items-center justify-center gap-2 rounded-control border border-dashed border-border',
-          'text-sm text-ink-muted hover:border-accent hover:text-accent',
+          'text-sm text-ink-muted hover:border-accent hover:text-accent-strong',
           'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
         )}
       >
@@ -345,7 +346,12 @@ export function TemplatesManager() {
       )}
 
       {isError && (
-        <p className="text-sm text-danger">Could not load templates. Check your connection.</p>
+        <ErrorState
+          title="Could not load templates"
+          copy="Check your connection and try again."
+          onRetry={() => void refetch()}
+          busy={isFetching}
+        />
       )}
 
       {!isPending && !isError && templates && (

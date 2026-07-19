@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
 import { useCompleteTask, useReopenTask, useAcknowledgeTask } from '@/hooks/useMutations'
 import { useToast } from '@/hooks/useToast'
+import { useUndoableMutation } from '@/hooks/useUndoableMutation'
 import { canAcknowledge, isUncommitted } from '@/lib/tasks'
 import { resolveViewer } from '@/lib/dashboard'
 import type { Task } from '@/types/domain'
@@ -33,6 +34,9 @@ export function TaskRow({ task, timezone, eventStartKey, onSnooze, onEditDue, on
   const reopen = useReopenTask()
   const acknowledge = useAcknowledgeTask()
   const toast = useToast()
+  // Feature 032 US3 (contract C3, FR-013): completing is undoable instead of a blocking
+  // confirm — the toast IS the confirmation, with a way back.
+  const commitComplete = useUndoableMutation(complete, reopen, { label: `Done — ${task.title}` })
   const { session } = useAuth()
   const viewer = resolveViewer(session)
   const uncommitted = isUncommitted(task)
@@ -85,9 +89,7 @@ export function TaskRow({ task, timezone, eventStartKey, onSnooze, onEditDue, on
     if (isDone) {
       reopen.mutate(task.id)
     } else {
-      complete.mutate(task.id, {
-        onSuccess: () => toast.show(`Done — ${task.title}`),
-      })
+      commitComplete(task.id, task.id)
     }
   }
 
@@ -138,31 +140,45 @@ export function TaskRow({ task, timezone, eventStartKey, onSnooze, onEditDue, on
           same visibility/eligibility rules as before (isUncommitted/canAcknowledge unchanged).
           Deliberately excluded from the row's snoozed dimming above — this is the one thing
           on the row that still needs full-contrast legibility. */}
-      {uncommitted && (canCommit ? (
-        <button
-          type="button"
-          onClick={() => acknowledge.mutate(task.id, { onSuccess: () => toast.show("Got it — you're on it") })}
-          disabled={acknowledge.isPending}
-          aria-label={`Not yet committed — tap to confirm you've got ${task.title}`}
-          className={cn(
-            'flex min-h-[44px] shrink-0 items-center rounded-control border-2 px-2.5 text-xs font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:opacity-50',
-            task.owner === 'max' && 'border-owner-max text-owner-max hover:bg-owner-max-soft',
-            task.owner === 'jaz' && 'border-owner-jaz text-owner-jaz hover:bg-owner-jaz-soft',
-          )}
-        >
-          {acknowledge.isPending ? 'Committing…' : "I've got it"}
-        </button>
-      ) : (
-        <span
-          className={cn(
-            'flex min-h-[44px] shrink-0 items-center rounded-control border-2 px-2.5 text-xs font-medium',
-            task.owner === 'max' && 'border-owner-max text-owner-max',
-            task.owner === 'jaz' && 'border-owner-jaz text-owner-jaz',
-          )}
-        >
-          Not yet committed
-        </span>
-      ))}
+      {/* Feature 032 US5 (FR-018, audit F-14): a fixed-width slot — present whether or not
+          the affordance itself renders — so the owner badge/due label/menu that follow
+          line up the same way on every row, committed or not. The affordance itself is
+          deliberately quieter than the title (thin neutral border, muted ink, a small
+          owner-colored dot standing in for the identity signal the loud colored outline
+          used to carry) while staying a single tap. */}
+      <div className="flex w-28 shrink-0 justify-end">
+        {uncommitted && (canCommit ? (
+          <button
+            type="button"
+            onClick={() => acknowledge.mutate(task.id, { onSuccess: () => toast.show("Got it — you're on it") })}
+            disabled={acknowledge.isPending}
+            aria-label={`Not yet committed — tap to confirm you've got ${task.title}`}
+            className="flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-control border border-border px-2 text-xs text-ink-muted transition-colors hover:border-accent hover:text-accent-strong focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:opacity-50"
+          >
+            <span
+              aria-hidden="true"
+              className={cn(
+                'h-1.5 w-1.5 shrink-0 rounded-full',
+                task.owner === 'max' && 'bg-owner-max',
+                task.owner === 'jaz' && 'bg-owner-jaz',
+              )}
+            />
+            {acknowledge.isPending ? 'Committing…' : "I've got it"}
+          </button>
+        ) : (
+          <span className="flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-control border border-border px-2 text-xs text-ink-faint">
+            <span
+              aria-hidden="true"
+              className={cn(
+                'h-1.5 w-1.5 shrink-0 rounded-full',
+                task.owner === 'max' && 'bg-owner-max',
+                task.owner === 'jaz' && 'bg-owner-jaz',
+              )}
+            />
+            Not yet committed
+          </span>
+        ))}
+      </div>
 
       <span
         className={cn(

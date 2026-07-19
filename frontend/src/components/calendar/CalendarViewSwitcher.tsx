@@ -29,7 +29,8 @@ export function CalendarViewSwitcher({ mode, onChange }: CalendarViewSwitcherPro
             onClick={() => onChange(opt.mode)}
             className={cn(
               'min-h-[44px] rounded-control px-3 text-xs font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
-              active ? 'bg-accent text-surface' : 'text-ink-muted hover:bg-surface-alt',
+              // accent-strong: this is a 12px label on an accent fill (T033 / F-20).
+              active ? 'bg-accent-strong text-surface' : 'text-ink-muted hover:bg-surface-alt',
             )}
           >
             {opt.label}

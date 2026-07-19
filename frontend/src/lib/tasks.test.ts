@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest'
-import { groupTasks, somedaySort, parseSnoozeHistory, formatSnoozeHistory, isUncommitted, canAcknowledge } from './tasks'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { groupTasks, groupTasksByHorizon, somedaySort, parseSnoozeHistory, formatSnoozeHistory, isUncommitted, canAcknowledge } from './tasks'
 import type { Task } from '@/types/domain'
 
 function task(overrides: Partial<Task> & { id: string }): Task {
@@ -315,5 +315,64 @@ describe('canAcknowledge', () => {
 
   it('false when viewer is undefined', () => {
     expect(canAcknowledge(task({ id: 't', owner: 'max', status: 'open' }), undefined)).toBe(false)
+  })
+})
+
+describe('groupTasksByHorizon (feature 032 US5, FR-017)', () => {
+  const TZ = 'America/Los_Angeles'
+
+  // Friday 2026-07-10 11:00 LA — household week (Sun–Sat) is 07-05..07-11,
+  // so nextWeekEnd (thisWeekEnd + 7) is 07-18.
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-07-10T18:00:00Z'))
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('returns empty groups for an empty input', () => {
+    expect(groupTasksByHorizon([], TZ)).toEqual({ thisWeek: [], nextWeek: [], later: [] })
+  })
+
+  it('an overdue task (due before today) still lands in This week', () => {
+    const t = task({ id: 'overdue', dueDate: '2026-07-01' })
+    const { thisWeek, nextWeek, later } = groupTasksByHorizon([t], TZ)
+    expect(thisWeek.map((x) => x.id)).toEqual(['overdue'])
+    expect(nextWeek).toHaveLength(0)
+    expect(later).toHaveLength(0)
+  })
+
+  it('a due date exactly at the end of the household week is This week', () => {
+    const t = task({ id: 'sat', dueDate: '2026-07-11' })
+    expect(groupTasksByHorizon([t], TZ).thisWeek.map((x) => x.id)).toEqual(['sat'])
+  })
+
+  it('the day after this week ends is Next week', () => {
+    const t = task({ id: 'sun', dueDate: '2026-07-12' })
+    expect(groupTasksByHorizon([t], TZ).nextWeek.map((x) => x.id)).toEqual(['sun'])
+  })
+
+  it('a due date exactly at the end of next week is still Next week', () => {
+    const t = task({ id: 'boundary', dueDate: '2026-07-18' })
+    expect(groupTasksByHorizon([t], TZ).nextWeek.map((x) => x.id)).toEqual(['boundary'])
+  })
+
+  it('anything past next week is Later', () => {
+    const t = task({ id: 'far', dueDate: '2026-08-01' })
+    expect(groupTasksByHorizon([t], TZ).later.map((x) => x.id)).toEqual(['far'])
+  })
+
+  it('preserves input order (soonest-first) within each horizon', () => {
+    const tasks = [
+      task({ id: 'a', dueDate: '2026-07-02' }),
+      task({ id: 'b', dueDate: '2026-07-09' }),
+      task({ id: 'c', dueDate: '2026-07-14' }),
+      task({ id: 'd', dueDate: '2026-07-16' }),
+    ]
+    const { thisWeek, nextWeek } = groupTasksByHorizon(tasks, TZ)
+    expect(thisWeek.map((x) => x.id)).toEqual(['a', 'b'])
+    expect(nextWeek.map((x) => x.id)).toEqual(['c', 'd'])
   })
 })

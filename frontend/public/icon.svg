@@ -1,13 +1,40 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <rect width="512" height="512" rx="112" fill="#FAF6F0"/>
-  <rect x="96" y="128" width="320" height="272" rx="28" fill="#FFFFFF" stroke="#E5DCCC" stroke-width="8"/>
-  <rect x="96" y="128" width="320" height="72" rx="28" fill="#C6613F"/>
-  <rect x="96" y="172" width="320" height="28" fill="#C6613F"/>
-  <circle cx="176" cy="128" r="14" fill="#FAF6F0" stroke="#AD5133" stroke-width="6"/>
-  <circle cx="336" cy="128" r="14" fill="#FAF6F0" stroke="#AD5133" stroke-width="6"/>
-  <rect x="140" y="248" width="56" height="40" rx="8" fill="#3E6E68"/>
-  <rect x="228" y="248" width="56" height="40" rx="8" fill="#7E4A5E"/>
-  <rect x="316" y="248" width="56" height="40" rx="8" fill="#C6613F"/>
-  <rect x="140" y="316" width="56" height="40" rx="8" fill="#DCE9E7"/>
-  <rect x="228" y="316" width="56" height="40" rx="8" fill="#EDDDE3"/>
+  <!-- Feature 032 US1 (R3/FR-004): the browser-tab icon follows the OS color
+       scheme via this internal media query. SVG cannot see the in-app theme
+       preference, and the installed-PWA icon (PNG) cannot switch at all — both
+       documented platform limits (DESIGN.md / README). Values mirror the token
+       blocks in src/index.css. -->
+  <style>
+    .page { fill: #FAF6F0; }
+    .card { fill: #FFFFFF; stroke: #E5DCCC; }
+    .header { fill: #C6613F; }
+    .ring { fill: #FAF6F0; stroke: #AD5133; }
+    .chip-max { fill: #3E6E68; }
+    .chip-jaz { fill: #7E4A5E; }
+    .chip-both { fill: #C6613F; }
+    .chip-max-soft { fill: #DCE9E7; }
+    .chip-jaz-soft { fill: #EDDDE3; }
+    @media (prefers-color-scheme: dark) {
+      .page { fill: #201C16; }
+      .card { fill: #2A251D; stroke: #453D31; }
+      .header { fill: #D97757; }
+      .ring { fill: #201C16; stroke: #E08A6D; }
+      .chip-max { fill: #7FB3AA; }
+      .chip-jaz { fill: #C893A9; }
+      .chip-both { fill: #D97757; }
+      .chip-max-soft { fill: #233833; }
+      .chip-jaz-soft { fill: #3A2A32; }
+    }
+  </style>
+  <rect class="page" width="512" height="512" rx="112"/>
+  <rect class="card" x="96" y="128" width="320" height="272" rx="28" stroke-width="8"/>
+  <rect class="header" x="96" y="128" width="320" height="72" rx="28"/>
+  <rect class="header" x="96" y="172" width="320" height="28"/>
+  <circle class="ring" cx="176" cy="128" r="14" stroke-width="6"/>
+  <circle class="ring" cx="336" cy="128" r="14" stroke-width="6"/>
+  <rect class="chip-max" x="140" y="248" width="56" height="40" rx="8"/>
+  <rect class="chip-jaz" x="228" y="248" width="56" height="40" rx="8"/>
+  <rect class="chip-both" x="316" y="248" width="56" height="40" rx="8"/>
+  <rect class="chip-max-soft" x="140" y="316" width="56" height="40" rx="8"/>
+  <rect class="chip-jaz-soft" x="228" y="316" width="56" height="40" rx="8"/>
 </svg>

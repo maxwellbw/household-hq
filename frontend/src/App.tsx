@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { useBootstrap } from '@/hooks/useBootstrap'
+import { useTheme } from '@/hooks/useTheme'
 import { listenForDeepLinks } from '@/lib/deeplink'
 import { AppShell } from '@/components/shell/AppShell'
 import { LazyBoundary } from '@/components/shell/LazyBoundary'
@@ -12,7 +13,6 @@ import { ActingPersonAffirm } from '@/components/auth/ActingPersonAffirm'
 import type { CalendarHomeProps } from '@/components/calendar/CalendarHome'
 import { OwnerFilterChips } from '@/components/calendar/OwnerFilterChips'
 import { useOwnerFilter } from '@/hooks/useOwnerFilter'
-import { SomedayList } from '@/components/task/SomedayList'
 import { ScheduleTaskDialog } from '@/components/task/ScheduleTaskDialog'
 import { TasksView } from '@/components/task/TasksView'
 import { ListsView } from '@/components/lists/ListsView'
@@ -26,8 +26,12 @@ import type { NavSection } from '@/components/shell/navItems'
 const loadCalendarHome = () =>
   import('@/components/calendar/CalendarHome').then((m) => ({ default: m.CalendarHome }))
 const loadMoreView = () => import('@/components/more/MoreView').then((m) => ({ default: m.MoreView }))
+type MoreViewProps = import('@/components/more/MoreView').MoreViewProps
 
 function App() {
+  // Feature 032 US1: the theme engine mounts once, above every early-return
+  // gate, so sign-in/restoring/error screens re-theme with live OS changes too.
+  useTheme()
   const { status, session } = useAuth()
   // Feature 030 US1: one cold-load bootstrap seeds every primary-view dataset's cache;
   // `enabled: !!session` inside the hook means this is idle (not loading) pre-sign-in.
@@ -37,10 +41,25 @@ function App() {
   const [schedulingTaskId, setSchedulingTaskId] = useState<string | null>(null)
   const [prefilledDate, setPrefilledDate] = useState<string>('')
   const [calendarFocusDate, setCalendarFocusDate] = useState<string | null>(null)
+  const [listsFocusName, setListsFocusName] = useState<string | null>(null)
+  const [moreFocusSubscreen, setMoreFocusSubscreen] = useState<'feed' | null>(null)
 
   function openCalendarOnDate(dateKey: string) {
     setCalendarFocusDate(dateKey)
     setActive('calendar')
+  }
+
+  // Feature 032 US2 (FR-010, audit F-31): the dashboard's grocery nudge jumps straight to
+  // the Groceries list's Needed view — same consume-on-mount pattern as calendarFocusDate.
+  function openGroceriesNeeded() {
+    setListsFocusName('Groceries')
+    setActive('lists')
+  }
+
+  // Feature 032 US2 (FR-009): the dashboard's Lately strip jumps straight to More → Feed.
+  function openFeed() {
+    setMoreFocusSubscreen('feed')
+    setActive('more')
   }
 
   // Consumed once by CalendarHome's initial mount (it seeds Schedule-X's
@@ -51,6 +70,12 @@ function App() {
       setCalendarFocusDate(null)
     }
   }, [active, calendarFocusDate])
+
+  useEffect(() => {
+    if (active === 'lists' && listsFocusName) {
+      setListsFocusName(null)
+    }
+  }, [active, listsFocusName])
 
   // Feature 010 US3: a tapped push notification deep-links here — cold launch via the
   // `?task=` URL param, or a warm-app postMessage from the service worker. Tasks tab is
@@ -101,7 +126,14 @@ function App() {
       {session.who.needsActingPerson && session.actingPerson && (
         <ActingPersonAffirm person={session.actingPerson} />
       )}
-      {active === 'home' && <DashboardHome onOpenDate={openCalendarOnDate} />}
+      {active === 'home' && (
+        <DashboardHome
+          onOpenDate={openCalendarOnDate}
+          onNavigateTasks={() => setActive('tasks')}
+          onNavigateGroceries={openGroceriesNeeded}
+          onNavigateFeed={openFeed}
+        />
+      )}
       {active === 'calendar' && (
         <div className="flex flex-col">
           <OwnerFilterChips visibleOwners={visibleOwners} onToggle={toggle} />
@@ -110,13 +142,29 @@ function App() {
             loader={loadCalendarHome}
             componentProps={{ visibleOwners, focusDate: calendarFocusDate ?? undefined }}
           />
-          <SomedayList visibleOwners={visibleOwners} onSchedule={openScheduleDialog} />
+          {/* Feature 032 US5 (FR-019, audit F-29): Someday has exactly one home (Tasks) —
+              unscheduled-by-definition items no longer embed under the schedule view;
+              this is at most a link there. */}
+          <button
+            type="button"
+            onClick={() => setActive('tasks')}
+            className="mx-4 mb-4 min-h-[44px] self-start rounded-control px-1 text-sm text-ink-muted underline decoration-border underline-offset-4 hover:text-accent-strong focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+          >
+            See your Someday list in Tasks →
+          </button>
         </div>
       )}
       {active === 'tasks' && <TasksView onScheduleSomeday={openScheduleDialog} />}
-      {active === 'lists' && <ListsView />}
+      {active === 'lists' && <ListsView focusListName={listsFocusName ?? undefined} />}
       {active === 'more' && (
-        <LazyBoundary<Record<string, never>> label="More" loader={loadMoreView} componentProps={{}} />
+        <LazyBoundary<MoreViewProps>
+          label="More"
+          loader={loadMoreView}
+          componentProps={{
+            initialSubscreen: moreFocusSubscreen ?? undefined,
+            onConsumedInitialSubscreen: () => setMoreFocusSubscreen(null),
+          }}
+        />
       )}
 
       {schedulingTaskId && (

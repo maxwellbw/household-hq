@@ -167,3 +167,40 @@ describe('TasksView — Someday section (021 US1)', () => {
     expect(screen.getByRole('button', { name: 'Force-rank' })).toBeInTheDocument()
   })
 })
+
+describe('TasksView — horizon grouping within Open (feature 032 US5, FR-017)', () => {
+  afterEach(() => {
+    mockTasks = tasks
+    vi.useRealTimers()
+  })
+
+  it('groups open tasks under This week / Next week / Later headings with counts', () => {
+    vi.useFakeTimers()
+    // Friday 2026-07-10 LA — household week is 07-05..07-11.
+    vi.setSystemTime(new Date('2026-07-10T18:00:00Z'))
+    mockTasks = [
+      { id: 'a', title: 'Overdue thing', owner: 'max', status: 'open', dueDate: '2026-07-01' } as Task,
+      { id: 'b', title: 'Next week thing', owner: 'max', status: 'open', dueDate: '2026-07-14' } as Task,
+      { id: 'c', title: 'Later thing', owner: 'max', status: 'open', dueDate: '2026-08-01' } as Task,
+    ]
+    render(<TasksView />)
+    expect(screen.getByText('This week (1)')).toBeInTheDocument()
+    expect(screen.getByText('Next week (1)')).toBeInTheDocument()
+    expect(screen.getByText('Later (1)')).toBeInTheDocument()
+    expect(screen.getByText('Overdue thing')).toBeInTheDocument()
+    expect(screen.getByText('Next week thing')).toBeInTheDocument()
+    expect(screen.getByText('Later thing')).toBeInTheDocument()
+  })
+
+  it('hides empty horizon groups', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-07-10T18:00:00Z'))
+    mockTasks = [
+      { id: 'a', title: 'This week only', owner: 'max', status: 'open', dueDate: '2026-07-11' } as Task,
+    ]
+    render(<TasksView />)
+    expect(screen.getByText('This week (1)')).toBeInTheDocument()
+    expect(screen.queryByText(/Next week/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/^Later/)).not.toBeInTheDocument()
+  })
+})

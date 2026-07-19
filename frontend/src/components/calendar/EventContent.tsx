@@ -105,8 +105,10 @@ export function EventContent({ calendarEvent }: ScheduleXEventProps) {
             Overdue
           </span>
         ) : (
+          // ink-muted, not ink-faint: this tag sits on an owner-soft tint, where
+          // faint lands at 3.97–4.39:1 in both themes (T033 / audit F-20).
           calendarEvent._kind === 'task' && (
-            <span className="ml-auto shrink-0 text-[9px] uppercase tracking-wide text-ink-faint">Task</span>
+            <span className="ml-auto shrink-0 text-[9px] uppercase tracking-wide text-ink-muted">Task</span>
           )
         )}
       </div>

@@ -1,9 +1,17 @@
+import { Temporal } from 'temporal-polyfill'
+import { weekRange } from '@/lib/datetime'
 import type { Owner, Task } from '@/types/domain'
 
 export interface GroupedTasks {
   open: Task[]
   done: Task[]
   someday: Task[]
+}
+
+export interface HorizonGroups {
+  thisWeek: Task[]
+  nextWeek: Task[]
+  later: Task[]
 }
 
 export interface SnoozeHistoryRow {
@@ -91,6 +99,33 @@ export function groupTasks(tasks: Task[]): GroupedTasks {
     })
 
   return { open, done, someday }
+}
+
+/**
+ * Groups an already-sorted (ascending dueDate) list of open, dated tasks into This
+ * week / Next week / Later horizons (feature 032 US5, FR-017), so a 34-row flat list
+ * reads as three scannable groups instead of one wall. Boundaries use the household
+ * week (Sun–Sat) `weekRange` already derives for digests — "This week" runs through
+ * the end of the current household week (so an overdue task still lands there, sorted
+ * to the top by `groupTasks`), "Next week" the following 7 days, everything else
+ * "Later". Group order preserves input order (soonest-first). Pure — no side effects.
+ */
+export function groupTasksByHorizon(open: Task[], timezone: string): HorizonGroups {
+  const { endKey: thisWeekEnd } = weekRange(timezone)
+  const nextWeekEnd = Temporal.PlainDate.from(thisWeekEnd).add({ days: 7 }).toString()
+
+  const thisWeek: Task[] = []
+  const nextWeek: Task[] = []
+  const later: Task[] = []
+
+  for (const task of open) {
+    const due = task.dueDate ?? UNDATED_SENTINEL
+    if (due <= thisWeekEnd) thisWeek.push(task)
+    else if (due <= nextWeekEnd) nextWeek.push(task)
+    else later.push(task)
+  }
+
+  return { thisWeek, nextWeek, later }
 }
 
 /**

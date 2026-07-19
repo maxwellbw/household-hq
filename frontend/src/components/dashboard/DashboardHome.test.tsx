@@ -6,6 +6,18 @@ import { todayKey } from '@/lib/datetime'
 
 const TZ = 'America/Los_Angeles'
 
+function renderDashboard(props: Partial<Parameters<typeof DashboardHome>[0]> = {}) {
+  return render(
+    <DashboardHome
+      onOpenDate={vi.fn()}
+      onNavigateTasks={vi.fn()}
+      onNavigateGroceries={vi.fn()}
+      onNavigateFeed={vi.fn()}
+      {...props}
+    />,
+  )
+}
+
 // Stub all data hooks — DashboardHome is tested for section structure and
 // empty states, not for data-fetching logic (covered in dashboard.test.ts).
 
@@ -19,6 +31,10 @@ vi.mock('@/hooks/useLists', () => ({
 
 vi.mock('@/hooks/useDogWalks', () => ({
   useDogWalks: () => ({ data: [], isPending: false, isError: false }),
+}))
+
+vi.mock('@/hooks/useActivity', () => ({
+  useActivity: () => ({ data: [], isPending: false, isError: false }),
 }))
 
 vi.mock('@/hooks/useAuth', () => ({
@@ -57,27 +73,32 @@ vi.mock('@/hooks/useToast', () => ({
   useToast: () => ({ show: vi.fn() }),
 }))
 
+vi.mock('@/hooks/useMutations', () => ({
+  useCompleteTask: () => ({ mutate: vi.fn() }),
+  useReopenTask: () => ({ mutate: vi.fn() }),
+  useAcknowledgeTask: () => ({ mutate: vi.fn(), isPending: false }),
+}))
+
 describe('DashboardHome', () => {
-  it('renders all five section headings on load', () => {
-    render(<DashboardHome onOpenDate={vi.fn()} />)
-    expect(screen.getByText('Today')).toBeInTheDocument()
-    expect(screen.getByText('Overdue')).toBeInTheDocument()
+  it('renders the quiet-week section headings on load', () => {
+    renderDashboard()
     expect(screen.getByText('This weekend')).toBeInTheDocument()
     expect(screen.getByText('Load balance')).toBeInTheDocument()
     expect(screen.getByText('Coming up')).toBeInTheDocument()
+    // Overdue only renders when non-empty (contract C7) — absent in the quiet-week state.
+    expect(screen.queryByText('Overdue')).not.toBeInTheDocument()
   })
 
   it('quiet week — all sections show calm empty states, no errors and no blank panels', () => {
-    render(<DashboardHome onOpenDate={vi.fn()} />)
-    // SmartViews empty states
-    expect(screen.getByText('Nothing due today — enjoy the quiet.')).toBeInTheDocument()
-    expect(screen.getByText('All caught up — nothing overdue.')).toBeInTheDocument()
+    renderDashboard()
+    // Merged Overdue+Today empty line (FR-008) — exactly one line for the region.
+    expect(screen.getByText('Nothing due and nothing overdue — enjoy the quiet.')).toBeInTheDocument()
     expect(screen.getByText('Nothing lined up this weekend.')).toBeInTheDocument()
     // Highlights empty state
     expect(screen.getByText('All quiet — nothing unusual ahead.')).toBeInTheDocument()
-    // Load-balance rows always show both owners (viewer=jaz → "You"; other=Max)
-    expect(screen.getAllByText('You').length).toBeGreaterThan(0)
-    expect(screen.getAllByText('Max').length).toBeGreaterThan(0)
+    // Load-balance collapses an all-zero period to one quiet line (FR-011)
+    expect(screen.getByText('Nothing tracked this week.')).toBeInTheDocument()
+    expect(screen.getByText('Nothing tracked this month.')).toBeInTheDocument()
     // No error banner, no loading skeletons
     expect(screen.queryByText(/couldn't load/i)).not.toBeInTheDocument()
     expect(screen.queryByLabelText('Loading dashboard')).not.toBeInTheDocument()
@@ -85,9 +106,9 @@ describe('DashboardHome', () => {
 
   it('shows loading skeletons while data is pending', () => {
     mockUseTasks.mockReturnValueOnce({ data: undefined, isPending: true, isError: false })
-    render(<DashboardHome onOpenDate={vi.fn()} />)
+    renderDashboard()
     expect(screen.getByLabelText('Loading dashboard')).toBeInTheDocument()
-    expect(screen.queryByText('Today')).not.toBeInTheDocument()
+    expect(screen.queryByRole('group', { name: 'Next 7 days' })).not.toBeInTheDocument()
   })
 
   it('shows an acknowledge notice when the other person committed to a task the viewer assigned (019 US2)', () => {
@@ -101,23 +122,53 @@ describe('DashboardHome', () => {
       isPending: false,
       isError: false,
     })
-    render(<DashboardHome onOpenDate={vi.fn()} />)
+    renderDashboard()
     // The notice text is split across nested <span>s for owner-color styling (feature 028 R7).
     const status = screen.getByRole('status')
     expect(status).toHaveTextContent('Max has it:')
     expect(status).toHaveTextContent('Pick up the dog')
   })
 
-  describe('day-peek panel (US4/US28)', () => {
-    it('opens the panel on tap, switches to a different day, and closes on a repeat tap', () => {
-      render(<DashboardHome onOpenDate={vi.fn()} />)
+  describe('Overdue section (feature 032 US2, contract C7)', () => {
+    it('shows the Overdue heading above the strip when overdue tasks exist, capped at 5', () => {
+      mockUseTasks.mockReturnValueOnce({
+        data: Array.from({ length: 7 }, (_, i) => ({
+          id: `o${i}`, title: `Overdue ${i}`, owner: 'max', status: 'open', dueDate: '2000-01-01',
+        })),
+        isPending: false,
+        isError: false,
+      })
+      renderDashboard()
+      expect(screen.getByText('Overdue')).toBeInTheDocument()
+      expect(screen.getByText('View all 7 in Tasks')).toBeInTheDocument()
+    })
+
+    it('navigates to Tasks via the "view all" link', () => {
+      const onNavigateTasks = vi.fn()
+      mockUseTasks.mockReturnValueOnce({
+        data: [{ id: 'o1', title: 'Overdue thing', owner: 'max', status: 'open', dueDate: '2000-01-01' }],
+        isPending: false,
+        isError: false,
+      })
+      renderDashboard({ onNavigateTasks })
+      fireEvent.click(screen.getByRole('button', { name: /View all/ }))
+      expect(onNavigateTasks).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  describe('day-peek panel (US4/US28/US2-032)', () => {
+    it("pre-selects today's card on mount (contract C7)", () => {
+      renderDashboard()
+      expect(screen.getByRole('region', { name: /,/ })).toBeInTheDocument()
+    })
+
+    it('closes on a repeat tap of the pre-selected today tile, and opens a different day on tap', () => {
+      renderDashboard()
       const group = screen.getByRole('group', { name: 'Next 7 days' })
       const [firstTile, secondTile] = group.querySelectorAll('button')
 
-      expect(screen.queryByRole('region', { name: /,/ })).not.toBeInTheDocument()
-
       fireEvent.click(firstTile)
-      expect(screen.getByRole('region', { name: /,/ })).toBeInTheDocument()
+      expect(screen.queryByRole('region', { name: /,/ })).not.toBeInTheDocument()
 
       fireEvent.click(secondTile)
       expect(screen.getAllByRole('region', { name: /,/ })).toHaveLength(1)
@@ -128,18 +179,12 @@ describe('DashboardHome', () => {
 
     it('passes the tapped day through to the "Open in calendar" callback', () => {
       const onOpenDate = vi.fn()
-      render(<DashboardHome onOpenDate={onOpenDate} />)
-      const group = screen.getByRole('group', { name: 'Next 7 days' })
-      const [firstTile] = group.querySelectorAll('button')
-      fireEvent.click(firstTile)
-
+      renderDashboard({ onOpenDate })
       fireEvent.click(screen.getByRole('button', { name: 'Open in calendar' }))
       expect(onOpenDate).toHaveBeenCalledWith(todayKey(TZ))
     })
 
-    it("surfaces today's tasks and events inside the panel (SC-006: matches the strip)", () => {
-      // mockReturnValue (not -Once): the state update from the click below re-renders
-      // DashboardHome, which calls useTasks()/useEvents() again.
+    it("surfaces today's tasks and events inside the panel by default (SC-006: matches the strip)", () => {
       mockUseTasks.mockReturnValue({
         data: [{ id: 't1', title: 'Water the plants', owner: 'jaz', status: 'open', dueDate: todayKey(TZ) }],
         isPending: false,
@@ -153,12 +198,14 @@ describe('DashboardHome', () => {
       const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
       render(
         <QueryClientProvider client={queryClient}>
-          <DashboardHome onOpenDate={vi.fn()} />
+          <DashboardHome
+            onOpenDate={vi.fn()}
+            onNavigateTasks={vi.fn()}
+            onNavigateGroceries={vi.fn()}
+            onNavigateFeed={vi.fn()}
+          />
         </QueryClientProvider>,
       )
-      const group = screen.getByRole('group', { name: 'Next 7 days' })
-      const [firstTile] = group.querySelectorAll('button')
-      fireEvent.click(firstTile)
 
       const region = screen.getByRole('region', { name: /,/ })
       expect(region).toHaveTextContent('Water the plants')

@@ -10,49 +10,59 @@ Calm, warm, domestic. The app should feel like a well-organized kitchen corkboar
 
 ## Color tokens
 
-Warm paper-and-ink palette inspired by the Claude desktop/web app.
+Warm paper-and-ink palette inspired by the Claude desktop/web app. Two themes,
+one identity: light is the source of truth (`:root` in `frontend/src/index.css`),
+dark is "the corkboard after dark" — the single `[data-theme="dark"]` override
+block in the same file. **These two blocks (plus the Schedule-X bridge in
+`calendar-theme.css`) are the only places a color value may exist** (feature 032
+contract C1); components consume tokens only, never hex or theme conditionals.
 
-```css
-:root {
-  /* Surfaces */
-  --bg:            #FAF6F0;  /* warm ivory page background */
-  --surface:       #FFFFFF;  /* cards */
-  --surface-alt:   #F2EBE0;  /* wells, hovered rows, calendar out-of-month */
-  --border:        #E5DCCC;  /* hairlines */
+> The ink values below are the *shipped* values. Feature 020-era implementation
+> darkened `--ink-muted`/`--ink-faint` from this file's original `#6E6656`/`#9B937F`
+> to meet 4.5:1 on every surface they actually render on; the file previously
+> documented the older, lighter pair (drift recorded per 032 audit F-24).
 
-  /* Ink */
-  --ink:           #2A261F;  /* primary text */
-  --ink-muted:     #6E6656;  /* secondary text, labels */
-  --ink-faint:     #9B937F;  /* placeholders, disabled */
+| Token | Light | Dark | Role |
+|---|---|---|---|
+| `--bg` | `#FAF6F0` | `#201C16` | page background — warm ivory / deep warm umber |
+| `--surface` | `#FFFFFF` | `#2A251D` | cards |
+| `--surface-alt` | `#F2EBE0` | `#363028` | wells, hovered rows, out-of-month days |
+| `--border` | `#E5DCCC` | `#453D31` | hairlines |
+| `--ink` | `#2A261F` | `#EDE7DC` | primary text — ink / warm off-white |
+| `--ink-muted` | `#655E4F` | `#B5AB97` | secondary text, labels |
+| `--ink-faint` | `#756C59` | `#9C9280` | placeholders, section eyebrows |
+| `--accent` | `#C6613F` | `#D97757` | terracotta *fills* + borders — buttons, focus ring |
+| `--accent-hover` | `#AD5133` | `#E08A6D` | hover shifts darker in light, lighter in dark |
+| `--accent-soft` | `#F3DED3` | `#45291D` | accent tints, selected states |
+| `--accent-strong` | `#A34A2D` | `#E08A6D` | text-safe terracotta (≥4.5:1) — accent *text*, small-text-on-accent fills, "Both" badge |
+| `--owner-max` | `#3E6E68` | `#7FB3AA` | pine teal, lifted for dark |
+| `--owner-max-soft` | `#DCE9E7` | `#233833` | |
+| `--owner-jaz` | `#7E4A5E` | `#C893A9` | berry/plum, lifted for dark |
+| `--owner-jaz-soft` | `#EDDDE3` | `#3A2A32` | |
+| `--owner-both` | `var(--accent-strong)` | `var(--accent-strong)` | text-safe: the MJ badge is white-on-fill |
+| `--owner-both-soft` | `var(--accent-soft)` | `var(--accent-soft)` | |
+| `--success` | `#4E7A4E` | `#85B183` | |
+| `--warning` | `#B07C2E` | `#D9A45B` | badge/large-text usage only (3:1 class) |
+| `--danger` | `#A43E2E` | `#E18D77` | |
+| `--scrim` | `rgba(42,38,31,.3)` | `rgba(12,10,7,.6)` | dialog/sheet backdrops |
+| `--shadow-card` | `rgba(42,38,31,…)` pair | `rgba(0,0,0,…)` pair | shadows deepen in dark |
+| `--radius-card` / `--radius-control` | `14px` / `10px` | (unchanged) | |
 
-  /* Brand accent */
-  --accent:        #C6613F;  /* terracotta — primary actions, focus rings, "Both" */
-  --accent-hover:  #AD5133;
-  --accent-soft:   #F3DED3;  /* accent tints, selected states */
+Every documented pair is gated by `npm run check:contrast` in both themes
+(body pairs ≥ 4.5:1; pairs only ever rendered large/semibold or as UI
+components ≥ 3:1 and flagged as such in the script).
 
-  /* Owner identity (used consistently EVERYWHERE) */
-  --owner-max:     #3E6E68;  /* deep pine teal */
-  --owner-max-soft:#DCE9E7;
-  --owner-jaz:     #7E4A5E;  /* muted berry/plum */
-  --owner-jaz-soft:#EDDDE3;
-  --owner-both:    var(--accent);
-  --owner-both-soft:var(--accent-soft);
+**Theming mechanics** (feature 032): a per-device System/Light/Dark preference
+lives at `localStorage['hq.theme']` (never in the household Settings sheet —
+one phone's choice must not force the other's). `useTheme` resolves it
+(System follows `prefers-color-scheme` live), stamps `<html data-theme>`, and
+syncs the `theme-color` metas to the active `--bg`; an inline pre-paint script
+in `index.html` prevents any flash of the wrong theme on cold load. Platform
+limits, documented honestly: the SVG favicon adapts to the **OS** scheme only,
+and the installed-PWA icon/splash can't follow any theme — the icon carries
+its own contained warm background so it sits on both wallpapers.
 
-  /* Semantic */
-  --success:       #4E7A4E;
-  --warning:       #B07C2E;
-  --danger:        #A43E2E;
-
-  /* Shape & depth */
-  --radius-card:   14px;
-  --radius-control:10px;
-  --shadow-card:   0 1px 2px rgba(42,38,31,.06), 0 4px 12px rgba(42,38,31,.05);
-}
-```
-
-Dark mode: deferred (not in v1). Don't scaffold for it.
-
-Rules: owner colors are identity, never decoration — a task chip, calendar event, avatar ring, and filter pill for Max are always the same pine teal, in every view. Accent terracotta is reserved for primary actions, focus, and "Both"; if everything is terracotta, nothing is. Backgrounds stay warm — never pure `#FFF` page backgrounds or cool grays.
+Rules: owner colors are identity, never decoration — a task chip, calendar event, avatar ring, and filter pill for Max are always the same pine teal (lifted, but recognizably the same hue, in dark), in every view. Accent terracotta is reserved for primary actions, focus, and "Both"; if everything is terracotta, nothing is. Backgrounds stay warm in **both** themes — never pure `#FFF` page backgrounds, never cool grays or pure black.
 
 ## Typography
 
@@ -65,7 +75,7 @@ Rules: owner colors are identity, never decoration — a task chip, calendar eve
 
 - **Dashboard is home.** Opening the app lands on the Home dashboard. The calendar is primary secondary navigation — still month on desktop and agenda/week on mobile when opened; tasks, load-balance view, and settings are further secondary navigation.
 - **Tasks visually attach to their events.** Prep tasks render as small owner-colored chips beneath/tethered to their parent event in calendar views; tapping an event reveals its prep checklist with T−N labels. This attachment is the signature interaction — protect it.
-- Mobile-first: bottom tab bar (Calendar · Tasks · Feed · More), thumb-reachable primary actions, one floating "+" for quick add.
+- Mobile-first: bottom tab bar — **Home · Calendar · Tasks · Lists · More** as shipped (the Feed lives under More; this file previously described a pre-011 four-tab layout) — thumb-reachable primary actions, one floating "+" for quick add.
 - Desktop: max-width ~1100px content column; calendar left, contextual panel right.
 - Generous whitespace; cards over dividers; hairline borders over shadows where possible (shadows only for raised/interactive elements).
 - Density: comfortable by default. Two users don't need compact mode.

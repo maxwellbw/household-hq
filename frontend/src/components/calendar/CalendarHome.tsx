@@ -18,6 +18,8 @@ import { CalendarViewSwitcher } from '@/components/calendar/CalendarViewSwitcher
 import { DayListView, type CalendarViewMode } from '@/components/calendar/DayListView'
 import { EventDetailSheet } from '@/components/event/EventDetailSheet'
 import { TaskDetailSheet } from '@/components/task/TaskDetailSheet'
+import { ErrorState } from '@/components/shell/ErrorState'
+import { SyncedAt } from '@/components/shell/SyncedAt'
 import type { Owner } from '@/types/domain'
 
 function useIsMobile(): boolean {
@@ -242,19 +244,15 @@ export function CalendarHome({ visibleOwners, focusDate }: CalendarHomeProps) {
 
   if (isError) {
     return (
-      <div className="flex h-64 flex-col items-center justify-center gap-3 text-center">
-        <p className="text-ink">Couldn't load the calendar.</p>
-        <button
-          type="button"
-          onClick={() => {
-            void eventsQuery.refetch()
-            void tasksQuery.refetch()
-          }}
-          className="min-h-[44px] rounded-control border border-border px-4 text-sm hover:bg-surface-alt focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-        >
-          Try again
-        </button>
-      </div>
+      <ErrorState
+        title="Couldn't load the calendar"
+        copy="Check your connection and try again."
+        onRetry={() => {
+          void eventsQuery.refetch()
+          void tasksQuery.refetch()
+        }}
+        busy={eventsQuery.isFetching || tasksQuery.isFetching}
+      />
     )
   }
 
@@ -275,11 +273,7 @@ export function CalendarHome({ visibleOwners, focusDate }: CalendarHomeProps) {
         />
       )}
       {itemsInVisibleRange.length === 0 && <EmptyState />}
-      {dataUpdatedAt > 0 && (
-        <p className="px-4 py-1 text-xs text-ink-faint">
-          Last synced {new Date(dataUpdatedAt).toLocaleTimeString()}
-        </p>
-      )}
+      <SyncedAt updatedAt={dataUpdatedAt} />
       {selectedEvent && (
         <EventDetailSheet event={selectedEvent} timezone={timezone} onClose={() => setSelectedEventId(null)} />
       )}
