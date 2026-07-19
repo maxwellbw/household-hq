@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Plus, Search, Trash2, X } from 'lucide-react'
+import { Plus, Search, Star, Trash2, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/useToast'
 import { useLists, useListItems } from '@/hooks/useLists'
@@ -251,6 +251,14 @@ export function ListsView({ focusListName }: ListsViewProps = {}) {
               </button>
             )}
           </div>
+
+          {/* Feature 032 US5 (FR-021, audit F-15): the staple star has no explanation
+              anywhere else in the product — a quiet, always-visible legend beats a
+              first-use-only tooltip nobody triggers on a touch device. */}
+          <p className="flex items-center gap-1 px-1 text-xs text-ink-faint">
+            <Star className="h-3 w-3 shrink-0 fill-accent text-accent" aria-hidden="true" />
+            Staple — stays on the list and counts toward the shopping nudge
+          </p>
 
           {searchHasNoMatches ? (
             <div className="flex flex-col items-center justify-center gap-1 py-8 text-center">

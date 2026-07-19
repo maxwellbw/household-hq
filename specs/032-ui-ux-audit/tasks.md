@@ -71,23 +71,23 @@
 **Goal**: no occlusion, bounded columns.
 **Independent test**: quickstart §6.
 
-- [ ] T025 [US4] frontend/src/components/shell/AppShell.tsx: desktop `<main>` bottom clearance or quick-add relocation so the affordance can never occlude interactive content at any scroll position (FR-016, F-08)
-- [ ] T026 [US4] Bounded content column at desktop widths for leaf/form views (Settings + More leaves via frontend/src/components/more/MoreView.tsx wrapper; audit F-13) — forms ~640px, content ~1100px per DESIGN.md
+- [x] T025 [US4] frontend/src/components/shell/AppShell.tsx: desktop `<main>` bottom clearance or quick-add relocation so the affordance can never occlude interactive content at any scroll position (FR-016, F-08)
+- [x] T026 [US4] Bounded content column at desktop widths for leaf/form views (Settings + More leaves via frontend/src/components/more/MoreView.tsx wrapper; audit F-13) — forms ~640px, content ~1100px per DESIGN.md
 
 ## Phase 7: User Story 5 — Tasks and Lists without the noise (P2)
 
 **Goal**: horizon grouping, single Someday home, shared persistent filter, one add per context.
 **Independent test**: quickstart §7.
 
-- [ ] T027 [US5] Horizon grouping helper in frontend/src/lib/tasks.ts (+ tasks.test.ts): This week / Next week / Later using household-timezone week boundaries; render groups with headings + counts in frontend/src/components/task/TasksView.tsx (FR-017)
-- [ ] T028 [US5] Quieter commitment affordance + consistent row alignment in TasksView rows (visually subordinate to titles, still one tap) (FR-018)
-- [ ] T029 [P] [US5] Someday single home: remove SomedayList from the calendar branch of frontend/src/App.tsx (Tasks keeps it); at most a link from Calendar (FR-019, F-29)
-- [ ] T030 [US5] Shared owner filter: single context-provided useOwnerFilter instance in frontend/src/App.tsx consumed by Calendar and Tasks, persisted at `hq.ownerFilter`, all-deselected normalizes to all (+ update useOwnerFilter.test.ts) (FR-020, data-model OwnerFilterState)
-- [ ] T031 [US5] frontend/src/components/lists/ListsView.tsx affordance cleanup: one primary add per screen context (reconcile FAB/add-field/new-list-chip), staple-star meaning discoverable in-product (FR-021, F-15)
+- [x] T027 [US5] Horizon grouping helper in frontend/src/lib/tasks.ts (+ tasks.test.ts): This week / Next week / Later using household-timezone week boundaries; render groups with headings + counts in frontend/src/components/task/TasksView.tsx (FR-017)
+- [x] T028 [US5] Quieter commitment affordance + consistent row alignment in TasksView rows (visually subordinate to titles, still one tap) (FR-018)
+- [x] T029 [P] [US5] Someday single home: remove SomedayList from the calendar branch of frontend/src/App.tsx (Tasks keeps it); at most a link from Calendar (FR-019, F-29)
+- [x] T030 [US5] Shared owner filter: single context-provided useOwnerFilter instance in frontend/src/App.tsx consumed by Calendar and Tasks, persisted at `hq.ownerFilter`, all-deselected normalizes to all (+ update useOwnerFilter.test.ts) (FR-020, data-model OwnerFilterState)
+- [x] T031 [US5] frontend/src/components/lists/ListsView.tsx affordance cleanup: one primary add per screen context (reconcile FAB/add-field/new-list-chip), staple-star meaning discoverable in-product (FR-021, F-15)
 
 ## Phase 8: User Story 6 — Account actions can't be mis-tapped (P3)
 
-- [ ] T032 [US6] Avatar menu in frontend/src/components/shell/AppShell.tsx (+ test): single tap opens identity menu (name + Sign out), never signs out directly; More→Account stays canonical (FR-022, F-28)
+- [x] T032 [US6] Avatar menu in frontend/src/components/shell/AppShell.tsx (+ test): single tap opens identity menu (name + Sign out), never signs out directly; More→Account stays canonical (FR-022, F-28)
 
 ## Phase 9: Polish & cross-cutting
 

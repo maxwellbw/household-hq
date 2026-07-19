@@ -12,6 +12,20 @@ import { cn } from '@/lib/utils'
 
 type Subscreen = null | 'recurring' | 'recurringEvents' | 'templates' | 'settings' | 'feed'
 
+/**
+ * Feature 032 US4 (FR-016, audit F-13): bounds More's leaf views to a readable desktop
+ * column instead of running full-bleed (labels far-left, controls far-right at 1280px).
+ * Forms get the narrower ~640px column DESIGN.md specifies for settings-type content;
+ * denser lists (Feed, Recurring, Templates, the hub menu) get the ~1100px column.
+ */
+function LeafContainer({ variant, children }: { variant: 'form' | 'content'; children: React.ReactNode }) {
+  return (
+    <div className={cn('mx-auto w-full', variant === 'form' ? 'sm:max-w-[640px]' : 'sm:max-w-[1100px]')}>
+      {children}
+    </div>
+  )
+}
+
 export interface MoreViewProps {
   /** Feature 032 US2 (FR-009): the dashboard's Lately strip "See all" jumps straight to
    *  Feed instead of landing on the main More menu. */
@@ -100,7 +114,9 @@ export function MoreView({ initialSubscreen, onConsumedInitialSubscreen }: MoreV
           </button>
           <h2 className="font-display text-lg text-ink">Recurring Rules</h2>
         </div>
-        <RecurringManager />
+        <LeafContainer variant="content">
+          <RecurringManager />
+        </LeafContainer>
       </div>
     )
   }
@@ -119,7 +135,9 @@ export function MoreView({ initialSubscreen, onConsumedInitialSubscreen }: MoreV
           </button>
           <h2 className="font-display text-lg text-ink">Recurring Events</h2>
         </div>
-        <RecurringEventsManager />
+        <LeafContainer variant="content">
+          <RecurringEventsManager />
+        </LeafContainer>
       </div>
     )
   }
@@ -138,7 +156,9 @@ export function MoreView({ initialSubscreen, onConsumedInitialSubscreen }: MoreV
           </button>
           <h2 className="font-display text-lg text-ink">Prep Templates</h2>
         </div>
-        <TemplatesManager />
+        <LeafContainer variant="content">
+          <TemplatesManager />
+        </LeafContainer>
       </div>
     )
   }
@@ -157,7 +177,9 @@ export function MoreView({ initialSubscreen, onConsumedInitialSubscreen }: MoreV
           </button>
           <h2 className="font-display text-lg text-ink">Settings</h2>
         </div>
-        <SettingsView />
+        <LeafContainer variant="form">
+          <SettingsView />
+        </LeafContainer>
       </div>
     )
   }
@@ -176,12 +198,15 @@ export function MoreView({ initialSubscreen, onConsumedInitialSubscreen }: MoreV
           </button>
           <h2 className="font-display text-lg text-ink">Feed</h2>
         </div>
-        <FeedView />
+        <LeafContainer variant="content">
+          <FeedView />
+        </LeafContainer>
       </div>
     )
   }
 
   return (
+    <LeafContainer variant="content">
     <div className="flex flex-col gap-6 px-4 py-6">
       {/* Manage section */}
       <section aria-labelledby="more-manage-heading">
@@ -320,5 +345,6 @@ export function MoreView({ initialSubscreen, onConsumedInitialSubscreen }: MoreV
         </ul>
       </section>
     </div>
+    </LeafContainer>
   )
 }

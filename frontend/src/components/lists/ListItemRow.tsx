@@ -48,7 +48,9 @@ export function ListItemRow({ item }: ListItemRowProps) {
         >
           <span className={cn(isStocked ? 'text-ink-faint line-through' : 'text-ink')}>{item.name}</span>
           {item.staple === 'TRUE' && (
-            <Star className="ml-1.5 inline h-3 w-3 shrink-0 fill-accent text-accent" aria-label="Staple" />
+            <span className="ml-1.5 inline-block align-middle" title="Staple — stays on the list">
+              <Star className="h-3 w-3 shrink-0 fill-accent text-accent" aria-label="Staple" />
+            </span>
           )}
           {item.note && <span className="ml-2 text-xs text-ink-muted">{item.note}</span>}
         </button>

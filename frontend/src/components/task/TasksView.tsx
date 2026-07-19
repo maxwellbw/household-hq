@@ -3,7 +3,7 @@ import { ChevronDown, ChevronRight } from 'lucide-react'
 import { useTasks } from '@/hooks/useTasks'
 import { useSettings } from '@/hooks/useSettings'
 import { useOwnerFilter } from '@/hooks/useOwnerFilter'
-import { groupTasks } from '@/lib/tasks'
+import { groupTasks, groupTasksByHorizon } from '@/lib/tasks'
 import { TaskRow } from '@/components/task/TaskRow'
 import { SnoozeDialog } from '@/components/task/SnoozeDialog'
 import { TaskDetailSheet } from '@/components/task/TaskDetailSheet'
@@ -16,6 +16,13 @@ interface TasksViewProps {
   /** Opens the shared feature-013 schedule (date+owner) dialog for a someday task (feature 021). */
   onScheduleSomeday?: (taskId: string) => void
 }
+
+/** Feature 032 US5 (FR-017): horizon headings, soonest-first. */
+const HORIZON_LABELS = {
+  thisWeek: 'This week',
+  nextWeek: 'Next week',
+  later: 'Later',
+} as const
 
 /** All household tasks — grouped Open → collapsed Done → Someday, filtered by owner chips. */
 export function TasksView({ onScheduleSomeday }: TasksViewProps) {
@@ -53,6 +60,7 @@ export function TasksView({ onScheduleSomeday }: TasksViewProps) {
 
   const filtered = (tasks ?? []).filter((t) => visibleOwners.has(t.owner))
   const { open, done, someday } = groupTasks(filtered)
+  const horizons = groupTasksByHorizon(open, timezone)
 
   const noTasksAtAll = !tasks?.length
   const nothingAfterFilter = !!tasks?.length && !filtered.length
@@ -90,17 +98,30 @@ export function TasksView({ onScheduleSomeday }: TasksViewProps) {
           ) : open.length === 0 ? (
             <p className="px-1 py-4 text-sm text-ink-muted">All caught up — nothing open right now.</p>
           ) : (
-            <div className="rounded-card bg-surface shadow-card">
-              {open.map((task) => (
-                <TaskRow
-                  key={task.id}
-                  task={task}
-                  timezone={timezone}
-                  onSnooze={() => setSnoozeTask(task)}
-                  onDetail={() => { setDetailTask(task); setDetailEdit(false) }}
-                  onEditDue={() => { setDetailTask(task); setDetailEdit(true) }}
-                />
-              ))}
+            <div className="flex flex-col gap-3">
+              {(Object.keys(HORIZON_LABELS) as (keyof typeof HORIZON_LABELS)[]).map((horizon) => {
+                const rows = horizons[horizon]
+                if (rows.length === 0) return null
+                return (
+                  <div key={horizon}>
+                    <h3 className="mb-1 px-1 text-xs font-medium uppercase tracking-wide text-ink-faint">
+                      {HORIZON_LABELS[horizon]} ({rows.length})
+                    </h3>
+                    <div className="rounded-card bg-surface shadow-card">
+                      {rows.map((task) => (
+                        <TaskRow
+                          key={task.id}
+                          task={task}
+                          timezone={timezone}
+                          onSnooze={() => setSnoozeTask(task)}
+                          onDetail={() => { setDetailTask(task); setDetailEdit(false) }}
+                          onEditDue={() => { setDetailTask(task); setDetailEdit(true) }}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )
+              })}
             </div>
           )
         )}

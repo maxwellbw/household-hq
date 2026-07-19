@@ -13,7 +13,6 @@ import { ActingPersonAffirm } from '@/components/auth/ActingPersonAffirm'
 import type { CalendarHomeProps } from '@/components/calendar/CalendarHome'
 import { OwnerFilterChips } from '@/components/calendar/OwnerFilterChips'
 import { useOwnerFilter } from '@/hooks/useOwnerFilter'
-import { SomedayList } from '@/components/task/SomedayList'
 import { ScheduleTaskDialog } from '@/components/task/ScheduleTaskDialog'
 import { TasksView } from '@/components/task/TasksView'
 import { ListsView } from '@/components/lists/ListsView'
@@ -143,7 +142,16 @@ function App() {
             loader={loadCalendarHome}
             componentProps={{ visibleOwners, focusDate: calendarFocusDate ?? undefined }}
           />
-          <SomedayList visibleOwners={visibleOwners} onSchedule={openScheduleDialog} />
+          {/* Feature 032 US5 (FR-019, audit F-29): Someday has exactly one home (Tasks) —
+              unscheduled-by-definition items no longer embed under the schedule view;
+              this is at most a link there. */}
+          <button
+            type="button"
+            onClick={() => setActive('tasks')}
+            className="mx-4 mb-4 min-h-[44px] self-start rounded-control px-1 text-sm text-ink-muted underline decoration-border underline-offset-4 hover:text-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+          >
+            See your Someday list in Tasks →
+          </button>
         </div>
       )}
       {active === 'tasks' && <TasksView onScheduleSomeday={openScheduleDialog} />}
