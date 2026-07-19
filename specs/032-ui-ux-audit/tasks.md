@@ -12,15 +12,15 @@
 
 ## Phase 1: Setup
 
-- [ ] T001 Confirm green baseline on branch `032-ui-ux-audit-theming`: `cd frontend && npm run build && npm test` — record any pre-existing failures before touching code
-- [ ] T002 [P] Add token contrast-check script in frontend/scripts/contrast-check.mjs: reads the C1 token-pair list from both theme blocks in src/index.css, prints WCAG ratios, exits non-zero under 4.5:1 (3:1 large-text pairs flagged); add `npm run check:contrast`
+- [x] T001 Confirm green baseline on branch `032-ui-ux-audit-theming`: `cd frontend && npm run build && npm test` — record any pre-existing failures before touching code
+- [x] T002 [P] Add token contrast-check script in frontend/scripts/contrast-check.mjs: reads the C1 token-pair list from both theme blocks in src/index.css, prints WCAG ratios, exits non-zero under 4.5:1 (3:1 large-text pairs flagged); add `npm run check:contrast`
 
 ## Phase 2: Foundational — theme engine (blocks all visual work; every later task's DoD includes "verified in both themes")
 
-- [ ] T003 Add `[data-theme="dark"]` token block to frontend/src/index.css with R2 starting values (deep warm umber bg family, warm off-white ink, lifted owner hues, `color-scheme: dark`); keep light `:root` untouched; every color/shadow token gets a dark value (contract C1)
-- [ ] T004 Create frontend/src/hooks/useTheme.ts + useTheme.test.ts: `hq.theme` localStorage read/write (`system|light|dark`, invalid→system), matchMedia subscription, resolved-theme derivation, `<html data-theme>` stamping, `theme-color` meta update (data-model ThemePreference)
-- [ ] T005 Add pre-paint inline script + dual `theme-color` metas to frontend/index.html (stamp `data-theme` from localStorage/OS before first paint — no flash, quickstart §1 case 2)
-- [ ] T006 Mount useTheme once in frontend/src/App.tsx; verify live OS-switch re-themes open views without reload (SC-002)
+- [x] T003 Add `[data-theme="dark"]` token block to frontend/src/index.css with R2 starting values (deep warm umber bg family, warm off-white ink, lifted owner hues, `color-scheme: dark`); keep light `:root` untouched; every color/shadow token gets a dark value (contract C1)
+- [x] T004 Create frontend/src/hooks/useTheme.ts + useTheme.test.ts: `hq.theme` localStorage read/write (`system|light|dark`, invalid→system), matchMedia subscription, resolved-theme derivation, `<html data-theme>` stamping, `theme-color` meta update (data-model ThemePreference)
+- [x] T005 Add pre-paint inline script + dual `theme-color` metas to frontend/index.html (stamp `data-theme` from localStorage/OS before first paint — no flash, quickstart §1 case 2)
+- [x] T006 Mount useTheme once in frontend/src/App.tsx; verify live OS-switch re-themes open views without reload (SC-002)
 
 **Checkpoint**: app renders fully dark/light by OS preference; no in-app control yet.
 
@@ -29,12 +29,12 @@
 **Goal**: complete dark theme on every surface + System/Light/Dark control + chrome/icon handling.
 **Independent test**: quickstart §1 matrix + §2 full-surface sweep + §8 icons.
 
-- [ ] T007 [US1] Add Appearance section to frontend/src/components/more/MoreView.tsx (+ MoreView.test.tsx): System/Light/Dark segmented control per contract C6 — instant apply, no Save round-trip, current resolved theme evident
-- [ ] T008 [P] [US1] Dark values for the Schedule-X bridge in frontend/src/components/calendar/calendar-theme.css: `--sx-*` under `[data-theme="dark"]`, replace/override the hardcoded `#B8B5B8` chevron data-URIs, sweep vendor chrome for unthemed remnants (R4, F-17)
-- [ ] T009 [P] [US1] Dark-scheme favicon: internal `@media (prefers-color-scheme: dark)` styles in frontend/public/icon.svg; review installed-app icon on a dark home screen, adjust contained background if needed; document the manifest-icon platform limit in DESIGN.md + frontend/README (R3, FR-004)
-- [ ] T010 [US1] Full-surface dark sweep per quickstart §2: auth gates (SignInGate/RestoringGate/BootErrorGate), dialogs (quick-add, schedule), sheets (planner renders themed — no interaction changes), toasts, skeletons, error/empty states, owner-soft tints — fix stragglers (hardcoded rgba shadows, any component-level color leaks) at token level only (contract C1)
-- [ ] T011 [US1] Run `npm run check:contrast`, tune dark token values until both themes pass all pairs; commit final values (FR-005, SC-001)
-- [ ] T012 [US1] Update DESIGN.md in the same story: dark token table with final values, shipped ink-token drift documented, current nav structure, delete the "Dark mode: deferred — don't scaffold" line (FR-006, F-24)
+- [x] T007 [US1] Add Appearance section to frontend/src/components/more/MoreView.tsx (+ MoreView.test.tsx): System/Light/Dark segmented control per contract C6 — instant apply, no Save round-trip, current resolved theme evident
+- [x] T008 [P] [US1] Dark values for the Schedule-X bridge in frontend/src/components/calendar/calendar-theme.css: `--sx-*` under `[data-theme="dark"]`, replace/override the hardcoded `#B8B5B8` chevron data-URIs, sweep vendor chrome for unthemed remnants (R4, F-17)
+- [x] T009 [P] [US1] Dark-scheme favicon: internal `@media (prefers-color-scheme: dark)` styles in frontend/public/icon.svg; review installed-app icon on a dark home screen, adjust contained background if needed; document the manifest-icon platform limit in DESIGN.md + frontend/README (R3, FR-004)
+- [x] T010 [US1] Full-surface dark sweep per quickstart §2: auth gates (SignInGate/RestoringGate/BootErrorGate), dialogs (quick-add, schedule), sheets (planner renders themed — no interaction changes), toasts, skeletons, error/empty states, owner-soft tints — fix stragglers (hardcoded rgba shadows, any component-level color leaks) at token level only (contract C1)
+- [x] T011 [US1] Run `npm run check:contrast`, tune dark token values until both themes pass all pairs; commit final values (FR-005, SC-001)
+- [x] T012 [US1] Update DESIGN.md in the same story: dark token table with final values, shipped ink-token drift documented, current nav structure, delete the "Dark mode: deferred — don't scaffold" line (FR-006, F-24)
 
 **Checkpoint**: US1 shippable alone — dark mode complete, MVP increment.
 

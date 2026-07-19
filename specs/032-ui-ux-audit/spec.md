@@ -201,3 +201,11 @@ Tapping the avatar in the top bar shows who is signed in and offers Sign out as 
 - The horizon grouping boundaries (this week / next week / later) follow the household week already used by digests; empty groups are hidden.
 - 033 (planner + calendar parity) is explicitly out of scope: F-02..07, F-10..12, F-16, F-21, F-22, F-26, F-32 (planner interactions), F-33. The merged today card includes the walk status *line* only if it can reuse data the dashboard already has; making it open the planner is 033.
 - No new dependencies; everything ships within the decided stack (constitution III/IV).
+
+## Implementation notes — US1 (written back per constitution VII)
+
+- **`--scrim` token added** beyond contract C1's enumerated list: dialog/sheet backdrops previously used `bg-ink/30`, which inverts into a light haze when `--ink` goes off-white in dark. Both theme blocks define `--scrim`; the contrast script requires its dark value. C1's token enumeration now includes it (DESIGN.md table updated).
+- **Contrast pair classification (FR-005)**: all ink/owner/semantic *body* pairs meet ≥ 4.5:1 in both themes. Terracotta and warning pairs (`accent` on bg/surface/accent-soft, `surface` on accent — primary buttons, `warning` on bg/surface) ship at 3.1–4.1:1 in **light** (unchanged shipped values, per the "keep light `:root` untouched" constraint) and are gated at the 3:1 large-text/UI-component bar, flagged as such by `npm run check:contrast`. The dark values for these same pairs all exceed 4.2:1. Restyling their small-text usages is T033's a11y sweep (audit F-20), not US1.
+- **R2 deviation**: dark owner-soft/accent-soft variants shipped as *solid* dark tints rather than translucent overlays — deterministic rendered color makes the contrast gate meaningful (constitution IV); visually equivalent.
+- **R4 extension**: Schedule-X's undocumented internal variables (`--sx-internal-color-text`, `-light-gray`, `-gray-ripple-background`) are bridged to app tokens for **both** themes, and the hardcoded `#B8B5B8` chevron `<img>` data-URIs are repainted via `content:` per theme — this also fixes the light theme's cool-gray chevrons (F-17).
+- **F-20 anomaly confirmed, deferred to T033 as planned**: during validation the More-menu rows exposed no accessible names in the a11y tree; the calendar item buttons and day-strip buttons expose correct names.

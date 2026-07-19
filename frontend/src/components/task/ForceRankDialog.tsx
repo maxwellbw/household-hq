@@ -65,7 +65,7 @@ export function ForceRankDialog({ somedayTasks, onClose }: ForceRankDialogProps)
       role="presentation"
       onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
     >
-      <div className="absolute inset-0 bg-ink/30 motion-safe:animate-in motion-safe:fade-in" aria-hidden="true" />
+      <div className="absolute inset-0 bg-scrim motion-safe:animate-in motion-safe:fade-in" aria-hidden="true" />
 
       <div
         ref={panelRef}

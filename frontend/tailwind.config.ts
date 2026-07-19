@@ -39,6 +39,7 @@ export default {
         success: 'var(--success)',
         warning: 'var(--warning)',
         danger: 'var(--danger)',
+        scrim: 'var(--scrim)',
 
         // shadcn/ui semantic vocabulary — same underlying tokens
         background: 'var(--bg)',

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { ChevronRight, RefreshCw, CalendarClock, ClipboardList, Settings2, LogOut, Rss } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
+import { useTheme, type ThemePreference } from '@/hooks/useTheme'
 import { RecurringManager } from '@/components/more/RecurringManager'
 import { RecurringEventsManager } from '@/components/more/RecurringEventsManager'
 import { TemplatesManager } from '@/components/more/TemplatesManager'
@@ -10,6 +11,57 @@ import { ownerStyle } from '@/lib/owners'
 import { cn } from '@/lib/utils'
 
 type Subscreen = null | 'recurring' | 'recurringEvents' | 'templates' | 'settings' | 'feed'
+
+const THEME_OPTIONS: { value: ThemePreference; label: string }[] = [
+  { value: 'system', label: 'System' },
+  { value: 'light', label: 'Light' },
+  { value: 'dark', label: 'Dark' },
+]
+
+/**
+ * Feature 032 US1 (contract C6): three-way theme control. Device state, not
+ * household data — applies instantly with no Save round-trip, unlike the
+ * Settings sheet form.
+ */
+function AppearanceSection() {
+  const { preference, resolvedTheme, setPreference } = useTheme()
+  return (
+    <section aria-labelledby="more-appearance-heading">
+      <h2
+        id="more-appearance-heading"
+        className="mb-2 px-1 text-xs font-medium uppercase tracking-wide text-ink-faint"
+      >
+        Appearance
+      </h2>
+      <div className="rounded-card bg-surface p-4 shadow-card">
+        <div role="group" aria-label="Theme" className="grid grid-cols-3 gap-1 rounded-control bg-surface-alt p-1">
+          {THEME_OPTIONS.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              aria-pressed={preference === option.value}
+              onClick={() => setPreference(option.value)}
+              className={cn(
+                'min-h-[44px] rounded-[calc(var(--radius-control)-4px)] px-3 text-sm',
+                'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
+                preference === option.value
+                  ? 'bg-surface font-medium text-ink shadow-card'
+                  : 'text-ink-muted hover:text-ink',
+              )}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+        <p className="mt-2 px-1 text-xs text-ink-muted">
+          {preference === 'system'
+            ? `Follows this device — currently ${resolvedTheme === 'dark' ? 'dark' : 'light'}.`
+            : 'Applies on this device only.'}
+        </p>
+      </div>
+    </section>
+  )
+}
 
 /** More hub — account info + sign out + Recurring/Templates managers (US6, T032). */
 export function MoreView() {
@@ -201,6 +253,8 @@ export function MoreView() {
           </li>
         </ul>
       </section>
+
+      <AppearanceSection />
 
       {/* Account section */}
       <section aria-labelledby="more-account-heading">

@@ -42,15 +42,65 @@
   --radius-card: 14px;
   --radius-control: 10px;
   --shadow-card: 0 1px 2px rgba(42, 38, 31, 0.06), 0 4px 12px rgba(42, 38, 31, 0.05);
+  /* Dialog/sheet backdrop (feature 032): ink-toned dimming in light, deeper in
+   * dark — an ink-derived class (bg-ink/30) would invert into a light haze. */
+  --scrim: rgba(42, 38, 31, 0.3);
 
   color-scheme: light;
+}
+
+/*
+ * Feature 032 (US1): the dark theme — "the corkboard after dark" (research R2).
+ * Same warm identity, low glare: deep umber surfaces from --ink's hue family
+ * (never cool gray or black), warm off-white ink, owner hues lifted so
+ * Max-teal / Jaz-plum / Both-terracotta stay identity-legible on dark.
+ * This is the ONLY dark block (contract C1): every color/shadow token gets a
+ * value here; components never carry theme conditionals. Pairs validated by
+ * `npm run check:contrast`.
+ */
+[data-theme="dark"] {
+  /* Surfaces */
+  --bg: #201c16;
+  --surface: #2a251d;
+  --surface-alt: #363028;
+  --border: #453d31;
+
+  /* Ink */
+  --ink: #ede7dc;
+  --ink-muted: #b5ab97;
+  --ink-faint: #9c9280;
+
+  /* Brand accent */
+  --accent: #d97757;
+  --accent-hover: #e08a6d;
+  --accent-soft: #45291d;
+
+  /* Owner identity — lifted for dark, same three identities */
+  --owner-max: #7fb3aa;
+  --owner-max-soft: #233833;
+  --owner-jaz: #c893a9;
+  --owner-jaz-soft: #3a2a32;
+  --owner-both: var(--accent);
+  --owner-both-soft: var(--accent-soft);
+
+  /* Semantic */
+  --success: #85b183;
+  --warning: #d9a45b;
+  --danger: #e18d77;
+
+  /* Depth — shadows deepen; radii unchanged */
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 12px rgba(0, 0, 0, 0.35);
+  --scrim: rgba(12, 10, 7, 0.6);
+
+  color-scheme: dark;
 }
 
 /*
  * shadcn/ui primitives (Button, etc.) use standard semantic classes
  * (bg-primary, text-muted-foreground, ...). tailwind.config.ts maps that
  * whole vocabulary directly onto the DESIGN.md tokens above — no separate
- * "shadcn theme" CSS vars needed. Dark mode is deferred (DESIGN.md).
+ * "shadcn theme" CSS vars needed. Both themes flow through the same variables:
+ * the [data-theme="dark"] block above swaps values, never class vocabularies.
  */
 @layer base {
   body {

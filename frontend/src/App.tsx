@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { useBootstrap } from '@/hooks/useBootstrap'
+import { useTheme } from '@/hooks/useTheme'
 import { listenForDeepLinks } from '@/lib/deeplink'
 import { AppShell } from '@/components/shell/AppShell'
 import { LazyBoundary } from '@/components/shell/LazyBoundary'
@@ -28,6 +29,9 @@ const loadCalendarHome = () =>
 const loadMoreView = () => import('@/components/more/MoreView').then((m) => ({ default: m.MoreView }))
 
 function App() {
+  // Feature 032 US1: the theme engine mounts once, above every early-return
+  // gate, so sign-in/restoring/error screens re-theme with live OS changes too.
+  useTheme()
   const { status, session } = useAuth()
   // Feature 030 US1: one cold-load bootstrap seeds every primary-view dataset's cache;
   // `enabled: !!session` inside the hook means this is idle (not loading) pre-sign-in.

@@ -26,7 +26,41 @@
   --sx-color-outline-variant: var(--border);
   --sx-color-shadow: rgba(42, 38, 31, 0.08);
 
+  /*
+   * Feature 032 US1 (R4, F-17): Schedule-X also paints chrome (nav chevrons,
+   * today-button/view-select hovers, ripples) from "internal" variables its
+   * theme never exposes — bridge those to tokens too so they follow the theme
+   * instead of staying gray/black in dark.
+   */
+  --sx-internal-color-text: var(--ink);
+  --sx-internal-color-light-gray: var(--surface-alt);
+  --sx-internal-color-gray-ripple-background: var(--surface-alt);
+
   font-family: 'Inter', system-ui, sans-serif;
+}
+
+/* Dark values for the one hardcoded rgba above (contract C1: every shadow
+ * token gets a dark value; this is the calendar bridge's local shadow). */
+[data-theme='dark'] .sx-react-calendar-wrapper {
+  --sx-color-shadow: rgba(0, 0, 0, 0.4);
+}
+
+/*
+ * Feature 032 US1 (R4, F-17): the date-input and view-select chevrons are
+ * <img> elements whose SVG data-URI hardcodes a cool-gray #B8B5B8 stroke —
+ * unthemeable via variables. Repaint them with content:, one stroke per
+ * theme; the hex strokes mirror --ink-muted in index.css (C1 permits hex only
+ * there and here — change them together). filter: none neutralizes the
+ * vendor's brightness(0.7) so the stroke renders as authored.
+ */
+.sx-react-calendar-wrapper .sx__date-input-chevron,
+.sx-react-calendar-wrapper .sx__view-selection-chevron {
+  content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none'%3E%3Cpath d='M6 9L12 15L18 9' stroke='%23655E4F' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  filter: none;
+}
+[data-theme='dark'] .sx-react-calendar-wrapper .sx__date-input-chevron,
+[data-theme='dark'] .sx-react-calendar-wrapper .sx__view-selection-chevron {
+  content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none'%3E%3Cpath d='M6 9L12 15L18 9' stroke='%23B5AB97' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
 }
 
 .sx-react-calendar-wrapper .sx__calendar-header {
