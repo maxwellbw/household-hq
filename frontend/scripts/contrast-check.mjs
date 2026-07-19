@@ -14,7 +14,11 @@ import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 
 const cssPath = join(dirname(fileURLToPath(import.meta.url)), '..', 'src', 'index.css')
-const css = readFileSync(cssPath, 'utf8')
+// Comments are stripped before parsing: the declaration regex below is naive
+// about context, so prose mentioning a token ("--accent: too light for body
+// text") would otherwise be read as a declaration and swallow everything up to
+// the next semicolon (T033).
+const css = readFileSync(cssPath, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '')
 
 function extractBlock(selectorRe) {
   const m = css.match(selectorRe)
@@ -90,9 +94,9 @@ const PAIRS = [
   { fg: 'danger', bg: 'surface' },
   { fg: 'success', bg: 'bg' },
   { fg: 'success', bg: 'surface' },
-  // Accent/terracotta: primary buttons, links, "Both" chip, warning badges —
-  // all semibold/large or UI-component usage (audit F-20; full text-usage
-  // restyle is T033's a11y sweep)
+  // Accent/terracotta as a *fill* or border: large/semibold or UI-component
+  // usage only. T033 moved every small-text usage onto --accent-strong below,
+  // so these stay gated at 3:1 (audit F-20).
   { fg: 'accent', bg: 'bg', large: true },
   { fg: 'accent', bg: 'surface', large: true },
   { fg: 'accent', bg: 'accent-soft', large: true },
@@ -101,6 +105,18 @@ const PAIRS = [
   { fg: 'surface', bg: 'danger', large: true },
   { fg: 'warning', bg: 'bg', large: true },
   { fg: 'warning', bg: 'surface', large: true },
+  // --accent-strong is the text-safe terracotta (T033): accent-colored labels
+  // and links, accent fills that carry small text, and the "Both" owner badge.
+  // Full 4.5:1 — that is the entire reason the token exists.
+  { fg: 'accent-strong', bg: 'bg' },
+  { fg: 'accent-strong', bg: 'surface' },
+  { fg: 'accent-strong', bg: 'surface-alt' },
+  { fg: 'accent-strong', bg: 'accent-soft' },
+  { fg: 'surface', bg: 'accent-strong' },
+  { fg: 'owner-both', bg: 'bg' },
+  { fg: 'owner-both', bg: 'surface' },
+  { fg: 'owner-both', bg: 'owner-both-soft' },
+  { fg: 'surface', bg: 'owner-both' },
 ]
 
 const themes = [
@@ -111,7 +127,7 @@ const themes = [
 // C1: every color/shadow token must have a dark value.
 const COLOR_TOKENS = [
   'bg', 'surface', 'surface-alt', 'border', 'ink', 'ink-muted', 'ink-faint',
-  'accent', 'accent-hover', 'accent-soft', 'owner-max', 'owner-max-soft',
+  'accent', 'accent-hover', 'accent-soft', 'accent-strong', 'owner-max', 'owner-max-soft',
   'owner-jaz', 'owner-jaz-soft', 'owner-both', 'owner-both-soft',
   'success', 'warning', 'danger', 'shadow-card', 'scrim',
 ]

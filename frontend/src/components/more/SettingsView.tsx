@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { cloneElement, isValidElement, useEffect, useId, useState } from 'react'
 import { useSettings, useUpdateSettings } from '@/hooks/useSettings'
 import { useToast } from '@/hooks/useToast'
 import { useAuth } from '@/hooks/useAuth'
@@ -47,29 +47,38 @@ function Toggle({
   checked,
   onChange,
   label,
+  id,
 }: {
   checked: boolean
   onChange: (checked: boolean) => void
   label: string
+  /** Supplied by FieldRow so the row's <label> points at this control. */
+  id?: string
 }) {
   return (
     <button
+      id={id}
       type="button"
       role="switch"
       aria-checked={checked}
       onClick={() => onChange(!checked)}
       className={cn(
-        'relative min-h-[28px] w-12 shrink-0 rounded-full transition-colors',
+        'relative min-h-[28px] w-12 shrink-0 rounded-full border transition-colors',
         'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
-        checked ? 'bg-accent' : 'bg-border',
+        // T033 / audit F-20: the knob was bg-surface on a bg-border track — nearly
+        // invisible in light and worse in dark. The track now carries its own
+        // border and the off state uses surface-alt, so knob-vs-track reads at a
+        // glance in both themes; the accent-strong on state keeps the knob legible
+        // against the fill too.
+        checked ? 'border-accent-strong bg-accent-strong' : 'border-border bg-surface-alt',
       )}
       aria-label={label}
     >
       <span
         aria-hidden="true"
         className={cn(
-          'absolute top-1 h-5 w-5 rounded-full bg-surface shadow transition-transform',
-          checked ? 'translate-x-6' : 'translate-x-1',
+          'absolute top-1 h-5 w-5 rounded-full border shadow transition-transform',
+          checked ? 'translate-x-6 border-accent-strong bg-surface' : 'translate-x-1 border-ink-faint bg-surface',
         )}
       />
     </button>
@@ -85,11 +94,23 @@ function FieldRow({
   children: React.ReactNode
   error?: string
 }) {
+  // T033 / FR-023: the row label used to be a bare <span>, so every select and the
+  // number input in this view reached axe with *no* accessible name (5 critical
+  // `label`/`select-name` violations). The row now mints an id, hands it to its
+  // control, and renders a real <label htmlFor> — one fix covers every field, and
+  // new fields get it for free rather than each remembering an aria-label.
+  const controlId = useId()
+  const control = isValidElement<{ id?: string }>(children)
+    ? cloneElement(children, { id: controlId })
+    : children
+
   return (
     <div className="flex flex-col gap-1 border-b border-border px-4 py-3 last:border-b-0">
       <div className="flex items-center justify-between gap-3">
-        <span className="text-sm text-ink">{label}</span>
-        {children}
+        <label htmlFor={controlId} className="text-sm text-ink">
+          {label}
+        </label>
+        {control}
       </div>
       {error && <p role="alert" className="text-xs text-danger">{error}</p>}
     </div>
@@ -184,7 +205,7 @@ function DeviceNotificationControl() {
         type="button"
         onClick={handleEnable}
         disabled={busy}
-        className="min-h-[36px] rounded-control bg-accent px-3 text-sm font-medium text-surface hover:bg-accent-hover disabled:opacity-50"
+        className="min-h-[36px] rounded-control bg-accent-strong px-3 text-sm font-medium text-surface hover:bg-accent-hover disabled:cursor-not-allowed disabled:bg-surface-alt disabled:text-ink-faint disabled:hover:bg-surface-alt"
       >
         {busy ? 'Enabling…' : 'Enable notifications'}
       </button>
@@ -397,7 +418,11 @@ export function SettingsView() {
         type="button"
         onClick={handleSave}
         disabled={!isDirty || update.isPending}
-        className="min-h-[44px] w-full rounded-control bg-accent px-4 font-medium text-surface hover:bg-accent-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:opacity-50"
+        // T033 / audit F-20: disabled was `opacity-50` over an accent fill —
+        // washed terracotta under white text, well under 3:1. It now drops to a
+        // flat inert surface with faint-but-readable ink, so "nothing to save"
+        // reads as a state rather than as a broken button, in both themes.
+        className="min-h-[44px] w-full rounded-control bg-accent-strong px-4 font-medium text-surface hover:bg-accent-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:bg-surface-alt disabled:text-ink-faint disabled:hover:bg-surface-alt"
       >
         {update.isPending ? 'Saving…' : 'Save changes'}
       </button>

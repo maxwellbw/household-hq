@@ -31,7 +31,7 @@ export function OverdueSection({ tasks, timezone, onViewAll }: OverdueSectionPro
       <button
         type="button"
         onClick={onViewAll}
-        className="mt-2 flex min-h-[44px] items-center rounded-control px-1 text-xs font-medium text-accent hover:bg-accent-soft focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+        className="mt-2 flex min-h-[44px] items-center rounded-control px-1 text-xs font-medium text-accent-strong hover:bg-accent-soft focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
       >
         View all {tasks.length} in Tasks
       </button>

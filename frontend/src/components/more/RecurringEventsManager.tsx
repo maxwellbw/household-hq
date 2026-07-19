@@ -472,7 +472,7 @@ export function RecurringEventsManager() {
         onClick={() => setFormMode({ type: 'create' })}
         className={cn(
           'flex min-h-[44px] w-full items-center justify-center gap-2 rounded-control border border-dashed border-border',
-          'text-sm text-ink-muted hover:border-accent hover:text-accent',
+          'text-sm text-ink-muted hover:border-accent hover:text-accent-strong',
           'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
         )}
       >

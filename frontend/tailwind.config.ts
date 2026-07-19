@@ -27,6 +27,7 @@ export default {
           DEFAULT: 'var(--accent)',
           hover: 'var(--accent-hover)',
           soft: 'var(--accent-soft)',
+          strong: 'var(--accent-strong)',
         },
         owner: {
           max: 'var(--owner-max)',

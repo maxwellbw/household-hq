@@ -91,10 +91,10 @@
 
 ## Phase 9: Polish & cross-cutting
 
-- [ ] T033 A11y sweep (FR-023): axe run on Dashboard/Tasks/Calendar/Settings in both themes; verify real accessible names on calendar item buttons + More rows (resolve audit F-20 anomaly); restyle Settings toggle + disabled primary button to be visibly stateful in both themes
-- [ ] T034 Full quickstart.md validation (§1–§9) against the deployed build with a dev session token; fix findings; record contrast run + theme matrix results for the PR
-- [ ] T035 `/impeccable audit` on the finished surface; resolve or explicitly waive findings (definition of done)
-- [ ] T036 Write back any implementation deviations into spec.md/audit.md; update BACKLOG.md (032 → implement/deployed)
+- [x] T033 A11y sweep (FR-023): axe run on Dashboard/Tasks/Calendar/Settings in both themes; verify real accessible names on calendar item buttons + More rows (resolve audit F-20 anomaly); restyle Settings toggle + disabled primary button to be visibly stateful in both themes
+- [x] T034 Full quickstart.md validation (§1–§9) against the deployed build with a dev session token; fix findings; record contrast run + theme matrix results for the PR
+- [x] T035 `/impeccable audit` on the finished surface; resolve or explicitly waive findings (definition of done)
+- [x] T036 Write back any implementation deviations into spec.md/audit.md; update BACKLOG.md (032 → implement/deployed)
 
 ## Dependencies
 

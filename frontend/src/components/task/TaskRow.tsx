@@ -153,7 +153,7 @@ export function TaskRow({ task, timezone, eventStartKey, onSnooze, onEditDue, on
             onClick={() => acknowledge.mutate(task.id, { onSuccess: () => toast.show("Got it — you're on it") })}
             disabled={acknowledge.isPending}
             aria-label={`Not yet committed — tap to confirm you've got ${task.title}`}
-            className="flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-control border border-border px-2 text-xs text-ink-muted transition-colors hover:border-accent hover:text-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:opacity-50"
+            className="flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-control border border-border px-2 text-xs text-ink-muted transition-colors hover:border-accent hover:text-accent-strong focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:opacity-50"
           >
             <span
               aria-hidden="true"

@@ -33,7 +33,7 @@ export function LatelyStrip({ onSeeAll }: LatelyStripProps) {
         <button
           type="button"
           onClick={onSeeAll}
-          className="min-h-[44px] rounded-control px-1 text-xs font-medium text-accent hover:bg-accent-soft focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+          className="min-h-[44px] rounded-control px-1 text-xs font-medium text-accent-strong hover:bg-accent-soft focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
         >
           See all
         </button>

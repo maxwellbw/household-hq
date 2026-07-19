@@ -123,7 +123,7 @@ export function AppShell({ children, active, onNavigate }: AppShellProps) {
                 'flex min-h-[56px] w-full flex-col items-center justify-center gap-1 rounded-lg px-1 py-2 text-[10px] font-medium transition-colors',
                 'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
                 key === active
-                  ? 'bg-accent-soft text-accent'
+                  ? 'bg-accent-soft text-accent-strong'
                   : 'text-ink-muted hover:bg-surface-alt hover:text-ink',
               )}
             >
@@ -171,7 +171,7 @@ export function AppShell({ children, active, onNavigate }: AppShellProps) {
             className={cn(
               'flex min-h-[44px] flex-1 flex-col items-center justify-center gap-0.5 py-2 text-xs transition-colors',
               'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
-              key === active ? 'text-accent' : 'text-ink-faint',
+              key === active ? 'text-accent-strong' : 'text-ink-faint',
             )}
           >
             <Icon className="h-5 w-5" aria-hidden="true" />

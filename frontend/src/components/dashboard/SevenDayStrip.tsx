@@ -42,14 +42,17 @@ export function SevenDayStrip({ tiles, activeDateKey, onToggleDate }: SevenDaySt
             aria-expanded={isActive}
             className={cn(
               'flex min-h-[44px] min-w-[64px] flex-col items-center gap-1 rounded-control border px-2 py-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
+              // The selected tile is an accent fill carrying 12px text, so it takes
+              // the text-safe accent (--accent-strong) rather than --accent: white on
+              // --accent is only 4.05:1 (T033 / audit F-20).
               isActive
-                ? 'border-accent bg-accent text-surface'
+                ? 'border-accent-strong bg-accent-strong text-surface'
                 : tile.isToday
                   ? 'border-accent bg-accent-soft'
                   : 'border-border hover:bg-surface-alt',
             )}
           >
-            <span className={cn('text-xs font-medium', isActive ? 'text-surface' : tile.isToday ? 'text-accent' : 'text-ink-muted')}>
+            <span className={cn('text-xs font-medium', isActive ? 'text-surface' : tile.isToday ? 'text-accent-strong' : 'text-ink-muted')}>
               {label}
             </span>
             <div className="flex items-center gap-1">

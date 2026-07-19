@@ -178,7 +178,7 @@ export function TasksView({ onScheduleSomeday }: TasksViewProps) {
               <button
                 type="button"
                 onClick={() => setForceRankOpen(true)}
-                className="flex min-h-[44px] shrink-0 items-center rounded-control px-2 text-xs font-medium text-ink-muted hover:text-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                className="flex min-h-[44px] shrink-0 items-center rounded-control px-2 text-xs font-medium text-ink-muted hover:text-accent-strong focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
               >
                 Force-rank
               </button>

@@ -63,6 +63,17 @@
   content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none'%3E%3Cpath d='M6 9L12 15L18 9' stroke='%23B5AB97' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
 }
 
+/*
+ * Feature 032 T033 (audit F-20): the "Date" and "View" control labels keep
+ * Schedule-X's Material default #79747E, a cool gray that misses 4.5:1 on both
+ * themes' backgrounds (4.23 light, 3.72 dark) — and reintroduces exactly the
+ * cool-gray leftover US1 set out to remove. One themed rule covers both.
+ */
+.sx-react-calendar-wrapper .sx__date-input-label,
+.sx-react-calendar-wrapper .sx__view-selection-label {
+  color: var(--ink-muted);
+}
+
 .sx-react-calendar-wrapper .sx__calendar-header {
   border-bottom: 1px solid var(--border);
 }

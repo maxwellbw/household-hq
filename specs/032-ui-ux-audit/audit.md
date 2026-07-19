@@ -115,11 +115,22 @@
 - **Location:** `LoadBalance.tsx:77–81` — all-zero week renders three 0-rows; leader row shows a tiny uppercase "more" chip that reads as a button ("MORE 8").
 - **Recommendation:** collapse the all-zero case to one quiet line; replace the chip with plain copy ("Max is carrying more this month") in the section's voice. Also unify "You" vs name usage with owner chips elsewhere.
 
-### F-20 [032] Accessibility verify-list (from live tree reads; not all confirmed)
-- Calendar item pill buttons and More-menu rows surfaced with **empty accessible names** in the a11y tree read (`DayColumn.tsx` buttons wrap `EventContent`; `MoreView.tsx` rows have visible text spans — may be a tooling artifact, must verify with a real screen reader/axe).
-- Contrast to verify at token level (light **and** the new dark set): `--warning` #B07C2E small text on `--bg` (the planner's "Too hot" labels); `--ink-muted` on `--surface-alt` and on owner-soft tints; disabled Save button (washed terracotta + white text, clearly <3:1 — restyle disabled state).
-- Settings toggle knob is nearly invisible against the track edge (verified visually) — restyle switch.
-- Planner temp ✓/× glyphs: good (not color-only) — keep.
+### F-20 [032] Accessibility verify-list (from live tree reads; not all confirmed) — ✅ RESOLVED in T033
+- Calendar item pill buttons and More-menu rows surfaced with **empty accessible names** in the a11y tree read (`DayColumn.tsx` buttons wrap `EventContent`; `MoreView.tsx` rows have visible text spans — may be a tooling artifact, must verify with a real screen reader/axe). → **Tooling artifact confirmed.** axe-core 4.12 and the DOM both compute correct names (day tiles via `aria-label`, everything else via visible text content). No fix needed on these; the anomaly was the tree reader, not the markup.
+- Contrast to verify at token level (light **and** the new dark set): `--warning` #B07C2E small text on `--bg` (the planner's "Too hot" labels); `--ink-muted` on `--surface-alt` and on owner-soft tints; disabled Save button (washed terracotta + white text, clearly <3:1 — restyle disabled state). → **Verified + fixed.** `--warning` on bg/surface is planner-only (033) and stays gated at the 3:1 UI bar; `--ink-muted` on surface-alt passes (5.43 light / 5.74 dark); the "Task" tag on owner-soft tints was moved from `ink-faint`→`ink-muted` (was 3.97–4.39). Disabled buttons restyled (see below). The full accent-as-text family moved to the new `--accent-strong` token.
+- Settings toggle knob is nearly invisible against the track edge (verified visually) — restyle switch. → **Fixed:** bordered track + bordered contrasting knob, stateful in both themes.
+- Planner temp ✓/× glyphs: good (not color-only) — keep. → kept (planner is 033).
+
+## Round 3 findings — T033 axe sweep (added 2026-07-19)
+
+axe-core 4.12 (WCAG 2.0/2.1 A+AA), run in-browser on Dashboard, Calendar, Tasks, Lists, More-hub, Feed, Recurring Rules, Recurring Events, Prep Templates, Settings — **both themes**. All fixed in T033; re-run is clean (9 surfaces × 2 themes, zero violations).
+
+- **F-35 [032, P1] Accent-as-text below 4.5:1** — white-on-`--accent` fills (day-strip selected tile, "Both" MJ badge, calendar view switcher) and accent-colored link buttons ("See all", "Open in calendar", active nav) landed at 3.76–4.05:1 in light, 4.18–4.24:1 on some dark surfaces. Fixed via new `--accent-strong` token (4.5:1+ everywhere); CI-gated.
+- **F-36 [032, P1/critical] Settings form controls unlabeled** — every `<select>` (4) and the reminder-minutes `<input>` reached axe with no accessible name; `FieldRow` rendered its label as a bare `<span>`. Fixed centrally: `FieldRow` mints a `useId`, clones it onto its control, and renders a real `<label htmlFor>`.
+- **F-37 [032, P1] Owner-filter chip off-state 2.24:1 (dark)** — the unselected chip used `text-ink-faint opacity-50`; on a toggle (not a disabled control) that owes full 4.5:1. Re-expressed "off" as a recessed `surface-alt` + `ink-muted` + dimmed dot, no blanket opacity.
+- **F-38 [032, P2] `<ul>` with direct `<div>` children** — `ListItemRow` rendered a `<div>` root inside Lists' `<ul>`, breaking list semantics. Changed the row root to `<li>`.
+- **F-39 [032, P2] Zoom disabled** — `index.html` had `maximum-scale=1.0, user-scalable=no` (WCAG 1.4.4). Removed; iOS focus-zoom cause removed instead via 16px `pointer: coarse` form controls.
+- **F-40 [032, P2] Schedule-X control labels 3.72:1 (dark) / 4.23:1 (light)** — the "Date"/"View" labels kept the vendor's Material `#79747E`. Repointed to `--ink-muted` via one themed rule (also removes a cool-gray leftover US1 targeted).
 
 ## P3 — polish when touching the area
 

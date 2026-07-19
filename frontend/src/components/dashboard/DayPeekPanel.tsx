@@ -171,7 +171,7 @@ export function DayPeekPanel({ dateKey, events, tasks, walks, timezone, onOpenCa
         <button
           type="button"
           onClick={() => onOpenCalendar(dateKey)}
-          className="min-h-[44px] rounded-control px-2 text-xs font-medium text-accent hover:bg-accent-soft focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+          className="min-h-[44px] rounded-control px-2 text-xs font-medium text-accent-strong hover:bg-accent-soft focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
         >
           Open in calendar
         </button>

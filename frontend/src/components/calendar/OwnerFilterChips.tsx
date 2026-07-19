@@ -21,14 +21,22 @@ export function OwnerFilterChips({ visibleOwners, onToggle }: OwnerFilterChipsPr
             onClick={() => onToggle(owner)}
             aria-pressed={enabled}
             className={cn(
-              'flex min-h-[44px] items-center gap-1.5 rounded-full border px-3 text-sm font-medium transition-opacity',
+              'flex min-h-[44px] items-center gap-1.5 rounded-full border px-3 text-sm font-medium transition-colors',
               'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
-              enabled ? 'border-border bg-surface text-ink' : 'border-border bg-surface text-ink-faint opacity-50',
+              // T033: the "off" state used to be `text-ink-faint opacity-50`, which
+              // computed to 2.24:1 in dark. This is a toggle, not a disabled control,
+              // so it owes the full 4.5:1 — "off" is now carried by a recessed
+              // surface + muted ink (and the dimmed owner dot below) instead of
+              // blanket opacity.
+              enabled
+                ? 'border-border bg-surface text-ink'
+                : 'border-transparent bg-surface-alt text-ink-muted',
             )}
           >
             <span
               className={cn(
                 'flex h-5 w-5 items-center justify-center rounded-full text-[10px] text-surface',
+                !enabled && 'opacity-60',
                 owner === 'max' && 'bg-owner-max',
                 owner === 'jaz' && 'bg-owner-jaz',
                 owner === 'both' && 'bg-accent-hover',

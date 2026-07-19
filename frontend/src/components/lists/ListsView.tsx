@@ -165,7 +165,7 @@ export function ListsView({ focusListName }: ListsViewProps = {}) {
             type="button"
             onClick={() => setCreatingList(true)}
             aria-label="New list"
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-dashed border-border text-ink-muted hover:border-accent hover:text-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-dashed border-border text-ink-muted hover:border-accent hover:text-accent-strong focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
           >
             <Plus className="h-4 w-4" aria-hidden="true" />
           </button>

@@ -18,7 +18,10 @@ export function ListItemRow({ item }: ListItemRowProps) {
   const isStocked = item.status === 'stocked'
 
   return (
-    <div className="border-b border-border last:border-b-0">
+    // <li>, not <div>: both call sites render these inside a <ul>, and a <ul>
+    // with direct <div> children breaks list semantics for screen readers
+    // (axe `list`, T033).
+    <li className="border-b border-border last:border-b-0">
       <div className="flex min-h-[44px] items-center gap-3 px-1 py-2">
         <button
           type="button"
@@ -67,7 +70,7 @@ export function ListItemRow({ item }: ListItemRowProps) {
       </div>
 
       {editing && <ListItemEditPanel item={item} onDone={() => setEditing(false)} />}
-    </div>
+    </li>
   )
 }
 

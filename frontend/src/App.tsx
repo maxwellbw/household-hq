@@ -148,7 +148,7 @@ function App() {
           <button
             type="button"
             onClick={() => setActive('tasks')}
-            className="mx-4 mb-4 min-h-[44px] self-start rounded-control px-1 text-sm text-ink-muted underline decoration-border underline-offset-4 hover:text-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+            className="mx-4 mb-4 min-h-[44px] self-start rounded-control px-1 text-sm text-ink-muted underline decoration-border underline-offset-4 hover:text-accent-strong focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
           >
             See your Someday list in Tasks →
           </button>

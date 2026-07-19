@@ -31,14 +31,15 @@ contract C1); components consume tokens only, never hex or theme conditionals.
 | `--ink` | `#2A261F` | `#EDE7DC` | primary text — ink / warm off-white |
 | `--ink-muted` | `#655E4F` | `#B5AB97` | secondary text, labels |
 | `--ink-faint` | `#756C59` | `#9C9280` | placeholders, section eyebrows |
-| `--accent` | `#C6613F` | `#D97757` | terracotta — primary actions, focus, "Both" |
+| `--accent` | `#C6613F` | `#D97757` | terracotta *fills* + borders — buttons, focus ring |
 | `--accent-hover` | `#AD5133` | `#E08A6D` | hover shifts darker in light, lighter in dark |
 | `--accent-soft` | `#F3DED3` | `#45291D` | accent tints, selected states |
+| `--accent-strong` | `#A34A2D` | `#E08A6D` | text-safe terracotta (≥4.5:1) — accent *text*, small-text-on-accent fills, "Both" badge |
 | `--owner-max` | `#3E6E68` | `#7FB3AA` | pine teal, lifted for dark |
 | `--owner-max-soft` | `#DCE9E7` | `#233833` | |
 | `--owner-jaz` | `#7E4A5E` | `#C893A9` | berry/plum, lifted for dark |
 | `--owner-jaz-soft` | `#EDDDE3` | `#3A2A32` | |
-| `--owner-both` | `var(--accent)` | `var(--accent)` | |
+| `--owner-both` | `var(--accent-strong)` | `var(--accent-strong)` | text-safe: the MJ badge is white-on-fill |
 | `--owner-both-soft` | `var(--accent-soft)` | `var(--accent-soft)` | |
 | `--success` | `#4E7A4E` | `#85B183` | |
 | `--warning` | `#B07C2E` | `#D9A45B` | badge/large-text usage only (3:1 class) |
