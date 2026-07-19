@@ -2,20 +2,15 @@ import { cn } from '@/lib/utils'
 import { ownerStyle } from '@/lib/owners'
 import { formatDate, formatTime, isAllDay } from '@/lib/datetime'
 import { TaskRow } from '@/components/task/TaskRow'
-import type { SmartViewsResult } from '@/lib/dashboard'
-import type { Event } from '@/types/domain'
+import type { Event, Task } from '@/types/domain'
 
 interface Props {
-  views: SmartViewsResult
+  tasks: Task[]
+  events: Event[]
   timezone: string
 }
 
-interface EventRowProps {
-  event: Event
-  timezone: string
-}
-
-function EventRow({ event, timezone }: EventRowProps) {
+function EventRow({ event, timezone }: { event: Event; timezone: string }) {
   const style = ownerStyle(event.owner)
   const allDay = isAllDay(event.start, event.end)
   const time = allDay ? null : formatTime(event.start, timezone)
@@ -52,28 +47,19 @@ function EventRow({ event, timezone }: EventRowProps) {
   )
 }
 
-interface GroupProps {
-  headingId: string
-  heading: string
-  emptyMessage: string
-  tasks: SmartViewsResult['today']['tasks']
-  events?: SmartViewsResult['today']['events']
-  timezone: string
-}
-
-function SmartGroup({ headingId, heading, emptyMessage, tasks, events = [], timezone }: GroupProps) {
+/** "This weekend" dashboard section (feature 032 US2): the last of the former three-group
+ *  SmartViews block — Today folded into the day card, Overdue promoted to its own top
+ *  section (OverdueSection.tsx), this is what's left. */
+export function WeekendSection({ tasks, events, timezone }: Props) {
   const isEmpty = tasks.length === 0 && events.length === 0
   return (
-    <section aria-labelledby={headingId} className="px-4 pb-2 pt-1">
-      <h2
-        id={headingId}
-        className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-muted"
-      >
-        {heading}
+    <section aria-labelledby="sv-weekend" className="px-4 pb-2 pt-1">
+      <h2 id="sv-weekend" className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-muted">
+        This weekend
       </h2>
 
       {isEmpty ? (
-        <p className="py-3 font-display text-sm text-ink-muted">{emptyMessage}</p>
+        <p className="py-3 font-display text-sm text-ink-muted">Nothing lined up this weekend.</p>
       ) : (
         <ul role="list" className="rounded-control border border-border bg-surface">
           {events.map((e) => (
@@ -89,35 +75,5 @@ function SmartGroup({ headingId, heading, emptyMessage, tasks, events = [], time
         </ul>
       )}
     </section>
-  )
-}
-
-export function SmartViews({ views, timezone }: Props) {
-  return (
-    <div className="flex flex-col gap-1">
-      <SmartGroup
-        headingId="sv-today"
-        heading="Today"
-        emptyMessage="Nothing due today — enjoy the quiet."
-        tasks={views.today.tasks}
-        events={views.today.events}
-        timezone={timezone}
-      />
-      <SmartGroup
-        headingId="sv-overdue"
-        heading="Overdue"
-        emptyMessage="All caught up — nothing overdue."
-        tasks={views.overdue.tasks}
-        timezone={timezone}
-      />
-      <SmartGroup
-        headingId="sv-weekend"
-        heading="This weekend"
-        emptyMessage="Nothing lined up this weekend."
-        tasks={views.weekend.tasks}
-        events={views.weekend.events}
-        timezone={timezone}
-      />
-    </div>
   )
 }

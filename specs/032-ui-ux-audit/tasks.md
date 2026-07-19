@@ -43,11 +43,11 @@
 **Goal**: overdue-first merged dashboard, Lately strip, tappable nudge, load-balance copy.
 **Independent test**: quickstart §3 four data states.
 
-- [ ] T013 [US2] Merge day-card contents in frontend/src/components/dashboard/SevenDayStrip.tsx + DayPeekPanel.tsx (+ tests): today pre-selected on mount; today's card shows events + walk status line (existing dashboard data only — planner interactions stay 033) + tasks due today (union of old strip card and Today section)
-- [ ] T014 [US2] Reorder frontend/src/components/dashboard/DashboardHome.tsx (+ DashboardHome.test.tsx) per contract C7: Overdue section first when non-empty (urgent styling, cap 5 + "view all in Tasks"), remove standalone Today section, single warm line when overdue+today both empty (FR-007/008)
-- [ ] T015 [P] [US2] Create frontend/src/components/dashboard/LatelyStrip.tsx (+ test): head of existing useActivity data (cap ~4), plain-sentence entries, "See all" → More→Feed, renders nothing on error/empty (R7, FR-009); mount between today card and This weekend
-- [ ] T016 [P] [US2] Make frontend/src/components/dashboard/GroceryNudge.tsx tappable → Lists tab, Groceries list, Needed segment (navigation prop through DashboardHome→App), honest empty state on stale nudge (FR-010)
-- [ ] T017 [P] [US2] frontend/src/components/dashboard/LoadBalance.tsx (+ test): replace "MORE" chip with plain leader sentence, collapse all-zero period to one quiet line, reconcile "You" vs name with owner-chip convention (FR-011)
+- [x] T013 [US2] Merge day-card contents in frontend/src/components/dashboard/SevenDayStrip.tsx + DayPeekPanel.tsx (+ tests): today pre-selected on mount; today's card shows events + walk status line (existing dashboard data only — planner interactions stay 033) + tasks due today (union of old strip card and Today section)
+- [x] T014 [US2] Reorder frontend/src/components/dashboard/DashboardHome.tsx (+ DashboardHome.test.tsx) per contract C7: Overdue section first when non-empty (urgent styling, cap 5 + "view all in Tasks"), remove standalone Today section, single warm line when overdue+today both empty (FR-007/008)
+- [x] T015 [P] [US2] Create frontend/src/components/dashboard/LatelyStrip.tsx (+ test): head of existing useActivity data (cap ~4), plain-sentence entries, "See all" → More→Feed, renders nothing on error/empty (R7, FR-009); mount between today card and This weekend
+- [x] T016 [P] [US2] Make frontend/src/components/dashboard/GroceryNudge.tsx tappable → Lists tab, Groceries list, Needed segment (navigation prop through DashboardHome→App), honest empty state on stale nudge (FR-010)
+- [x] T017 [P] [US2] frontend/src/components/dashboard/LoadBalance.tsx (+ test): replace "MORE" chip with plain leader sentence, collapse all-zero period to one quiet line, reconcile "You" vs name with owner-chip convention (FR-011)
 
 **Checkpoint**: quickstart §3 passes in both themes.
 
@@ -56,13 +56,13 @@
 **Goal**: shared ErrorState/SyncedAt/Undo patterns adopted app-wide.
 **Independent test**: quickstart §4.
 
-- [ ] T018 [US3] Create frontend/src/components/shell/ErrorState.tsx (+ test) per contract C2 (title/copy/Retry/busy)
-- [ ] T019 [US3] Adopt ErrorState in frontend/src/components/feed/FeedView.tsx, frontend/src/components/lists/ListsView.tsx, and every `isError` branch found by sweep (`grep -rn "isError" frontend/src/components`) wired to the owning query's refetch (FR-012); also investigate why Feed failed while bootstrapped views worked (audit F-09 note) and fix if a seeding gap
-- [ ] T020 [P] [US3] Create frontend/src/components/shell/SyncedAt.tsx (+ test) per contract C4 (React Query `dataUpdatedAt`, coarse relative, 60s tick); replace all bespoke "Last synced HH:MM:SS" strings (CalendarHome and sweep) (FR-014, R8)
-- [ ] T021 [US3] Create frontend/src/hooks/useUndoableMutation.ts (+ test) per contract C3: immediate forward commit, ~6s single-slot Undo toast (extend frontend/src/hooks/useToast.tsx with action support), inverse invocation
-- [ ] T022 [US3] Adopt Undo: task complete ↔ useReopenTask in the completion flows (dashboard rows, TasksView, day cards) — remove any blocking confirms for it; keep event-delete confirm (external calendar sync) (FR-013)
-- [ ] T023 [US3] Adopt Undo: list-item delete ↔ re-add via existing useListMutations in frontend/src/components/lists/ListsView.tsx
-- [ ] T024 [P] [US3] Empty-region sweep per contract C5: replace bare "—" in frontend/src/components/calendar/DayColumn.tsx and dashboard/SevenDayStrip.tsx with quiet designed empties (FR-015, F-25)
+- [x] T018 [US3] Create frontend/src/components/shell/ErrorState.tsx (+ test) per contract C2 (title/copy/Retry/busy)
+- [x] T019 [US3] Adopt ErrorState in frontend/src/components/feed/FeedView.tsx, frontend/src/components/lists/ListsView.tsx, and every `isError` branch found by sweep (`grep -rn "isError" frontend/src/components`) wired to the owning query's refetch (FR-012); also investigate why Feed failed while bootstrapped views worked (audit F-09 note) and fix if a seeding gap
+- [x] T020 [P] [US3] Create frontend/src/components/shell/SyncedAt.tsx (+ test) per contract C4 (React Query `dataUpdatedAt`, coarse relative, 60s tick); replace all bespoke "Last synced HH:MM:SS" strings (CalendarHome and sweep) (FR-014, R8)
+- [x] T021 [US3] Create frontend/src/hooks/useUndoableMutation.ts (+ test) per contract C3: immediate forward commit, ~6s single-slot Undo toast (extend frontend/src/hooks/useToast.tsx with action support), inverse invocation
+- [x] T022 [US3] Adopt Undo: task complete ↔ useReopenTask in the completion flows (dashboard rows, TasksView, day cards) — remove any blocking confirms for it; keep event-delete confirm (external calendar sync) (FR-013)
+- [x] T023 [US3] Adopt Undo: list-item delete ↔ re-add via existing useListMutations in frontend/src/components/lists/ListsView.tsx
+- [x] T024 [P] [US3] Empty-region sweep per contract C5: replace bare "—" in frontend/src/components/calendar/DayColumn.tsx and dashboard/SevenDayStrip.tsx with quiet designed empties (FR-015, F-25)
 
 **Checkpoint**: quickstart §4 passes; ActivityLog shows complete+reopen pairs after Undo (Sheet check).
 

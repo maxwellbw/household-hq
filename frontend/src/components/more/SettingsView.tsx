@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useSettings, useUpdateSettings } from '@/hooks/useSettings'
 import { useToast } from '@/hooks/useToast'
 import { useAuth } from '@/hooks/useAuth'
+import { ErrorState } from '@/components/shell/ErrorState'
 import { ApiError } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import {
@@ -204,7 +205,7 @@ function DeviceNotificationControl() {
  *  key-value editor. Only the eight household-preference fields are exposed; emails, VAPID
  *  keys, calendar IDs, and weather keys stay Sheet-only (FR-013). */
 export function SettingsView() {
-  const { data, isPending, isError } = useSettings()
+  const { data, isPending, isError, isFetching, refetch } = useSettings()
   const update = useUpdateSettings()
   const toast = useToast()
 
@@ -265,7 +266,14 @@ export function SettingsView() {
     return <p className="px-4 py-6 text-sm text-ink-muted">Loading settings…</p>
   }
   if (isError) {
-    return <p className="px-4 py-6 text-sm text-danger">Could not load settings.</p>
+    return (
+      <ErrorState
+        title="Could not load settings"
+        copy="Check your connection and try again."
+        onRetry={() => void refetch()}
+        busy={isFetching}
+      />
+    )
   }
 
   return (

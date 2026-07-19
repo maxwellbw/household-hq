@@ -58,7 +58,9 @@ function assertBootstrapPayload(data: unknown): asserts data is BootstrapData {
  * cache via `setQueryData`. Seeded data is stamped fresh under the existing 30s staleTime,
  * so each per-dataset hook (useTasks, useEvents, …) mounts without firing its own fetch —
  * they are left otherwise unchanged. `activity` is deliberately not seeded: it stays a lazy
- * load fired only when the More tab mounts `useActivity`.
+ * load fired whenever something mounts `useActivity` -- the More -> Feed screen, and
+ * (feature 032 US2) the dashboard's Lately strip. Its own query failures are independent
+ * of this bootstrap request by design (audit F-09: investigated, not a seeding gap).
  */
 export function useBootstrap() {
   const { session, status, authedCall, handleAuthError, reportBootError } = useAuth()

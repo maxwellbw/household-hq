@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { ChevronRight, RefreshCw, CalendarClock, ClipboardList, Settings2, LogOut, Rss } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { useTheme, type ThemePreference } from '@/hooks/useTheme'
@@ -11,6 +11,17 @@ import { ownerStyle } from '@/lib/owners'
 import { cn } from '@/lib/utils'
 
 type Subscreen = null | 'recurring' | 'recurringEvents' | 'templates' | 'settings' | 'feed'
+
+export interface MoreViewProps {
+  /** Feature 032 US2 (FR-009): the dashboard's Lately strip "See all" jumps straight to
+   *  Feed instead of landing on the main More menu. */
+  initialSubscreen?: 'feed'
+  /** Called once after mount, having already captured `initialSubscreen` — lets the caller
+   *  clear its own signal without racing this component's lazy-loaded mount (audit F-04's
+   *  documented race — the effect-on-`active` pattern clears before the dynamic import
+   *  resolves, so App.tsx hands the "consumed" moment to this component instead). */
+  onConsumedInitialSubscreen?: () => void
+}
 
 const THEME_OPTIONS: { value: ThemePreference; label: string }[] = [
   { value: 'system', label: 'System' },
@@ -64,9 +75,14 @@ function AppearanceSection() {
 }
 
 /** More hub — account info + sign out + Recurring/Templates managers (US6, T032). */
-export function MoreView() {
+export function MoreView({ initialSubscreen, onConsumedInitialSubscreen }: MoreViewProps = {}) {
   const { session, signOut } = useAuth()
-  const [subscreen, setSubscreen] = useState<Subscreen>(null)
+  const [subscreen, setSubscreen] = useState<Subscreen>(initialSubscreen ?? null)
+
+  useEffect(() => {
+    onConsumedInitialSubscreen?.()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   const who = session?.who
   const owner = who?.identity === 'shared' ? session?.actingPerson : who?.identity
 

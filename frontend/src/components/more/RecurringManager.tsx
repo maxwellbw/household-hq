@@ -10,6 +10,7 @@ import { useToast } from '@/hooks/useToast'
 import { ownerStyle, ALL_OWNERS } from '@/lib/owners'
 import { ApiError } from '@/lib/api'
 import { cn } from '@/lib/utils'
+import { ErrorState } from '@/components/shell/ErrorState'
 import type { Cadence, Owner, RecurringRule } from '@/types/domain'
 
 const CADENCE_LABELS: Record<Cadence, string> = {
@@ -347,7 +348,7 @@ function RuleRow({
 
 /** Full recurring-rule manager: list + create/edit form + delete-with-confirm (T030). */
 export function RecurringManager() {
-  const { data: rules, isPending, isError } = useRecurring()
+  const { data: rules, isPending, isError, isFetching, refetch } = useRecurring()
   const [formMode, setFormMode] = useState<FormMode | null>(null)
 
   if (formMode) {
@@ -394,7 +395,12 @@ export function RecurringManager() {
       )}
 
       {isError && (
-        <p className="text-sm text-danger">Could not load rules. Check your connection.</p>
+        <ErrorState
+          title="Could not load rules"
+          copy="Check your connection and try again."
+          onRetry={() => void refetch()}
+          busy={isFetching}
+        />
       )}
 
       {!isPending && !isError && rules && (

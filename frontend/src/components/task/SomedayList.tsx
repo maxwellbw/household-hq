@@ -5,6 +5,7 @@ import { useSettings } from '@/hooks/useSettings'
 import { buildCalendarModel } from '@/lib/tether'
 import { somedayTasks } from '@/lib/tether'
 import { TaskRow } from '@/components/task/TaskRow'
+import { ErrorState } from '@/components/shell/ErrorState'
 import type { Owner } from '@/types/domain'
 
 interface SomedayListProps {
@@ -47,9 +48,15 @@ export function SomedayList({ visibleOwners, onSchedule }: SomedayListProps) {
       )}
 
       {isError && !isLoading && (
-        <p className="py-3 text-sm text-ink-muted" role="alert">
-          Couldn't load someday tasks.
-        </p>
+        <ErrorState
+          title="Couldn't load someday tasks"
+          copy="Check your connection and try again."
+          onRetry={() => {
+            void eventsQuery.refetch()
+            void tasksQuery.refetch()
+          }}
+          busy={eventsQuery.isFetching || tasksQuery.isFetching}
+        />
       )}
 
       {!isLoading && !isError && tasks.length === 0 && (

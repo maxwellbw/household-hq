@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
 import { useCompleteTask, useReopenTask, useAcknowledgeTask } from '@/hooks/useMutations'
 import { useToast } from '@/hooks/useToast'
+import { useUndoableMutation } from '@/hooks/useUndoableMutation'
 import { canAcknowledge, isUncommitted } from '@/lib/tasks'
 import { resolveViewer } from '@/lib/dashboard'
 import type { Task } from '@/types/domain'
@@ -33,6 +34,9 @@ export function TaskRow({ task, timezone, eventStartKey, onSnooze, onEditDue, on
   const reopen = useReopenTask()
   const acknowledge = useAcknowledgeTask()
   const toast = useToast()
+  // Feature 032 US3 (contract C3, FR-013): completing is undoable instead of a blocking
+  // confirm — the toast IS the confirmation, with a way back.
+  const commitComplete = useUndoableMutation(complete, reopen, { label: `Done — ${task.title}` })
   const { session } = useAuth()
   const viewer = resolveViewer(session)
   const uncommitted = isUncommitted(task)
@@ -85,9 +89,7 @@ export function TaskRow({ task, timezone, eventStartKey, onSnooze, onEditDue, on
     if (isDone) {
       reopen.mutate(task.id)
     } else {
-      complete.mutate(task.id, {
-        onSuccess: () => toast.show(`Done — ${task.title}`),
-      })
+      commitComplete(task.id, task.id)
     }
   }
 

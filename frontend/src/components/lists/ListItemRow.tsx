@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { Pencil, Trash2, Star } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { useToggleListItem, useUpdateListItem, useDeleteListItem } from '@/hooks/useListMutations'
+import { useToggleListItem, useUpdateListItem, useDeleteListItem, useCreateListItem } from '@/hooks/useListMutations'
+import { useUndoableMutation } from '@/hooks/useUndoableMutation'
 import { LIST_SECTIONS, LIST_SECTION_LABELS } from '@/lib/lists'
 import type { ListItem, ListSection } from '@/types/domain'
 
@@ -72,15 +73,29 @@ function ListItemEditPanel({ item, onDone }: { item: ListItem; onDone: () => voi
   const [section, setSection] = useState<ListSection>(item.section)
   const [staple, setStaple] = useState(item.staple === 'TRUE')
   const [note, setNote] = useState(item.note ?? '')
-  const [confirmDelete, setConfirmDelete] = useState(false)
   const update = useUpdateListItem()
   const del = useDeleteListItem()
+  const create = useCreateListItem()
+  // Feature 032 US3 (contract C3, FR-013): delete is undoable instead of a blocking
+  // two-tap confirm — re-add recreates the item (new id; same list/name/section/staple/note).
+  const commitDelete = useUndoableMutation(del, create, { label: `Deleted — ${item.name}` })
 
   function handleSave() {
     update.mutate(
       { id: item.id, section, staple: staple ? 'TRUE' : 'FALSE', note },
       { onSuccess: onDone },
     )
+  }
+
+  function handleDelete() {
+    commitDelete(item.id, {
+      listId: item.listId,
+      name: item.name,
+      section: item.section,
+      staple: item.staple,
+      note: item.note,
+    })
+    onDone()
   }
 
   return (
@@ -136,26 +151,14 @@ function ListItemEditPanel({ item, onDone }: { item: ListItem; onDone: () => voi
         >
           Cancel
         </button>
-        {confirmDelete ? (
-          <button
-            type="button"
-            onClick={() => del.mutate(item.id, { onSuccess: onDone })}
-            disabled={del.isPending}
-            className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-control bg-danger text-surface hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-danger disabled:opacity-50"
-            aria-label={`Confirm delete ${item.name}`}
-          >
-            <Trash2 className="h-4 w-4" aria-hidden="true" />
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={() => setConfirmDelete(true)}
-            aria-label={`Delete ${item.name}`}
-            className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-control text-danger hover:bg-surface focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-danger"
-          >
-            <Trash2 className="h-4 w-4" aria-hidden="true" />
-          </button>
-        )}
+        <button
+          type="button"
+          onClick={handleDelete}
+          aria-label={`Delete ${item.name}`}
+          className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-control text-danger hover:bg-surface focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-danger"
+        >
+          <Trash2 className="h-4 w-4" aria-hidden="true" />
+        </button>
       </div>
     </div>
   )

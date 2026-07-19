@@ -6,13 +6,21 @@ import { useLists, useListItems } from '@/hooks/useLists'
 import { useCreateList, useDeleteList, useCreateListItem } from '@/hooks/useListMutations'
 import { filterItemsByName, groupNeededBySection, LIST_SECTION_LABELS } from '@/lib/lists'
 import { ListItemRow } from '@/components/lists/ListItemRow'
+import { ErrorState } from '@/components/shell/ErrorState'
 import { ApiError } from '@/lib/api'
 
 type ViewMode = 'needed' | 'all'
 
+interface ListsViewProps {
+  /** Feature 032 US2 (FR-010, audit F-31): selects the named list (by exact name match) on
+   *  mount instead of the default first-list fallback — the dashboard's grocery nudge uses
+   *  this to jump straight to "Groceries". Falls back to the first list if no match. */
+  focusListName?: string
+}
+
 /** Grocery & household Lists screen (feature 024): list switcher, low-friction
  *  add-by-name, and a Needed (aisle-order) / All (management) view toggle. */
-export function ListsView() {
+export function ListsView({ focusListName }: ListsViewProps = {}) {
   const listsQuery = useLists()
   const itemsQuery = useListItems()
   const createList = useCreateList()
@@ -29,13 +37,19 @@ export function ListsView() {
 
   const lists = listsQuery.data ?? []
 
-  // Default to the first list once lists load, without stomping a user's later selection.
+  // Default to the first list once lists load (or the requested focusListName, if it
+  // matches one), without stomping a user's later selection.
   useEffect(() => {
-    if (!selectedListId && lists.length > 0) setSelectedListId(lists[0].id)
+    if (!selectedListId && lists.length > 0) {
+      const focused = focusListName
+        ? lists.find((l) => l.name.toLowerCase() === focusListName.toLowerCase())
+        : undefined
+      setSelectedListId(focused?.id ?? lists[0].id)
+    }
     if (selectedListId && !lists.some((l) => l.id === selectedListId)) {
       setSelectedListId(lists[0]?.id ?? null)
     }
-  }, [lists, selectedListId])
+  }, [lists, selectedListId, focusListName])
 
   const itemsForList = useMemo(
     () => (itemsQuery.data ?? []).filter((item) => item.listId === selectedListId),
@@ -97,10 +111,15 @@ export function ListsView() {
 
   if (isError) {
     return (
-      <div className="flex flex-col items-center justify-center gap-2 px-6 py-12 text-center">
-        <p className="font-display text-lg text-ink">Couldn't load your lists</p>
-        <p className="text-sm text-ink-muted">Check your connection and try again.</p>
-      </div>
+      <ErrorState
+        title="Couldn't load your lists"
+        copy="Check your connection and try again."
+        onRetry={() => {
+          void listsQuery.refetch()
+          void itemsQuery.refetch()
+        }}
+        busy={listsQuery.isFetching || itemsQuery.isFetching}
+      />
     )
   }
 

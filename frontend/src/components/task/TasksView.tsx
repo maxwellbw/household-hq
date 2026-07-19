@@ -9,6 +9,7 @@ import { SnoozeDialog } from '@/components/task/SnoozeDialog'
 import { TaskDetailSheet } from '@/components/task/TaskDetailSheet'
 import { ForceRankDialog } from '@/components/task/ForceRankDialog'
 import { OwnerFilterChips } from '@/components/calendar/OwnerFilterChips'
+import { ErrorState } from '@/components/shell/ErrorState'
 import type { Task } from '@/types/domain'
 
 interface TasksViewProps {
@@ -18,7 +19,7 @@ interface TasksViewProps {
 
 /** All household tasks — grouped Open → collapsed Done → Someday, filtered by owner chips. */
 export function TasksView({ onScheduleSomeday }: TasksViewProps) {
-  const { data: tasks, isPending, isError } = useTasks()
+  const { data: tasks, isPending, isError, isFetching, refetch } = useTasks()
   const { timezone } = useSettings()
   const { visibleOwners, toggle } = useOwnerFilter()
   const [doneExpanded, setDoneExpanded] = useState(false)
@@ -41,10 +42,12 @@ export function TasksView({ onScheduleSomeday }: TasksViewProps) {
 
   if (isError) {
     return (
-      <div className="flex flex-col items-center justify-center gap-2 px-6 py-12 text-center">
-        <p className="font-display text-lg text-ink">Could not load tasks</p>
-        <p className="text-sm text-ink-muted">Check your connection and try again.</p>
-      </div>
+      <ErrorState
+        title="Could not load tasks"
+        copy="Check your connection and try again."
+        onRetry={() => void refetch()}
+        busy={isFetching}
+      />
     )
   }
 

@@ -8,6 +8,7 @@ import { formatDayLabel, formatTime, toZonedDateTime } from '@/lib/datetime'
 import { ownerStyle } from '@/lib/owners'
 import { cn } from '@/lib/utils'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
+import { ErrorState } from '@/components/shell/ErrorState'
 import type { BusyBlock, CandidateWindow, DogWalk, DogWalkDayPlan, HourGate, WeatherGateName } from '@/types/domain'
 
 interface DogWalkPlannerProps {
@@ -382,7 +383,7 @@ function WalkRow({
 export function DogWalkPlanner({ dateKey, timezone, onClose }: DogWalkPlannerProps) {
   const panelRef = useRef<HTMLDivElement>(null)
   useDialogA11y(panelRef, onClose)
-  const { data: plan, isPending, isError } = useDogWalkDay(dateKey)
+  const { data: plan, isPending, isError, isFetching, refetch } = useDogWalkDay(dateKey)
   const longLabel = formatDayLabel(dateKey, { weekday: 'long', month: 'long', day: 'numeric' })
 
   const toast = useToast()
@@ -494,7 +495,12 @@ export function DogWalkPlanner({ dateKey, timezone, onClose }: DogWalkPlannerPro
         )}
 
         {isError && (
-          <p className="py-6 text-center text-sm text-danger">Couldn't load the day planner. Check your connection and try again.</p>
+          <ErrorState
+            title="Couldn't load the day planner"
+            copy="Check your connection and try again."
+            onRetry={() => void refetch()}
+            busy={isFetching}
+          />
         )}
 
         {plan && (

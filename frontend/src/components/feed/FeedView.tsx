@@ -1,12 +1,13 @@
 import { useActivity } from '@/hooks/useActivity'
 import { useSettings } from '@/hooks/useSettings'
-import { ownerStyle } from '@/lib/owners'
+import { activityActorStyle } from '@/lib/owners'
 import { formatDate, formatTime } from '@/lib/datetime'
 import { cn } from '@/lib/utils'
+import { ErrorState } from '@/components/shell/ErrorState'
 import type { ActivityEntry } from '@/types/domain'
 
 function FeedItem({ entry, timezone }: { entry: ActivityEntry; timezone: string }) {
-  const style = ownerStyle(entry.actor)
+  const style = activityActorStyle(entry.actor)
   const dateLabel = formatDate(entry.timestamp, timezone, { month: 'short', day: 'numeric' })
   const timeLabel = formatTime(entry.timestamp, timezone)
 
@@ -15,8 +16,7 @@ function FeedItem({ entry, timezone }: { entry: ActivityEntry; timezone: string 
       <span
         className={cn(
           'mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-medium text-surface',
-          entry.actor === 'max' && 'bg-owner-max',
-          entry.actor === 'jaz' && 'bg-owner-jaz',
+          style.bgClass,
         )}
         aria-label={style.label}
       >
@@ -34,7 +34,7 @@ function FeedItem({ entry, timezone }: { entry: ActivityEntry; timezone: string 
 
 /** Reverse-chronological activity stream (US5) — backend returns newest-first. */
 export function FeedView() {
-  const { data: entries, isPending, isError } = useActivity()
+  const { data: entries, isPending, isError, isFetching, refetch } = useActivity()
   const { timezone } = useSettings()
 
   if (isPending) {
@@ -55,10 +55,12 @@ export function FeedView() {
 
   if (isError) {
     return (
-      <div className="flex flex-col items-center justify-center gap-2 px-6 py-12 text-center">
-        <p className="font-display text-lg text-ink">Could not load activity</p>
-        <p className="text-sm text-ink-muted">Check your connection and try again.</p>
-      </div>
+      <ErrorState
+        title="Could not load activity"
+        copy="Check your connection and try again."
+        onRetry={() => void refetch()}
+        busy={isFetching}
+      />
     )
   }
 

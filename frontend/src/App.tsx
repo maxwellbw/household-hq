@@ -27,6 +27,7 @@ import type { NavSection } from '@/components/shell/navItems'
 const loadCalendarHome = () =>
   import('@/components/calendar/CalendarHome').then((m) => ({ default: m.CalendarHome }))
 const loadMoreView = () => import('@/components/more/MoreView').then((m) => ({ default: m.MoreView }))
+type MoreViewProps = import('@/components/more/MoreView').MoreViewProps
 
 function App() {
   // Feature 032 US1: the theme engine mounts once, above every early-return
@@ -41,10 +42,25 @@ function App() {
   const [schedulingTaskId, setSchedulingTaskId] = useState<string | null>(null)
   const [prefilledDate, setPrefilledDate] = useState<string>('')
   const [calendarFocusDate, setCalendarFocusDate] = useState<string | null>(null)
+  const [listsFocusName, setListsFocusName] = useState<string | null>(null)
+  const [moreFocusSubscreen, setMoreFocusSubscreen] = useState<'feed' | null>(null)
 
   function openCalendarOnDate(dateKey: string) {
     setCalendarFocusDate(dateKey)
     setActive('calendar')
+  }
+
+  // Feature 032 US2 (FR-010, audit F-31): the dashboard's grocery nudge jumps straight to
+  // the Groceries list's Needed view — same consume-on-mount pattern as calendarFocusDate.
+  function openGroceriesNeeded() {
+    setListsFocusName('Groceries')
+    setActive('lists')
+  }
+
+  // Feature 032 US2 (FR-009): the dashboard's Lately strip jumps straight to More → Feed.
+  function openFeed() {
+    setMoreFocusSubscreen('feed')
+    setActive('more')
   }
 
   // Consumed once by CalendarHome's initial mount (it seeds Schedule-X's
@@ -55,6 +71,12 @@ function App() {
       setCalendarFocusDate(null)
     }
   }, [active, calendarFocusDate])
+
+  useEffect(() => {
+    if (active === 'lists' && listsFocusName) {
+      setListsFocusName(null)
+    }
+  }, [active, listsFocusName])
 
   // Feature 010 US3: a tapped push notification deep-links here — cold launch via the
   // `?task=` URL param, or a warm-app postMessage from the service worker. Tasks tab is
@@ -105,7 +127,14 @@ function App() {
       {session.who.needsActingPerson && session.actingPerson && (
         <ActingPersonAffirm person={session.actingPerson} />
       )}
-      {active === 'home' && <DashboardHome onOpenDate={openCalendarOnDate} />}
+      {active === 'home' && (
+        <DashboardHome
+          onOpenDate={openCalendarOnDate}
+          onNavigateTasks={() => setActive('tasks')}
+          onNavigateGroceries={openGroceriesNeeded}
+          onNavigateFeed={openFeed}
+        />
+      )}
       {active === 'calendar' && (
         <div className="flex flex-col">
           <OwnerFilterChips visibleOwners={visibleOwners} onToggle={toggle} />
@@ -118,9 +147,16 @@ function App() {
         </div>
       )}
       {active === 'tasks' && <TasksView onScheduleSomeday={openScheduleDialog} />}
-      {active === 'lists' && <ListsView />}
+      {active === 'lists' && <ListsView focusListName={listsFocusName ?? undefined} />}
       {active === 'more' && (
-        <LazyBoundary<Record<string, never>> label="More" loader={loadMoreView} componentProps={{}} />
+        <LazyBoundary<MoreViewProps>
+          label="More"
+          loader={loadMoreView}
+          componentProps={{
+            initialSubscreen: moreFocusSubscreen ?? undefined,
+            onConsumedInitialSubscreen: () => setMoreFocusSubscreen(null),
+          }}
+        />
       )}
 
       {schedulingTaskId && (
