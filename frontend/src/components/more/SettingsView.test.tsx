@@ -73,4 +73,22 @@ describe('SettingsView', () => {
 
     await waitFor(() => expect(mutateAsync).toHaveBeenCalledWith({ pushEnabled: 'FALSE' }))
   })
+
+  it('changing the morning overdue push hour submits only that key', async () => {
+    render(<SettingsView />)
+
+    fireEvent.change(screen.getByLabelText(/morning overdue push hour/i), { target: { value: '9' } })
+    fireEvent.click(screen.getByRole('button', { name: /save changes/i }))
+
+    await waitFor(() => expect(mutateAsync).toHaveBeenCalledWith({ morningOverduePushHour: '9' }))
+  })
+
+  it('changing the evening walk push hour submits only that key', async () => {
+    render(<SettingsView />)
+
+    fireEvent.change(screen.getByLabelText(/evening walk push hour/i), { target: { value: '21' } })
+    fireEvent.click(screen.getByRole('button', { name: /save changes/i }))
+
+    await waitFor(() => expect(mutateAsync).toHaveBeenCalledWith({ eveningWalkPushHour: '21' }))
+  })
 })

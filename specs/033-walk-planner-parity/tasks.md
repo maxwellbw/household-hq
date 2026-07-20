@@ -53,19 +53,29 @@ tap-through), walk parity (US4), planner rework (US5), and notices (US6) all sit
 **Goal**: one idempotent morning push to both people listing overdue items.
 **Independent test**: quickstart §B 1–3, 5–6.
 
-- [ ] T010 [US2] Create `backend/Notify.js`: `sendMorningOverduePush()` per contracts/notify-triggers.md — overdue selector mirroring `lib/dashboard.ts` (open + dueDate < today, household tz; comment cross-references the frontend file), body `"N overdue: t1, t2, t3 +K more"`, empty→silent, ActivityLog `notify-overdue`/`<today>` dedupe under `LockService` (copy `Digests.sendOne_`'s check-log-send shape), fan-out via `sendPushToPerson_` to both people, url `?overdue=1`, tag `overdue-<date>`; include a send seam for tests (mirror digests' seam pattern)
-- [ ] T011 [US2] Add `morningOverduePushHour` (default 8) + `eveningWalkPushHour` (default 20) to `backend/Config.js` settings defaults and `EDITABLE_SETTINGS`; `installNotifyTriggers()` in `backend/Notify.js` (idempotent delete-then-create, both daily triggers); extend `Api.js`'s `settings.update` reinstall hook to cover the two new keys (digestHour precedent)
-- [ ] T012 [US2] Settings screen fields for the two hours in `frontend/src/components/more/` settings editor (follow 020's field pattern + `frontend/src/lib/settings.ts` types) + test update
+- [x] T010 [US2] Create `backend/Notify.js`: `sendMorningOverduePush()` per contracts/notify-triggers.md — overdue selector mirroring `lib/dashboard.ts` (open + dueDate < today, household tz; comment cross-references the frontend file), body `"N overdue: t1, t2, t3 +K more"`, empty→silent, ActivityLog `notify-overdue`/`<today>` dedupe under `LockService` (copy `Digests.sendOne_`'s check-log-send shape), fan-out via `sendPushToPerson_` to both people, url `?overdue=1`, tag `overdue-<date>`; include a send seam for tests (mirror digests' seam pattern)
+- [x] T011 [US2] Add `morningOverduePushHour` (default 8) + `eveningWalkPushHour` (default 20) to `backend/Config.js` settings defaults and `EDITABLE_SETTINGS`; `installNotifyTriggers()` in `backend/Notify.js` (idempotent delete-then-create, both daily triggers); extend `Api.js`'s `settings.update` reinstall hook to cover the two new keys (digestHour precedent)
+- [x] T012 [US2] Settings screen fields for the two hours in `frontend/src/components/more/` settings editor (follow 020's field pattern + `frontend/src/lib/settings.ts` types) + test update
 
 ## Phase 5: US3 — Night-before walk push (P1) — Chunk C continued
 
 **Goal**: evening push with tomorrow's walk window or decision prompt.
 **Independent test**: quickstart §B 4–6.
 
-- [ ] T013 [US3] `sendEveningWalkPush()` in `backend/Notify.js` per the contract: tomorrow's DogWalks rows — booked/suggested → window(s) body (two walks joined with " and "), needs-decision → decision prompt, none → silent; dedupe `notify-walk`/`<tomorrow>`; url `?walk=<tomorrow>`, tag `walk-<tomorrow>`
-- [ ] T014 [US3] Switch `sendDogWalkPush_` in `backend/DogWalk.js` to url `?walk=<ymd>` (F-33 backend half; message text unchanged)
-- [ ] T015 [US2] [US3] `selfTestNotify()` suites in `backend/SelfTest.js` (public runner, wired per research R10 into a chunk that stays under the 6-min cap): gate (empty→no send/no log), dedupe (second run silent), content (truncation, +K more, both-windows join, needs-decision body, exact url params), public-entry-point exercise of both handlers; scratch rows use the `selftest-` prefix conventions
-- [ ] T016 [US2] [US3] Backend deploy + live validation per quickstart §B (clasp push, `clasp deploy -i`, `installNotifyTriggers`, forced runs, ActivityLog rows, re-run silence) — record results inline here
+- [x] T013 [US3] `sendEveningWalkPush()` in `backend/Notify.js` per the contract: tomorrow's DogWalks rows — booked/suggested → window(s) body (two walks joined with " and "), needs-decision → decision prompt, none → silent; dedupe `notify-walk`/`<tomorrow>`; url `?walk=<tomorrow>`, tag `walk-<tomorrow>`
+- [x] T014 [US3] Switch `sendDogWalkPush_` in `backend/DogWalk.js` to url `?walk=<ymd>` (F-33 backend half; message text unchanged)
+- [x] T015 [US2] [US3] `selfTestNotify()` suites in `backend/SelfTest.js` (public runner, wired per research R10 into a chunk that stays under the 6-min cap): gate (empty→no send/no log), dedupe (second run silent), content (truncation, +K more, both-windows join, needs-decision body, exact url params), public-entry-point exercise of both handlers; scratch rows use the `selftest-` prefix conventions
+- [x] T016 [US2] [US3] Backend deploy + live validation per quickstart §B (clasp push, `clasp deploy -i`, `installNotifyTriggers`, forced runs, ActivityLog rows, re-run silence) — record results inline here
+
+  **Results (2026-07-19, deployment `@32` on the stable `/exec` URL):**
+  - `clasp push` — 22 files pushed clean. `clasp deploy -i AKfycbzQAE3g…` → `@32`.
+  - `clasp run installNotifyTriggers` → completed with no thrown error (same "No response." signature as the pre-existing `installDigestTrigger`, confirmed by direct comparison — a thrown `AppError_`/`Error` prints an `Exception:` line instead, verified against `clasp run selfTest`'s guard throw). Two daily triggers installed at hours 8 / 20 (current Settings defaults). Recommend a quick glance at the Apps Script editor's Triggers panel next time it's open, to eyeball the two new rows (browser-only step).
+  - `clasp run selfTestNotify` → completed clean (no thrown assertion). Also re-ran as part of `clasp run selfTest5Comms` (chunk 5: `unitDigests_`, `liveSettingsUpdate_`, `unitPush_`, `selfTestNotify`) — clean.
+  - Live read-only check (`tasks.list`/`dogwalks.list` via the deployed endpoint with a dev session token): 0 real overdue tasks; tomorrow (2026-07-20) has a real booked walk, 8:00–8:30 AM.
+  - `clasp run sendMorningOverduePush` (0 real overdue) → no new ActivityLog rows — confirms the empty-set silent gate live (quickstart §B.3).
+  - `clasp run sendEveningWalkPush` (real booked walk tomorrow, run **with Max's explicit go-ahead** since it sends a real push to both devices) → ActivityLog gained one `notify-walk` row (`targetId=2026-07-20`, detail `"Dog walk tomorrow · 8:00–8:30 AM"`) plus two `push-notify` fan-out rows: `pushed Jaz (1/1 devices)` and `pushed Max (2/2 devices)`, both with that exact body — content matches the real booked window precisely. Re-running `sendEveningWalkPush` immediately after produced **zero** new ActivityLog rows (re-run silence confirmed, FR-006).
+  - The "≥1 overdue → real push sent" content path (quickstart §B.2) was validated at the unit level only (`selfTestNotify`'s exact-string assertions on `buildOverdueBody_`), not with a live scratch task — avoided creating fake overdue data that would trigger a second unsolicited push to both devices in the same session.
+  - `npm test` (frontend, full suite): 591/591 passed. `npm run build`: type-clean.
 
 **Checkpoint**: notifications complete end-to-end (SC-002/003).
 

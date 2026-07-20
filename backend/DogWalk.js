@@ -821,7 +821,7 @@ function sendDogWalkPush_(ymd, slot, kind, reason) {
     : ymd + ' needs a dog-walk decision (' + reason + ').';
   ['max', 'jaz'].forEach(function (person) {
     sendPushToPerson_(person, ymd, text, {
-      title: 'Household HQ', body: text, url: '?dogwalk=' + ymd, tag: 'dogwalk-' + ymd + '-' + slot
+      title: 'Household HQ', body: text, url: '?walk=' + ymd, tag: 'dogwalk-' + ymd + '-' + slot
     });
   });
 }

@@ -25,10 +25,11 @@ export const MONTHLY_DAY_OPTIONS = ['last', ...Array.from({ length: 28 }, (_, i)
 
 export const DIGEST_HOUR_OPTIONS = Array.from({ length: 24 }, (_, i) => String(i))
 
-/** The eight Settings-tab keys this editor may write; must match backend EDITABLE_SETTINGS. */
+/** The Settings-tab keys this editor may write; must match backend EDITABLE_SETTINGS. */
 export const EDITABLE_SETTINGS_KEYS = [
   'digestWeeklyEnabled', 'digestWeeklyDay', 'digestMonthlyEnabled', 'digestMonthlyDay',
   'digestHour', 'pushEnabled', 'gcalEventReminderMin', 'timezone',
+  'morningOverduePushHour', 'eveningWalkPushHour',
 ] as const
 
 export type EditableSettingsKey = (typeof EDITABLE_SETTINGS_KEYS)[number]
@@ -52,6 +53,11 @@ export function validateSettingField(key: EditableSettingsKey, value: string): s
       return /^\d{1,2}$/.test(value) && n >= 1 && n <= 28 ? null : 'Pick "last" or a day 1-28.'
     }
     case 'digestHour': {
+      const n = Number(value)
+      return /^\d{1,2}$/.test(value) && n <= 23 ? null : 'Pick an hour 0-23.'
+    }
+    case 'morningOverduePushHour':
+    case 'eveningWalkPushHour': {
       const n = Number(value)
       return /^\d{1,2}$/.test(value) && n <= 23 ? null : 'Pick an hour 0-23.'
     }

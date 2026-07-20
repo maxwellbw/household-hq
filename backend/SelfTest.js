@@ -32,9 +32,9 @@ var SELFTEST_PREFIX = 'selftest-';
  *   selfTest4CalendarA()          (3): unitCalendarSync_, liveCalendarEventSync_,
  *     liveCalendarTaskSync_
  *   selfTest4CalendarB()          (2): liveCalendarReconcile_, liveCalendarLocationSync_
- *   selfTest5Comms()              (3): unitDigests_, liveSettingsUpdate_, unitPush_ (feature
+ *   selfTest5Comms()              (4): unitDigests_, liveSettingsUpdate_, unitPush_ (feature
  *     010: unitPush_ replaces the retired unitNtfy_; the crypto proof itself lives in the
- *     separate selfTestPush() runner)
+ *     separate selfTestPush() runner), selfTestNotify() (feature 033 US2/US3)
  *   selfTestDogWalk()            (15): unitDogWalkAvailability_, unitDogWalkSelection_,
  *     unitDogWalkWeatherGate_, unitDogWalkGateHour_, unitDogWalkSecondWalk_,
  *     unitDogWalkFetchRetry_, unitDogWalkCacheRoundTrip_, unitDogWalkCacheValidity_,
@@ -43,8 +43,8 @@ var SELFTEST_PREFIX = 'selftest-';
  *     liveDogWalkBookingLifecycle_ (feature 011 + feature 031 US1 forecast-cache/backoff +
  *     US2 gate-hour/day-plan + US3 manual-booking additions, also runnable alone as chunk 7/7)
  *
- *   Total: 15 + 12 + 8 + 3 + 2 + 3 + 15 = 58 suites (42 original + 5 feature-011 + 1
- *   feature-030 + 9 feature-031 additions). selfTest4CalendarAndComms() (feature 028's original chunk 4) was
+ *   Total: 15 + 12 + 8 + 3 + 2 + 4 + 15 = 59 suites (42 original + 5 feature-011 + 1
+ *   feature-030 + 9 feature-031 + 1 feature-033 additions). selfTest4CalendarAndComms() (feature 028's original chunk 4) was
  *   itself split here (feature 030 T028, 2026-07-18): a clean, isolated re-run still overran
  *   the 6-minute cap — `clasp run` hangs on that overrun rather than erroring, so the symptom
  *   is a stuck CLI call, not a thrown assertion. A first cut (only pulling the fast
@@ -128,6 +128,7 @@ function selfTest5Comms() {
   unitDigests_();
   liveSettingsUpdate_();
   unitPush_();
+  selfTestNotify();
   Logger.log('SELFTEST 6/7 (Comms): ALL PASS');
 }
 // selfTest4CalendarAndComms() (feature 028 US7) was itself split here (feature 030 T028,
@@ -2375,6 +2376,105 @@ function unitPush_() {
     'pushAcknowledge_ logs a skip (or a real send) without throwing');
 
   Logger.log('unit push: pass');
+}
+
+// ---------------------------------------------------------------------------
+// Unit: household push notifications (feature 033 US2/US3 — backend/Notify.js)
+// ---------------------------------------------------------------------------
+
+/**
+ * Gate + content + dedupe suites for backend/Notify.js (contracts/notify-triggers.md). Never
+ * calls `sendMorningOverduePush()`/`sendEveningWalkPush()` against live data — same posture
+ * as `unitDigests_` never calling the real `sendDigests()` — since a real call would write
+ * today's/tomorrow's actual ActivityLog dedupe row and could send a real push, blocking or
+ * duplicating the genuine daily run. Public name so it appears in the editor Run menu; wired
+ * into `selfTest5Comms()` (chunk 5) alongside the other comms suites.
+ */
+function selfTestNotify() {
+  // --- overdue selector (mirrors frontend/src/lib/dashboard.ts smartViews().overdue) --------
+  var today = '2026-07-19';
+  var tasks = [
+    { status: 'open', dueDate: '2026-07-17', title: 'oldest' },
+    { status: 'open', dueDate: '2026-07-18', title: 'newer' },
+    { status: 'open', dueDate: today, title: 'due today, not overdue' },
+    { status: 'open', dueDate: '', title: 'undated' },
+    { status: 'done', dueDate: '2026-07-01', title: 'completed' },
+    { status: 'snoozed', dueDate: '2026-07-01', title: 'snoozed' }
+  ];
+  var overdue = computeOverdueTasks_(tasks, today);
+  assert_(overdue.length === 2, 'computeOverdueTasks_ excludes today, undated, done, and snoozed tasks');
+  assert_(overdue[0].title === 'oldest' && overdue[1].title === 'newer',
+    'computeOverdueTasks_ sorts oldest-due-first');
+  assert_(computeOverdueTasks_([], today).length === 0, 'computeOverdueTasks_ is empty with no tasks (morning gate)');
+
+  // --- morning body: truncation + "+K more" (clarified 2026-07-19) ---------------------------
+  var three = [{ title: 'Bins' }, { title: 'Vet meds' }, { title: 'Filter change' }];
+  assert_(buildOverdueBody_(three) === '3 overdue: Bins, Vet meds, Filter change',
+    'buildOverdueBody_ omits "+K more" at exactly 3');
+  var five = three.concat([{ title: 'Fourth' }, { title: 'Fifth' }]);
+  assert_(buildOverdueBody_(five) === '5 overdue: Bins, Vet meds, Filter change +2 more',
+    'buildOverdueBody_ truncates to 3 titles and states the remainder');
+  assert_(buildOverdueBody_([{ title: 'Solo' }]) === '1 overdue: Solo', 'buildOverdueBody_ singular count');
+
+  // --- walk window formatting + body (booked/suggested wins, needs-decision, none) -----------
+  var tz = getTimezone_();
+  var mkIso = function (hh, mm) {
+    return Utilities.formatDate(new Date(2026, 6, 20, hh, mm, 0), tz, "yyyy-MM-dd'T'HH:mm:ssXXX");
+  };
+  assert_(formatWalkWindowLabel_(mkIso(8, 0), mkIso(8, 45)) === '8:00–8:45 AM',
+    'formatWalkWindowLabel_ formats a window with one AM/PM suffix');
+
+  var bookedRow = { status: 'booked', windowStart: mkIso(8, 0), windowEnd: mkIso(8, 45) };
+  assert_(buildWalkBody_([bookedRow]) === 'Dog walk tomorrow · 8:00–8:45 AM',
+    'buildWalkBody_ states a single booked window');
+
+  var suggestedRow = { status: 'suggested', windowStart: mkIso(9, 0), windowEnd: mkIso(9, 30) };
+  assert_(buildWalkBody_([suggestedRow]) === 'Dog walk tomorrow · 9:00–9:30 AM',
+    'buildWalkBody_ treats a suggested (suggest-only mode) row the same as booked');
+
+  var secondRow = { status: 'booked', windowStart: mkIso(13, 0), windowEnd: mkIso(13, 30) };
+  assert_(buildWalkBody_([bookedRow, secondRow]) === 'Dog walks tomorrow · 8:00–8:45 AM and 1:00–1:30 PM',
+    'buildWalkBody_ joins two booked windows with "and" and pluralizes the lead-in (two-walk day)');
+
+  var needsDecisionRow = { status: 'needs-decision' };
+  assert_(buildWalkBody_([needsDecisionRow]) === 'Tomorrow’s walk needs a decision',
+    'buildWalkBody_ states a decision prompt when nothing is booked');
+  assert_(buildWalkBody_([bookedRow, needsDecisionRow]) === 'Dog walk tomorrow · 8:00–8:45 AM',
+    'a booked window wins over a needs-decision row on the same date');
+  assert_(buildWalkBody_([]) === null, 'buildWalkBody_ returns null with no rows at all (e.g. weekend skip; evening gate)');
+  assert_(buildWalkBody_([{ status: 'skipped' }]) === null,
+    'buildWalkBody_ returns null when the only row is neither booked/suggested nor needs-decision');
+
+  // --- dedupe ledger (same alreadySent_ primitive Digests.js's dedupe test exercises) --------
+  var overdueDedupeKey = SELFTEST_PREFIX + 'notify-overdue-' + Utilities.getUuid();
+  assert_(alreadySent_(NOTIFY_ACTION.overdue, overdueDedupeKey) === false,
+    'alreadySent_ is false before any matching notify-overdue log row exists');
+  appendLog_('system', NOTIFY_ACTION.overdue, overdueDedupeKey, 'selftest dedupe marker');
+  assert_(alreadySent_(NOTIFY_ACTION.overdue, overdueDedupeKey) === true,
+    'alreadySent_ is true once a matching notify-overdue ActivityLog row exists (second-run silence)');
+
+  var walkDedupeKey = SELFTEST_PREFIX + 'notify-walk-' + Utilities.getUuid();
+  assert_(alreadySent_(NOTIFY_ACTION.walk, walkDedupeKey) === false,
+    'alreadySent_ is false before any matching notify-walk log row exists');
+  appendLog_('system', NOTIFY_ACTION.walk, walkDedupeKey, 'selftest dedupe marker');
+  assert_(alreadySent_(NOTIFY_ACTION.walk, walkDedupeKey) === true,
+    'alreadySent_ is true once a matching notify-walk ActivityLog row exists (second-run silence)');
+
+  // --- hour resolution (mirrors resolveHour_'s blank/invalid-safe contract) ------------------
+  assert_(resolveNotifyHour_({}, 'morningOverduePushHour', 8) === 8,
+    'resolveNotifyHour_ falls back to the given default when blank');
+  assert_(resolveNotifyHour_({ morningOverduePushHour: '6' }, 'morningOverduePushHour', 8) === 6,
+    'resolveNotifyHour_ honors a valid override');
+  assert_(resolveNotifyHour_({ morningOverduePushHour: '25' }, 'morningOverduePushHour', 8) === 8,
+    'resolveNotifyHour_ rejects an out-of-range hour and falls back to the default');
+
+  // --- entry points exist and are public (CLAUDE.md trigger/editor entry-point rule, feature
+  //     004 lesson) — deliberately never invoked against live data; see the comment above.
+  assert_(typeof sendMorningOverduePush === 'function', 'sendMorningOverduePush is a public entry point');
+  assert_(typeof sendEveningWalkPush === 'function', 'sendEveningWalkPush is a public entry point');
+  assert_(typeof installNotifyTriggers === 'function', 'installNotifyTriggers is a public entry point');
+
+  Logger.log('SELFTEST NOTIFY: ALL PASS');
 }
 
 /**

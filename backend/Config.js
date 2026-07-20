@@ -336,6 +336,8 @@ var SETTINGS_SEED = [
   ['digestMonthlyDay', 'last', 'feature 008; day-of-month the monthly digest sends ("last" or 1-28)'],
   ['digestHour', '7', 'feature 008; hour (household tz) the daily digest gate fires; re-run installDigestTrigger() after changing'],
   ['pushEnabled', 'TRUE', 'feature 010; FALSE turns off web push (retires feature 009 ntfyEnabled)'],
+  ['morningOverduePushHour', '8', 'feature 033; hour (household tz) the morning overdue push fires; re-run installNotifyTriggers() after changing'],
+  ['eveningWalkPushHour', '20', 'feature 033; hour (household tz) the night-before dog-walk push fires; re-run installNotifyTriggers() after changing'],
   ['vapidPublicKey', '', 'feature 010; generated once by setupPush(); Sheet-only, not in the Settings editor'],
   ['vapidPrivateKey', '', 'feature 010; generated once by setupPush(); Sheet-only, not in the Settings editor'],
   ['vapidSubject', 'mailto:CHANGE_ME@example.com', 'feature 010; VAPID JWT "sub" contact'],
@@ -389,7 +391,7 @@ var SETTINGS_SEED = [
 var EDITABLE_SETTINGS = [
   'digestWeeklyEnabled', 'digestWeeklyDay', 'digestMonthlyEnabled', 'digestMonthlyDay',
   'digestHour', 'pushEnabled', 'gcalEventReminderMin', 'timezone',
-  'groceryStapleNudgeThreshold'
+  'groceryStapleNudgeThreshold', 'morningOverduePushHour', 'eveningWalkPushHour'
 ];
 
 /** Curated timezone choices for the editor (and the backend's allow-set for `timezone`). */
