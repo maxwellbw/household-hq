@@ -156,11 +156,102 @@ compact timeline, human status copy — all in `frontend/src/components/dashboar
 
 ## Phase 12: Polish & cross-cutting — Chunk G
 
-- [ ] T038 Full frontend gate: `npm test` (record final count vs T001 baseline) + `npm run build` type-clean
-- [ ] T039 Backend gate: all selfTest chunk runners + `selfTestNotify` + `selfTestDogWalk` via `clasp run` (watch chunk 4's 5m31s headroom; move suites per research R10 if it overruns)
-- [ ] T040 `/impeccable audit` on every changed surface (planner, notices, calendar views, day card, detail sheet, lists pills) — fix real findings, both themes (constitution: definition of done)
-- [ ] T041 Live quickstart pass §A–§E in the deployed app (dev session token); §F device-gated items recorded as the standing follow-up; update BACKLOG.md stage + this file's checkboxes
-- [ ] T042 Write back any implementation deviations into spec.md/plan.md/research.md (constitution VII)
+- [x] T038 Full frontend gate: `npm test` (record final count vs T001 baseline) + `npm run build` type-clean
+
+  **Results (2026-07-20):** `npm test` — 665/665 passed across 68 test files (T001 baseline
+  was 575; +90 new tests across chunks A–F, matching the incremental counts recorded per-chunk
+  above). `npm run build` — `tsc -b && vite build` type-clean.
+
+- [x] T039 Backend gate: all selfTest chunk runners + `selfTestNotify` + `selfTestDogWalk` via `clasp run` (watch chunk 4's 5m31s headroom; move suites per research R10 if it overruns)
+
+  **Results (2026-07-20):** `clasp push` → "Script is already up to date" (no backend changes
+  since chunk C's `@32` deploy — this feature's only backend footprint is `Notify.js`,
+  `Config.js`, `Api.js`'s reinstall hook, and the `sendDogWalkPush_` url-string change in
+  `DogWalk.js`, all already live-validated in T016). Ran 3 of 7 chunks clean this session before
+  stopping the batch at Max's request (self-tests write to the live Sheet/Calendar and a past
+  run affected production data — see the `feedback_selftest_production_data` memory):
+  `selfTest1Core` (3m42s, "No response." = pass), `selfTest2Recurring` (3m49s), `selfTest3SeedAndLists`
+  (2m57s). `selfTest4CalendarA`/`B`, `selfTest5Comms` (incl. `selfTestNotify`), and
+  `selfTestDogWalk` were **not** re-run this session — Max confirmed T016's earlier live
+  validation of the actual backend diff (both notify handlers exercised live with explicit
+  go-ahead, `selfTestNotify` and `selfTest5Comms` clean, deployed `@32`) plus the 3 clean chunks
+  above are sufficient coverage for this PR; the 4 unrun chunks are unchanged regression
+  coverage for backend surfaces this feature didn't touch.
+
+- [x] T040 `/impeccable audit` on every changed surface (planner, notices, calendar views, day card, detail sheet, lists pills) — fix real findings, both themes (constitution: definition of done)
+
+  **Results (2026-07-20):** `npm run check:contrast` — all pairs pass in both themes (no
+  findings). Live-audited planner, notices, day peek panel, task detail sheet, calendar (month
+  dark grid, month-agenda mobile, week view), event detail sheet, and lists pills against real
+  household data in both light and dark themes via the dev session token flow. One real P1
+  finding, fixed immediately: the planner's ±15-min steppers and duration segmented control
+  (T021/T022) rendered at 36×36px / 36px-tall, under the 44px touch-target floor DESIGN.md and
+  PRODUCT.md both require, and visibly smaller than the 44px Cancel/Book row directly beneath
+  them — confirmed via computed `getBoundingClientRect()` in both themes, fixed to 44px in
+  `DogWalkPlanner.tsx`, re-verified live (steppers/duration now measure 44px), `npm test`
+  665/665 and `npm run build` still green after. One P3 polish item noted but not fixed (see
+  spec.md Implementation Notes): at 320px week view, `EventContent`'s overdue badge shrinks to
+  an unreadable sliver instead of hiding cleanly — SC-006 still holds (title never hits zero
+  characters), only affects the sub-375px multi-column Week view, not the primary mobile agenda
+  views. Everything else audited clean: T033's header cleanup (single Month/Week/Next-7
+  switcher, no stray "View" control), T030's owner-colored day dots, T031's "N done ✓"
+  collapse, T032's "Open map ↗" + separated Delete section, T027/T028's date-aware notice copy
+  and urgent-tier styling, T034/T035's list pill counts — all rendered correctly with no
+  contrast, theming, or anti-pattern issues in either theme.
+
+- [x] T041 Live quickstart pass §A–§E in the deployed app (dev session token); §F device-gated items recorded as the standing follow-up; update BACKLOG.md stage + this file's checkboxes
+
+  **Results (2026-07-20):** Validated via `frontend` dev server against the live deployed
+  backend (`@32`) and real household Sheet/Calendar data, using a `clasp run
+  mintDevSessionToken` token in `localStorage['hq.sessionToken']` (same method as T016). To
+  avoid writing to production data (per Max's steer on T039), read-only/navigation checks were
+  exercised live; checks that would mutate real tasks/walks were verified via their passing
+  component/unit tests instead (called out below) rather than triggered live.
+
+  - **§A (US1)**: Day-peek toggle and detail-sheet Mark done/Reopen affordances confirmed
+    present and correctly wired via live rendering (separate toggle vs. row-tap target on
+    `PeekTaskRow`; prominent "Mark done" / "I've got it" actions on `TaskDetailSheet`) — not
+    live-mutated (would complete real overdue tasks); covered by passing
+    `DayPeekPanel.test.tsx`/`TaskDetailSheet.test.tsx` (T009).
+  - **§B (US2/US3)**: Already fully live-validated in chunk C (T016) with Max's explicit
+    go-ahead for real pushes — not repeated here.
+  - **§C (US4)**: Live-verified — mobile month-agenda/week views show 🐾 booked rows with
+    windows; `?walk=2026-07-28` deep link opens the planner directly on cold load (not Home);
+    desktop (1280px) month-**grid** walk pill click opens the planner (confirmed via a
+    `dogwalk-`-id pill on Aug 5 — previously dead per F-02); Home's walk-notice "Open planner"
+    opened the planner on the notice's date (Jul 28), not today; day-card "Open in calendar"
+    for a future date (Jul 22, Calendar tab not yet visited this session) landed the calendar
+    directly on that date (F-04 regression, confirmed fresh-mount); planner-open + browser Back
+    closed the sheet and returned to Home without leaving the app; today's card shows the
+    booked walk window (8:00–8:30 AM).
+  - **§D (US5/US6)**: Live-verified — tapping an eligible hour shows the accent-bordered
+    selected state; confirm bar sticky at the sheet bottom with no scroll; steppers/duration
+    control present (see T040 fix); "Conflicts with Jaz" correctly disables Book
+    (`button.disabled === true`, confirmed via DOM); compressed band renders ("10:00 AM–6:00 PM
+    8 hours unavailable — tap to expand"); status line reads "Live forecast · updated just
+    now." No real booking was confirmed (all reachable hours had real conflicts, and Book was
+    correctly disabled). The ≥2-quiet-notices collapse (D.6) wasn't reproducible live — current
+    real data has only one upcoming needs-decision walk — verified instead via passing
+    `DogWalkNotice.test.tsx` (T028).
+  - **§E (US7/US8)**: Live-verified — 320px week view keeps titles legible (see T040 P3 note);
+    month grid day dots owner-colored (3-dot cap, e.g. Jul 20 shows teal+plum+terracotta);
+    "1 done ✓" collapse on an all-done day (Jul 19); event detail sheet's location renders
+    "Open map ↗" when it's a URL (code path confirmed; the tested event's location was plain
+    text, correctly rendered without the link treatment) and Delete lives in its own bordered
+    section; calendar header shows exactly one view switcher; Lists pills show "Groceries · 1"
+    and correctly hide the count on a 0-needed list ("Not grocery").
+  - **§F (US9)**: Device-gated (real iPhone) — not run this session; remains the standing
+    follow-up per quickstart.md, same as every prior feature with a §F section.
+
+  BACKLOG.md's 033 row updated to "implemented, pending PR" (see commit).
+
+- [x] T042 Write back any implementation deviations into spec.md/plan.md/research.md (constitution VII)
+
+  **Results (2026-07-20):** Added an "Implementation Notes" section to spec.md (matching the
+  030 precedent) documenting: the T021/T022 touch-target fix, the T029 known-limitation P3 item
+  at 320px week view, and the T039 partial-self-test-run decision and rationale. plan.md and
+  research.md needed no changes — no deviations from the planned architecture, only the two
+  audit-driven findings above.
 
 ## Dependencies
 

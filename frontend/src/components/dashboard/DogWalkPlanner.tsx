@@ -892,7 +892,7 @@ export function DogWalkPlanner({ dateKey, timezone, onClose }: DogWalkPlannerPro
                   aria-label="Start 15 minutes earlier"
                   disabled={!canStepBack}
                   onClick={() => stepPendingStart(-15)}
-                  className="flex min-h-[36px] min-w-[36px] items-center justify-center rounded-control border border-border text-ink-muted hover:bg-surface-alt focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:opacity-40"
+                  className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-control border border-border text-ink-muted hover:bg-surface-alt focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:opacity-40"
                 >
                   <Minus size={14} aria-hidden="true" />
                 </button>
@@ -901,7 +901,7 @@ export function DogWalkPlanner({ dateKey, timezone, onClose }: DogWalkPlannerPro
                   aria-label="Start 15 minutes later"
                   disabled={!canStepForward}
                   onClick={() => stepPendingStart(15)}
-                  className="flex min-h-[36px] min-w-[36px] items-center justify-center rounded-control border border-border text-ink-muted hover:bg-surface-alt focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:opacity-40"
+                  className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-control border border-border text-ink-muted hover:bg-surface-alt focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:opacity-40"
                 >
                   <Plus size={14} aria-hidden="true" />
                 </button>
@@ -917,7 +917,7 @@ export function DogWalkPlanner({ dateKey, timezone, onClose }: DogWalkPlannerPro
                     aria-pressed={pendingBook.durationMin === d}
                     onClick={() => setPendingDuration(d)}
                     className={cn(
-                      'min-h-[36px] flex-1 rounded-control border px-2 text-xs font-medium',
+                      'min-h-[44px] flex-1 rounded-control border px-2 text-xs font-medium',
                       pendingBook.durationMin === d
                         ? 'border-accent bg-accent-soft text-ink'
                         : 'border-border text-ink-muted hover:bg-surface-alt',
