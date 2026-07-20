@@ -2,8 +2,9 @@ import { useRef, useState } from 'react'
 import { ownerStyle } from '@/lib/owners'
 import { useDialogA11y } from '@/hooks/useDialogA11y'
 import { useAuth } from '@/hooks/useAuth'
-import { useUnsnoozeTask, useDeleteTask, useAcknowledgeTask } from '@/hooks/useMutations'
+import { useUnsnoozeTask, useDeleteTask, useAcknowledgeTask, useCompleteTask, useReopenTask } from '@/hooks/useMutations'
 import { useToast } from '@/hooks/useToast'
+import { useUndoableMutation } from '@/hooks/useUndoableMutation'
 import { parseSnoozeHistory, canAcknowledge, isUncommitted } from '@/lib/tasks'
 import { resolveViewer } from '@/lib/dashboard'
 import { cn } from '@/lib/utils'
@@ -28,6 +29,8 @@ export function TaskDetailSheet({ task, onClose, initialEdit = false }: TaskDeta
   const unsnooze = useUnsnoozeTask()
   const deleteTask = useDeleteTask()
   const acknowledge = useAcknowledgeTask()
+  const complete = useCompleteTask()
+  const reopen = useReopenTask()
   const toast = useToast()
   const { session } = useAuth()
   const viewer = resolveViewer(session)
@@ -41,6 +44,17 @@ export function TaskDetailSheet({ task, onClose, initialEdit = false }: TaskDeta
   const historyRows = parseSnoozeHistory(task.snoozeHistory)
   const uncommitted = isUncommitted(task)
   const canCommit = canAcknowledge(task, viewer ?? undefined)
+  // Same reversibility as TaskRow (032 US3, contract C3): completing is undoable via toast;
+  // reopening (from an already-done task) commits directly, no undo needed.
+  const commitComplete = useUndoableMutation(complete, reopen, { label: `Done — ${task.title}` })
+
+  function handleToggleDone() {
+    if (isDone) {
+      reopen.mutate(task.id)
+    } else {
+      commitComplete(task.id, task.id)
+    }
+  }
 
   function handleUnsnooze() {
     unsnooze.mutate(task.id, {
@@ -156,6 +170,25 @@ export function TaskDetailSheet({ task, onClose, initialEdit = false }: TaskDeta
               ✕
             </button>
           </div>
+        </div>
+
+        {/* Mark done / Reopen — the sheet's one most-common action (033 US1, FR-002/003). */}
+        <div className="mb-5">
+          <button
+            type="button"
+            onClick={handleToggleDone}
+            aria-pressed={isDone}
+            aria-label={isDone ? `Reopen ${task.title}` : `Mark ${task.title} done`}
+            disabled={complete.isPending || reopen.isPending}
+            className={cn(
+              'min-h-[44px] w-full rounded-control border-2 px-4 text-sm font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:opacity-50',
+              isDone
+                ? 'border-border text-ink hover:bg-surface-alt'
+                : 'border-success text-success hover:bg-success/10',
+            )}
+          >
+            {isDone ? 'Reopen' : 'Mark done'}
+          </button>
         </div>
 
         {/* Notes */}

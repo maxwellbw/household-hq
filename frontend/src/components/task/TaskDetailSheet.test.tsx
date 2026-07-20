@@ -7,16 +7,22 @@ const unsnoozeMutate = vi.fn()
 const snoozeMutate = vi.fn()
 const deleteMutate = vi.fn((_id: string, opts?: { onSuccess?: () => void }) => opts?.onSuccess?.())
 const acknowledgeMutate = vi.fn((_id: string, opts?: { onSuccess?: () => void }) => opts?.onSuccess?.())
+const completeMutate = vi.fn()
+const reopenMutate = vi.fn()
 vi.mock('@/hooks/useMutations', () => ({
   useUnsnoozeTask: () => ({ mutate: unsnoozeMutate, isPending: false }),
   useUpdateTask: () => ({ mutate: vi.fn(), mutateAsync: vi.fn().mockResolvedValue({}), isPending: false }),
   useSnoozeTask: () => ({ mutate: snoozeMutate, isPending: false }),
   useDeleteTask: () => ({ mutate: deleteMutate, isPending: false }),
   useAcknowledgeTask: () => ({ mutate: acknowledgeMutate, isPending: false }),
+  useCompleteTask: () => ({ mutate: completeMutate, isPending: false }),
+  useReopenTask: () => ({ mutate: reopenMutate, isPending: false }),
 }))
 
+const showToast = vi.fn()
+const showUndo = vi.fn()
 vi.mock('@/hooks/useToast', () => ({
-  useToast: () => ({ show: vi.fn() }),
+  useToast: () => ({ show: showToast, showUndo }),
 }))
 
 vi.mock('@/hooks/useAuth', () => ({
@@ -238,5 +244,41 @@ describe('TaskDetailSheet', () => {
   it('does not strike the title of an open task', () => {
     render(<TaskDetailSheet task={openTask} onClose={vi.fn()} />)
     expect(screen.getByRole('heading', { name: 'Water the plants' })).not.toHaveClass('line-through')
+  })
+
+  it('an open task shows a Mark done action (033 US1, FR-002)', () => {
+    render(<TaskDetailSheet task={openTask} onClose={vi.fn()} />)
+    expect(screen.getByRole('button', { name: 'Mark Water the plants done' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Reopen Water the plants' })).not.toBeInTheDocument()
+  })
+
+  it('a done task shows a Reopen action instead', () => {
+    render(<TaskDetailSheet task={doneTask} onClose={vi.fn()} />)
+    expect(screen.getByRole('button', { name: 'Reopen Renew passport' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Mark Renew passport done' })).not.toBeInTheDocument()
+  })
+
+  it('tapping Mark done commits immediately and shows an Undo toast (same reversibility as TaskRow)', () => {
+    completeMutate.mockImplementationOnce((_id: string, opts?: { onSuccess?: () => void }) => opts?.onSuccess?.())
+    render(<TaskDetailSheet task={openTask} onClose={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Mark Water the plants done' }))
+    expect(completeMutate).toHaveBeenCalledWith('t1', expect.anything())
+    expect(showUndo).toHaveBeenCalledWith('Done — Water the plants', expect.any(Function), undefined)
+  })
+
+  it('Undo re-invokes reopen with the task id', () => {
+    completeMutate.mockImplementationOnce((_id: string, opts?: { onSuccess?: () => void }) => opts?.onSuccess?.())
+    render(<TaskDetailSheet task={openTask} onClose={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Mark Water the plants done' }))
+    const onUndo = showUndo.mock.calls.at(-1)?.[1]
+    onUndo?.()
+    expect(reopenMutate).toHaveBeenCalledWith('t1')
+  })
+
+  it('tapping Reopen on a done task calls reopen directly, without an Undo toast', () => {
+    render(<TaskDetailSheet task={doneTask} onClose={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Reopen Renew passport' }))
+    expect(reopenMutate).toHaveBeenCalledWith('t8')
+    expect(showUndo).not.toHaveBeenCalled()
   })
 })
