@@ -239,6 +239,16 @@ function validateSettingValue_(key, value) {
         fail_('BAD_REQUEST', 'digestHour must be an integer 0-23.', key);
       }
       return;
+    case 'morningOverduePushHour':
+      if (!/^\d{1,2}$/.test(value) || +value > 23) {
+        fail_('BAD_REQUEST', 'morningOverduePushHour must be an integer 0-23.', key);
+      }
+      return;
+    case 'eveningWalkPushHour':
+      if (!/^\d{1,2}$/.test(value) || +value > 23) {
+        fail_('BAD_REQUEST', 'eveningWalkPushHour must be an integer 0-23.', key);
+      }
+      return;
     case 'groceryStapleNudgeThreshold':
       if (!isValidType_('posint', value)) {
         fail_('BAD_REQUEST', 'groceryStapleNudgeThreshold must be a positive integer.', key);
@@ -286,18 +296,24 @@ function updateSettings_(payload, actor) {
 
   var changedKeys = Object.keys(changes);
   var digestTriggerReinstalled = false;
+  var notifyTriggersReinstalled = false;
   if (changedKeys.length > 0) {
     setSettingValues_(changes, actor, 'updated ' + changedKeys.join(', '));
     if (changes.hasOwnProperty('digestHour')) {
       installDigestTrigger();
       digestTriggerReinstalled = true;
     }
+    if (changes.hasOwnProperty('morningOverduePushHour') || changes.hasOwnProperty('eveningWalkPushHour')) {
+      installNotifyTriggers();
+      notifyTriggersReinstalled = true;
+    }
   }
 
   return {
     settings: readSettingsMap_(),
     changed: changedKeys,
-    digestTriggerReinstalled: digestTriggerReinstalled
+    digestTriggerReinstalled: digestTriggerReinstalled,
+    notifyTriggersReinstalled: notifyTriggersReinstalled
   };
 }
 

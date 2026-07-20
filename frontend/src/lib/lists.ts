@@ -54,6 +54,20 @@ export function shouldShowGroceryNudge(items: ListItem[], thresholdSetting: stri
 }
 
 /**
+ * Needed-item count per list, for the Lists tab pills (US8, FR-026). Lists with zero
+ * needed items are absent from the map (not present with value 0), so callers hide the
+ * count rather than rendering "0".
+ */
+export function neededCountByList(items: ListItem[]): Map<string, number> {
+  const counts = new Map<string, number>()
+  for (const item of items) {
+    if (item.status !== 'need') continue
+    counts.set(item.listId, (counts.get(item.listId) ?? 0) + 1)
+  }
+  return counts
+}
+
+/**
  * Filters items to those whose name contains `query`, case-insensitively, with both sides
  * trimmed so incidental whitespace never hides an otherwise-matching item (feature 027 US5,
  * FR-017/018). A blank/whitespace-only query returns every item unchanged.

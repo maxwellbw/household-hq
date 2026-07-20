@@ -2,14 +2,14 @@ import { ownerStyle } from '@/lib/owners'
 import { formatTime, isAllDay } from '@/lib/datetime'
 import { cn } from '@/lib/utils'
 import type { EventWithTasks } from '@/lib/tether'
-import type { Event, Owner, Task } from '@/types/domain'
+import type { DogWalk, Event, Owner, Task } from '@/types/domain'
 
 interface ScheduleXEventProps {
   calendarEvent: {
     id: string | number
     title?: string
     owner?: Owner
-    _raw?: Event | EventWithTasks | Task
+    _raw?: Event | EventWithTasks | Task | DogWalk
     _kind?: 'event' | 'task' | 'dogwalk' | 'dogwalk-flag'
     _overdue?: boolean
     _reason?: string | null
@@ -24,12 +24,16 @@ const DOG_WALK_FLAG_REASON: Record<string, string> = {
   'calendar-unreadable': 'calendar issue',
 }
 
-function isEventRaw(raw: Event | EventWithTasks | Task | undefined): raw is Event | EventWithTasks {
+function isEventRaw(raw: Event | EventWithTasks | Task | DogWalk | undefined): raw is Event | EventWithTasks {
   return !!raw && 'start' in raw
 }
 
-function isTaskRaw(raw: Event | EventWithTasks | Task | undefined): raw is Task {
-  return !!raw && 'status' in raw
+function isTaskRaw(raw: Event | EventWithTasks | Task | DogWalk | undefined): raw is Task {
+  return !!raw && 'status' in raw && !('windowStart' in raw)
+}
+
+function isDogWalkRaw(raw: Event | EventWithTasks | Task | DogWalk | undefined): raw is DogWalk {
+  return !!raw && 'windowStart' in raw
 }
 
 const OWNER_EDGE: Record<Owner, string> = {
@@ -52,6 +56,26 @@ const OWNER_TINT: Record<Owner, string> = {
  * for tasks displayed on today past their real due date (feature 017).
  */
 export function EventContent({ calendarEvent }: ScheduleXEventProps) {
+  // Feature 033 US4/F-03 (research R5): a booked/suggested walk carries the same 🐾
+  // vocabulary the seven-day strip and Day Peek panel already use, with its time window
+  // when known — read-only here too (tapping opens the planner, see CalendarHome).
+  if (calendarEvent._kind === 'dogwalk') {
+    const walk = isDogWalkRaw(calendarEvent._raw) ? calendarEvent._raw : undefined
+    const time =
+      walk?.windowStart && walk?.windowEnd ? `${formatTime(walk.windowStart)}–${formatTime(walk.windowEnd)}` : null
+    return (
+      <div className="flex h-full w-full items-center gap-1 rounded-control border-l-[3px] border-l-owner-both bg-owner-both-soft px-1.5 py-1 text-left text-xs text-ink">
+        <span aria-hidden="true">🐾</span>
+        <span className="min-w-0 truncate font-medium">Dog walk</span>
+        {/* Feature 033 T029/FR-021: shrink-[9999] (vs. the title's default shrink-1) makes
+            the time badge give up its space first — flexbox's multi-pass shrink resolution
+            freezes it at 0 width before the title (whose truncate already zeroes its own
+            floor via overflow:hidden) loses any room, so the title never reads zero chars. */}
+        {time && <span className="ml-auto shrink-[9999] overflow-hidden whitespace-nowrap tabular-nums text-ink-muted">{time}</span>}
+      </div>
+    )
+  }
+
   // Feature 011: a needs-decision day is a read-only warning marker — amber left edge + a
   // ⚠️, text in high-contrast ink (owner tint/badge would misread it as a booked walk).
   if (calendarEvent._kind === 'dogwalk-flag') {
@@ -66,7 +90,9 @@ export function EventContent({ calendarEvent }: ScheduleXEventProps) {
     )
   }
 
-  const raw = calendarEvent._raw
+  // 'dogwalk'/'dogwalk-flag' both return above — every remaining kind's `_raw` is an
+  // Event/EventWithTasks/Task, never a DogWalk (which lacks `owner`/`title`).
+  const raw = calendarEvent._raw as Event | EventWithTasks | Task | undefined
   const owner = calendarEvent.owner ?? raw?.owner ?? 'both'
   const style = ownerStyle(owner)
   const eventRaw = isEventRaw(raw) ? raw : undefined
@@ -97,18 +123,21 @@ export function EventContent({ calendarEvent }: ScheduleXEventProps) {
         >
           {style.initial}
         </span>
-        <span className={cn('truncate font-medium', isDoneTask ? 'text-ink-muted line-through' : 'text-ink')}>
+        <span className={cn('min-w-0 truncate font-medium', isDoneTask ? 'text-ink-muted line-through' : 'text-ink')}>
           {calendarEvent.title ?? raw?.title}
         </span>
         {calendarEvent._overdue ? (
-          <span className="ml-auto shrink-0 rounded-full bg-danger px-1.5 text-[9px] font-medium uppercase tracking-wide text-surface">
+          // Feature 033 T029/FR-021 (SC-006): shrink-[9999] gives the badge priority to
+          // yield its space before the title (min-w-0 + truncate) ever reads zero chars —
+          // see the dogwalk chip's time badge above for the full mechanism note.
+          <span className="ml-auto shrink-[9999] overflow-hidden whitespace-nowrap rounded-full bg-danger px-1.5 text-[9px] font-medium uppercase tracking-wide text-surface">
             Overdue
           </span>
         ) : (
           // ink-muted, not ink-faint: this tag sits on an owner-soft tint, where
           // faint lands at 3.97–4.39:1 in both themes (T033 / audit F-20).
           calendarEvent._kind === 'task' && (
-            <span className="ml-auto shrink-0 text-[9px] uppercase tracking-wide text-ink-muted">Task</span>
+            <span className="ml-auto shrink-[9999] overflow-hidden whitespace-nowrap text-[9px] uppercase tracking-wide text-ink-muted">Task</span>
           )
         )}
       </div>

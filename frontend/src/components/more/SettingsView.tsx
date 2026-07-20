@@ -32,6 +32,8 @@ const DEFAULTS: EditableSettings = {
   pushEnabled: 'TRUE',
   gcalEventReminderMin: '30',
   timezone: 'America/Los_Angeles',
+  morningOverduePushHour: '8',
+  eveningWalkPushHour: '20',
 }
 
 function toFormValues(settings: Record<string, string> | undefined): EditableSettings {
@@ -118,7 +120,7 @@ function FieldRow({
 }
 
 const selectClass =
-  'min-h-[40px] rounded-control border border-border bg-surface px-2 text-sm text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent'
+  'min-h-[40px] rounded-control border border-border bg-surface px-2 text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent'
 
 /** Per-device push opt-in (feature 010 US2). Reflects the true capability state — on /
  *  off / blocked-by-OS / unsupported-on-this-platform — and explains the next step rather
@@ -384,6 +386,28 @@ export function SettingsView() {
               onChange={(e) => setField('gcalEventReminderMin', e.target.value)}
               className={cn(selectClass, 'w-20 text-right')}
             />
+          </FieldRow>
+          <FieldRow label="Morning overdue push hour" error={fieldErrors.morningOverduePushHour}>
+            <select
+              value={form.morningOverduePushHour}
+              onChange={(e) => setField('morningOverduePushHour', e.target.value)}
+              className={selectClass}
+            >
+              {DIGEST_HOUR_OPTIONS.map((hour) => (
+                <option key={hour} value={hour}>{hour}:00</option>
+              ))}
+            </select>
+          </FieldRow>
+          <FieldRow label="Evening walk push hour" error={fieldErrors.eveningWalkPushHour}>
+            <select
+              value={form.eveningWalkPushHour}
+              onChange={(e) => setField('eveningWalkPushHour', e.target.value)}
+              className={selectClass}
+            >
+              {DIGEST_HOUR_OPTIONS.map((hour) => (
+                <option key={hour} value={hour}>{hour}:00</option>
+              ))}
+            </select>
           </FieldRow>
         </div>
       </section>

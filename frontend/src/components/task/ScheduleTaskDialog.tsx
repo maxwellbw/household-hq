@@ -83,7 +83,7 @@ export function ScheduleTaskDialog({ taskId, initialDate = '', onClose }: Schedu
             min={todayKey(timezone)}
             onChange={(e) => setDate(e.target.value)}
             className={cn(
-              'w-full rounded-control border border-border bg-bg px-3 py-2 text-sm text-ink',
+              'w-full rounded-control border border-border bg-bg px-3 py-2 text-ink',
               'min-h-[44px] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
             )}
           />

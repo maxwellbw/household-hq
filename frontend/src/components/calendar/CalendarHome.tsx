@@ -13,6 +13,7 @@ import { needsDecisionDays, upcomingWalks } from '@/lib/dogwalks'
 import { buildCalendarModel, type EventWithTasks } from '@/lib/tether'
 import { taskDisplayDateKey, type CalendarItem } from '@/lib/calendarItems'
 import { EventContent } from '@/components/calendar/EventContent'
+import { MonthAgendaDateDots } from '@/components/calendar/MonthAgendaDateDots'
 import { EmptyState } from '@/components/calendar/EmptyState'
 import { CalendarViewSwitcher } from '@/components/calendar/CalendarViewSwitcher'
 import { DayListView, type CalendarViewMode } from '@/components/calendar/DayListView'
@@ -20,7 +21,7 @@ import { EventDetailSheet } from '@/components/event/EventDetailSheet'
 import { TaskDetailSheet } from '@/components/task/TaskDetailSheet'
 import { ErrorState } from '@/components/shell/ErrorState'
 import { SyncedAt } from '@/components/shell/SyncedAt'
-import type { Owner } from '@/types/domain'
+import type { DogWalk, Owner } from '@/types/domain'
 
 function useIsMobile(): boolean {
   const [isMobile, setIsMobile] = useState(() => window.matchMedia('(max-width: 640px)').matches)
@@ -48,7 +49,13 @@ interface CalendarDateRange {
 // while `calendarApp.events.set()` was never even invoked). Hoisting this object to module
 // scope keeps its reference stable — `EventContent` is a stable import — so the effect
 // no-ops on an unchanged refetch and the flash is gone.
-const CUSTOM_COMPONENTS = { monthGridEvent: EventContent, monthAgendaEvent: EventContent }
+const CUSTOM_COMPONENTS = { monthGridEvent: EventContent, monthAgendaEvent: EventContent, monthAgendaDateDots: MonthAgendaDateDots }
+
+// Feature 033 T030/FR-022: Schedule-X pre-slices the month-agenda day's `events` to this
+// count before our MonthAgendaDateDots component ever sees them — set well above any
+// plausible daily item count so the owner-dedup there sees the true day, not an
+// arbitrarily truncated one (the dedup's own 3-owner cap is what actually bounds the UI).
+const MONTH_AGENDA_EVENT_INDICATORS_PER_DAY = 20
 
 // Desktop month-grid per-day chip cap before collapsing into "+N more"
 // (feature 017 FR-008) — tuned to stay within one grid-cell row at the
@@ -58,9 +65,18 @@ const MONTH_GRID_EVENTS_PER_DAY = 3
 export interface CalendarHomeProps {
   visibleOwners: Set<Owner>
   focusDate?: string
+  /** Called once after mount, having already captured `focusDate` — lets the caller clear its
+   *  own signal without racing this component's lazy-loaded mount (feature 033 F-04 fix,
+   *  research R4: the previous effect-on-`active` pattern in App.tsx cleared before the
+   *  dynamic import resolved, so the seeded date was lost; mirrors MoreView's
+   *  `onConsumedInitialSubscreen`). */
+  onConsumedFocusDate?: () => void
+  /** Opens the App-level dog-walk planner sheet for a date (FR-010) — walk chips/rows in
+   *  every calendar view route through this. */
+  onOpenWalkPlanner: (dateKey: string) => void
 }
 
-export function CalendarHome({ visibleOwners, focusDate }: CalendarHomeProps) {
+export function CalendarHome({ visibleOwners, focusDate, onConsumedFocusDate, onOpenWalkPlanner }: CalendarHomeProps) {
   const eventsQuery = useEvents()
   const tasksQuery = useTasks()
   const dogWalksQuery = useDogWalks()
@@ -71,6 +87,15 @@ export function CalendarHome({ visibleOwners, focusDate }: CalendarHomeProps) {
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
   const [mode, setMode] = useState<CalendarViewMode>('month')
   const [anchorDate, setAnchorDate] = useState<string>(() => focusDate ?? todayKey(timezone))
+
+  // Feature 033 F-04 fix (research R4): consume-on-mount, not effect-on-tab-switch — `focusDate`
+  // is already seeded into `anchorDate`/`calendarApp`'s initial `selectedDate` above; this just
+  // tells the caller its signal has been captured, once, so a later unrelated visit to the
+  // Calendar tab doesn't re-jump to a stale deep-linked date.
+  useEffect(() => {
+    onConsumedFocusDate?.()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const isLoading = eventsQuery.isLoading || tasksQuery.isLoading
   const isError = eventsQuery.isError || tasksQuery.isError
@@ -131,19 +156,24 @@ export function CalendarHome({ visibleOwners, focusDate }: CalendarHomeProps) {
         _overdue: isOverdue(task, today),
       }
     })
-    // Feature 011: booked/suggested dog walks, read-only (no detail sheet — tapping is a
-    // no-op, see onEventClick below).
+    // Feature 011: booked/suggested dog walks. Feature 033 US4 (F-02): tapping opens the
+    // planner for the walk's own date — carried as `_dateKey` rather than re-derived from
+    // `id`, since `useCalendarApp`'s config (including `callbacks`) is captured once at
+    // mount (schedule-x/react has no re-render sync for it) while `calendarApp.events.set()`
+    // below does keep the event objects themselves fresh every render.
     const dogWalkItems = visibleDogWalks.map((walk) => ({
       id: `dogwalk-${walk.id}`,
       title: 'Dog walk',
       start: toZonedDateTime(walk.windowStart as string, timezone),
       end: toZonedDateTime(walk.windowEnd as string, timezone),
       owner: 'both' as const,
+      _raw: walk,
       _kind: 'dogwalk' as const,
+      _dateKey: walk.date,
     }))
     // Feature 011: needs-decision days as all-day warning markers (no window to place a
     // timed chip on), so the finder's "you handle this one" days are visible on the calendar
-    // itself, not only the dashboard notice. Read-only like the booked walks.
+    // itself, not only the dashboard notice. Feature 033 US4: tapping opens the planner too.
     const dogWalkFlagItems = dogWalkFlags.map((walk) => {
       const date = Temporal.PlainDate.from(walk.date)
       return {
@@ -154,6 +184,7 @@ export function CalendarHome({ visibleOwners, focusDate }: CalendarHomeProps) {
         owner: 'both' as const,
         _kind: 'dogwalk-flag' as const,
         _reason: walk.reason,
+        _dateKey: walk.date,
       }
     })
     return [...eventItems, ...taskItems, ...dogWalkItems, ...dogWalkFlagItems]
@@ -166,6 +197,7 @@ export function CalendarHome({ visibleOwners, focusDate }: CalendarHomeProps) {
     // FirstDayOfWeek enum: MONDAY=1 … SATURDAY=6, SUNDAY=7.
     firstDayOfWeek: 7,
     monthGridOptions: { nEventsPerDay: MONTH_GRID_EVENTS_PER_DAY },
+    monthAgendaOptions: { nEventIndicatorsPerDay: MONTH_AGENDA_EVENT_INDICATORS_PER_DAY },
     // Schedule-X's own breakpoint-based view-switcher (default true) fights our
     // useIsMobile() choice and destroys/recreates the event DOM on every resize
     // (address-bar show/hide, orientation change) — a likely cause of taps
@@ -179,10 +211,13 @@ export function CalendarHome({ visibleOwners, focusDate }: CalendarHomeProps) {
       onRangeUpdate: (range: CalendarDateRange) => {
         setVisibleRange({ start: range.start.toString(), end: range.end.toString() })
       },
-      onEventClick: (calendarEvent: { id: string | number }) => {
+      onEventClick: (calendarEvent: { id: string | number; _kind?: string; _dateKey?: string }) => {
         const id = String(calendarEvent.id)
-        if (id.startsWith('dogwalk-')) {
-          return // read-only event source (feature 011) — no detail sheet to open
+        // Feature 033 US4/F-02: a walk chip (booked or needs-decision) is read-only — no
+        // detail sheet — but opens the day planner for its date.
+        if (calendarEvent._kind === 'dogwalk' || calendarEvent._kind === 'dogwalk-flag') {
+          if (calendarEvent._dateKey) onOpenWalkPlanner(calendarEvent._dateKey)
+          return
         }
         if (id.startsWith('task-')) {
           setSelectedTaskId(id.slice('task-'.length))
@@ -221,6 +256,10 @@ export function CalendarHome({ visibleOwners, focusDate }: CalendarHomeProps) {
   const selectedTask = selectedTaskId ? visibleStandaloneTasks.find((t) => t.id === selectedTaskId) : null
 
   function handleItemClick(item: CalendarItem) {
+    if (item.kind === 'dogwalk' || item.kind === 'dogwalk-flag') {
+      onOpenWalkPlanner((item.raw as DogWalk).date)
+      return
+    }
     if (item.kind === 'task') {
       setSelectedTaskId(item.id)
     } else {
@@ -267,6 +306,8 @@ export function CalendarHome({ visibleOwners, focusDate }: CalendarHomeProps) {
           anchorDate={anchorDate}
           events={visibleEvents}
           standaloneTasks={visibleStandaloneTasks}
+          dogWalks={visibleDogWalks}
+          dogWalkFlags={dogWalkFlags}
           timezone={timezone}
           onItemClick={handleItemClick}
           onNavigate={handleDayListNavigate}

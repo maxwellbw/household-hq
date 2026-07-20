@@ -1,6 +1,8 @@
 import { cn } from '@/lib/utils'
 import { ownerStyle } from '@/lib/owners'
 import { formatDate, formatDayLabel, formatTime, isAllDay } from '@/lib/datetime'
+import { useCompleteTask, useReopenTask } from '@/hooks/useMutations'
+import { useUndoableMutation } from '@/hooks/useUndoableMutation'
 import type { DogWalk, Event, Task } from '@/types/domain'
 
 interface DayPeekPanelProps {
@@ -73,31 +75,69 @@ interface PeekTaskRowProps {
   onOpen: () => void
 }
 
+/** Leading complete/reopen toggle, same shape and reversibility as TaskRow (033 US1,
+ *  FR-001/003) — a separate tap target from the row's open-detail button below. */
 function PeekTaskRow({ task, onOpen }: PeekTaskRowProps) {
   const style = ownerStyle(task.owner)
+  const isDone = task.status === 'done'
+  const complete = useCompleteTask()
+  const reopen = useReopenTask()
+  const commitComplete = useUndoableMutation(complete, reopen, { label: `Done — ${task.title}` })
+
+  function toggle() {
+    if (isDone) {
+      reopen.mutate(task.id)
+    } else {
+      commitComplete(task.id, task.id)
+    }
+  }
+
   return (
-    <button
-      type="button"
-      onClick={onOpen}
-      className="flex min-h-[44px] w-full items-center gap-3 border-b border-border px-1 py-2 text-left last:border-b-0 hover:bg-surface-alt focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-    >
-      <span
-        className={cn(
-          'flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-medium text-surface',
-          ownerDotClass(task.owner),
-        )}
-        aria-label={style.label}
+    <div className="flex min-h-[44px] items-center gap-1 border-b border-border px-1 py-2 last:border-b-0">
+      <button
+        type="button"
+        onClick={toggle}
+        aria-pressed={isDone}
+        aria-label={isDone ? `Reopen ${task.title}` : `Mark ${task.title} done`}
+        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
       >
-        {style.initial}
-      </span>
-      <span className={cn('flex-1 text-sm', task.status === 'done' ? 'text-ink-muted line-through' : 'text-ink')}>
-        {task.title}
-        {task.status === 'snoozed' && <span className="ml-2 text-xs text-ink-muted">snoozed</span>}
-      </span>
-      <span className="shrink-0 rounded-full border border-border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-ink-muted">
-        task
-      </span>
-    </button>
+        <span
+          className={cn(
+            'flex h-6 w-6 items-center justify-center rounded-full border-2 transition-colors duration-200',
+            isDone ? 'border-success bg-success' : 'border-border hover:border-accent',
+          )}
+        >
+          {isDone && (
+            <svg viewBox="0 0 12 12" className="h-3 w-3 text-surface motion-safe:animate-in motion-safe:zoom-in" fill="none">
+              <path d="M2 6l2.5 2.5L10 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          )}
+        </span>
+      </button>
+
+      <button
+        type="button"
+        onClick={onOpen}
+        className="flex min-h-[44px] flex-1 items-center gap-3 text-left hover:bg-surface-alt focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+      >
+        <span
+          className={cn(
+            'flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-medium text-surface',
+            ownerDotClass(task.owner),
+          )}
+          aria-label={style.label}
+        >
+          {style.initial}
+        </span>
+        <span className={cn('flex-1 text-sm', isDone ? 'text-ink-muted line-through' : 'text-ink')}>
+          {task.title}
+          {task.status === 'snoozed' && <span className="ml-2 text-xs text-ink-muted">snoozed</span>}
+        </span>
+        <span className="shrink-0 rounded-full border border-border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-ink-muted">
+          task
+        </span>
+      </button>
+    </div>
   )
 }
 
@@ -133,7 +173,9 @@ function PeekWalkRow({ walk, timezone, onOpen }: PeekWalkRowProps) {
       <span className="flex-1 text-sm text-ink">
         Dog walk
         {needsDecision && (
-          <span className="ml-2 text-xs text-ink-muted" aria-label="Needs a decision">
+          // FR-012: today's needs-decision walk reads as urgent (warning tone), not a quiet
+          // muted note, since it's the day this actually needs a human decision.
+          <span className="ml-2 text-xs font-medium text-warning" aria-label="Needs a decision">
             ⚠️ needs a decision
           </span>
         )}

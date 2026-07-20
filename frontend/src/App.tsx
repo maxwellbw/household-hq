@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { useBootstrap } from '@/hooks/useBootstrap'
+import { useSettings } from '@/hooks/useSettings'
+import { useSheetHistory } from '@/hooks/useSheetHistory'
 import { useTheme } from '@/hooks/useTheme'
 import { listenForDeepLinks } from '@/lib/deeplink'
 import { AppShell } from '@/components/shell/AppShell'
@@ -17,6 +19,7 @@ import { ScheduleTaskDialog } from '@/components/task/ScheduleTaskDialog'
 import { TasksView } from '@/components/task/TasksView'
 import { ListsView } from '@/components/lists/ListsView'
 import { DashboardHome } from '@/components/dashboard/DashboardHome'
+import { DogWalkPlanner } from '@/components/dashboard/DogWalkPlanner'
 import type { NavSection } from '@/components/shell/navItems'
 
 // Feature 030 US5 (FR-018/019): Schedule-X (the calendar view's dependency) and the More
@@ -36,6 +39,7 @@ function App() {
   // Feature 030 US1: one cold-load bootstrap seeds every primary-view dataset's cache;
   // `enabled: !!session` inside the hook means this is idle (not loading) pre-sign-in.
   const bootstrap = useBootstrap()
+  const { timezone } = useSettings()
   const { visibleOwners, toggle } = useOwnerFilter()
   const [active, setActive] = useState<NavSection>('home')
   const [schedulingTaskId, setSchedulingTaskId] = useState<string | null>(null)
@@ -43,10 +47,19 @@ function App() {
   const [calendarFocusDate, setCalendarFocusDate] = useState<string | null>(null)
   const [listsFocusName, setListsFocusName] = useState<string | null>(null)
   const [moreFocusSubscreen, setMoreFocusSubscreen] = useState<'feed' | null>(null)
+  // Feature 033 US4 (FR-010, research R4): the planner is hosted here, not inside
+  // DashboardHome, because three entry points converge on it — dashboard walk rows/notices,
+  // calendar walk chips, and the `?walk=` push deep link — regardless of which tab is active.
+  const [walkPlannerDate, setWalkPlannerDate] = useState<string | null>(null)
+  const { close: closeWalkPlanner } = useSheetHistory(!!walkPlannerDate, () => setWalkPlannerDate(null))
 
   function openCalendarOnDate(dateKey: string) {
     setCalendarFocusDate(dateKey)
     setActive('calendar')
+  }
+
+  function openWalkPlanner(dateKey: string) {
+    setWalkPlannerDate(dateKey)
   }
 
   // Feature 032 US2 (FR-010, audit F-31): the dashboard's grocery nudge jumps straight to
@@ -62,28 +75,29 @@ function App() {
     setActive('more')
   }
 
-  // Consumed once by CalendarHome's initial mount (it seeds Schedule-X's
-  // selectedDate from this prop) — cleared right after so a later, unrelated
-  // visit to the Calendar tab doesn't re-jump to a stale deep-linked date.
-  useEffect(() => {
-    if (active === 'calendar' && calendarFocusDate) {
-      setCalendarFocusDate(null)
-    }
-  }, [active, calendarFocusDate])
-
   useEffect(() => {
     if (active === 'lists' && listsFocusName) {
       setListsFocusName(null)
     }
   }, [active, listsFocusName])
 
-  // Feature 010 US3: a tapped push notification deep-links here — cold launch via the
-  // `?task=` URL param, or a warm-app postMessage from the service worker. Tasks tab is
-  // the closest existing surface to "the related task" without new detail-view routing;
-  // no id (or unsupported) falls through to whatever section was already active (Home by
-  // default), matching the spec's fallback.
+  // Feature 010 US3, generalized in 033 US4 (R3, contracts/deeplink-urls.md): a tapped push
+  // notification deep-links here — cold launch via the URL param, or a warm-app postMessage
+  // from the service worker. `task` -> Tasks tab (unchanged); `walk` -> Home behind the
+  // planner sheet, per the contract; `overdue` -> Home (the Overdue region is the top-of-page
+  // "now" surface). An unparseable/absent param is a no-op, falling through to whatever
+  // section was already active (Home by default).
   useEffect(() => {
-    return listenForDeepLinks(() => setActive('tasks'))
+    return listenForDeepLinks((link) => {
+      if (link.kind === 'task') {
+        setActive('tasks')
+      } else if (link.kind === 'walk') {
+        setActive('home')
+        openWalkPlanner(link.dateKey)
+      } else {
+        setActive('home')
+      }
+    })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -132,6 +146,7 @@ function App() {
           onNavigateTasks={() => setActive('tasks')}
           onNavigateGroceries={openGroceriesNeeded}
           onNavigateFeed={openFeed}
+          onOpenWalkPlanner={openWalkPlanner}
         />
       )}
       {active === 'calendar' && (
@@ -140,7 +155,12 @@ function App() {
           <LazyBoundary<CalendarHomeProps>
             label="Calendar"
             loader={loadCalendarHome}
-            componentProps={{ visibleOwners, focusDate: calendarFocusDate ?? undefined }}
+            componentProps={{
+              visibleOwners,
+              focusDate: calendarFocusDate ?? undefined,
+              onConsumedFocusDate: () => setCalendarFocusDate(null),
+              onOpenWalkPlanner: openWalkPlanner,
+            }}
           />
           {/* Feature 032 US5 (FR-019, audit F-29): Someday has exactly one home (Tasks) —
               unscheduled-by-definition items no longer embed under the schedule view;
@@ -173,6 +193,10 @@ function App() {
           initialDate={prefilledDate}
           onClose={closeScheduleDialog}
         />
+      )}
+
+      {walkPlannerDate && (
+        <DogWalkPlanner dateKey={walkPlannerDate} timezone={timezone} onClose={closeWalkPlanner} />
       )}
     </AppShell>
   )

@@ -16,7 +16,7 @@ work not yet merged.
 
 | Order | # | Feature | Stage | Spec folder | PR |
 |---|---|---|---|---|---|
-| 1 | 033 | Dog-walk planner rework + dashboard↔calendar parity (audit findings F-02..F-33; specced after 032 ships) | ⬜ not started (scoped in [032's audit.md](specs/032-ui-ux-audit/audit.md)) | — | — |
+| 1 | 033 | Dog-walk planner rework + dashboard↔calendar parity + household notifications (audit F-02..F-33 + Max's 5 asks 2026-07-19: morning overdue push, night-before walk push, list pill counts, focus-zoom fix, dashboard task completion) | 🟨 implemented, pending PR (2026-07-20; all chunks A–G done — T001–T042 — gates/audit/live validation/write-backs complete; §F real-iPhone check is the standing device-gated follow-up) | [specs/033-walk-planner-parity](specs/033-walk-planner-parity/spec.md) | — |
 | 2 | 026 | Inbound gcal import (personal calendars) | ⬜ not started | — | — |
 
 **Phase 0 tooling (no spec folder — infra, 2026-07-16/17):** `clasp run` works from the CLI

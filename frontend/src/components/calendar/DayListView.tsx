@@ -5,7 +5,7 @@ import { DayColumn } from '@/components/calendar/DayColumn'
 import { bucketByDay, type CalendarItem } from '@/lib/calendarItems'
 import { formatDayLabel, todayKey, weekRange } from '@/lib/datetime'
 import type { EventWithTasks } from '@/lib/tether'
-import type { Task } from '@/types/domain'
+import type { DogWalk, Task } from '@/types/domain'
 
 export type CalendarViewMode = 'month' | 'week' | 'next7' | 'day'
 
@@ -14,6 +14,10 @@ interface DayListViewProps {
   anchorDate: string
   events: EventWithTasks[]
   standaloneTasks: Task[]
+  /** Booked/suggested walks (feature 033 US4/F-03) — same rows the month grid renders. */
+  dogWalks?: DogWalk[]
+  /** Needs-decision walk flags — same rows the month grid renders. */
+  dogWalkFlags?: DogWalk[]
   timezone: string
   onItemClick: (item: CalendarItem) => void
   onNavigate: (deltaDays: number) => void
@@ -43,6 +47,8 @@ export function DayListView({
   anchorDate,
   events,
   standaloneTasks,
+  dogWalks = [],
+  dogWalkFlags = [],
   timezone,
   onItemClick,
   onNavigate,
@@ -50,8 +56,8 @@ export function DayListView({
   const today = todayKey(timezone)
   const dateKeys = useMemo(() => rangeForMode(mode, anchorDate), [mode, anchorDate])
   const buckets = useMemo(
-    () => bucketByDay(events, standaloneTasks, dateKeys, timezone, today),
-    [events, standaloneTasks, dateKeys, timezone, today],
+    () => bucketByDay(events, standaloneTasks, dateKeys, timezone, today, dogWalks, dogWalkFlags),
+    [events, standaloneTasks, dateKeys, timezone, today, dogWalks, dogWalkFlags],
   )
 
   const navStep = mode === 'day' ? 1 : 7

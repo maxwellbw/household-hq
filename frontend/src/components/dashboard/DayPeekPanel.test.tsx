@@ -1,7 +1,20 @@
 import { render, screen, fireEvent } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { DayPeekPanel } from './DayPeekPanel'
 import type { DogWalk, Event, Task } from '@/types/domain'
+
+const completeMutate = vi.fn()
+const reopenMutate = vi.fn()
+vi.mock('@/hooks/useMutations', () => ({
+  useCompleteTask: () => ({ mutate: completeMutate }),
+  useReopenTask: () => ({ mutate: reopenMutate }),
+}))
+
+const showToast = vi.fn()
+const showUndo = vi.fn()
+vi.mock('@/hooks/useToast', () => ({
+  useToast: () => ({ show: showToast, showUndo }),
+}))
 
 const TZ = 'America/Los_Angeles'
 
@@ -33,6 +46,10 @@ const walk: DogWalk = {
 }
 
 describe('DayPeekPanel', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
   it('renders a labelled region with the long day label', () => {
     render(
       <DayPeekPanel
@@ -162,6 +179,24 @@ describe('DayPeekPanel', () => {
     expect(screen.getByText(/needs a decision/)).toBeInTheDocument()
   })
 
+  it('styles a needs-decision walk as urgent, not a quiet muted note (feature 033 US4/T019, FR-012)', () => {
+    const flagged: DogWalk = { ...walk, status: 'needs-decision', windowStart: null, windowEnd: null, reason: 'no-good-weather' }
+    render(
+      <DayPeekPanel
+        dateKey="2026-07-11"
+        events={[]}
+        tasks={[]}
+        walks={[flagged]}
+        timezone={TZ}
+        onOpenCalendar={vi.fn()}
+        onOpenTask={vi.fn()}
+        onOpenEvent={vi.fn()}
+        onOpenWalkPlanner={vi.fn()}
+      />,
+    )
+    expect(screen.getByLabelText('Needs a decision')).toHaveClass('text-warning')
+  })
+
   it('renders no walk row when there are none, without affecting events/tasks', () => {
     render(
       <DayPeekPanel
@@ -198,5 +233,82 @@ describe('DayPeekPanel', () => {
     )
     fireEvent.click(screen.getByText('Dog walk'))
     expect(onOpenWalkPlanner).toHaveBeenCalledWith('2026-07-11')
+  })
+
+  it('tapping the task toggle completes it without opening the detail sheet (033 US1)', () => {
+    const onOpenTask = vi.fn()
+    render(
+      <DayPeekPanel
+        dateKey="2026-07-11"
+        events={[]}
+        tasks={[task]}
+        walks={[]}
+        timezone={TZ}
+        onOpenCalendar={vi.fn()}
+        onOpenTask={onOpenTask}
+        onOpenEvent={vi.fn()}
+        onOpenWalkPlanner={vi.fn()}
+      />,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Mark Buy milk done' }))
+    expect(completeMutate).toHaveBeenCalledWith('t1', expect.anything())
+    expect(onOpenTask).not.toHaveBeenCalled()
+  })
+
+  it('the row tap (title) still opens the detail sheet, unaffected by the toggle', () => {
+    const onOpenTask = vi.fn()
+    render(
+      <DayPeekPanel
+        dateKey="2026-07-11"
+        events={[]}
+        tasks={[task]}
+        walks={[]}
+        timezone={TZ}
+        onOpenCalendar={vi.fn()}
+        onOpenTask={onOpenTask}
+        onOpenEvent={vi.fn()}
+        onOpenWalkPlanner={vi.fn()}
+      />,
+    )
+    fireEvent.click(screen.getByText('Buy milk'))
+    expect(onOpenTask).toHaveBeenCalledWith(task)
+    expect(completeMutate).not.toHaveBeenCalled()
+  })
+
+  it('a done task shows Reopen on its toggle and reopens directly, no undo toast', () => {
+    const doneTask: Task = { ...task, status: 'done' }
+    render(
+      <DayPeekPanel
+        dateKey="2026-07-11"
+        events={[]}
+        tasks={[doneTask]}
+        walks={[]}
+        timezone={TZ}
+        onOpenCalendar={vi.fn()}
+        onOpenTask={vi.fn()}
+        onOpenEvent={vi.fn()}
+        onOpenWalkPlanner={vi.fn()}
+      />,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Reopen Buy milk' }))
+    expect(reopenMutate).toHaveBeenCalledWith('t1')
+    expect(showUndo).not.toHaveBeenCalled()
+  })
+
+  it('event and walk rows never render a complete toggle (only tasks are completable)', () => {
+    render(
+      <DayPeekPanel
+        dateKey="2026-07-11"
+        events={[event]}
+        tasks={[]}
+        walks={[walk]}
+        timezone={TZ}
+        onOpenCalendar={vi.fn()}
+        onOpenTask={vi.fn()}
+        onOpenEvent={vi.fn()}
+        onOpenWalkPlanner={vi.fn()}
+      />,
+    )
+    expect(screen.queryByRole('button', { name: /^(Mark|Reopen)/ })).not.toBeInTheDocument()
   })
 })

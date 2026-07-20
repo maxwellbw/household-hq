@@ -4,6 +4,7 @@ import {
   filterItemsByName,
   groceryNeededStapleCount,
   groupNeededBySection,
+  neededCountByList,
   shouldShowGroceryNudge,
 } from './lists'
 import type { ListItem } from '@/types/domain'
@@ -92,6 +93,38 @@ describe('shouldShowGroceryNudge', () => {
 
   it('falls back to the default threshold when the setting is invalid', () => {
     expect(shouldShowGroceryNudge(staples(DEFAULT_GROCERY_NUDGE_THRESHOLD), 'not-a-number')).toBe(true)
+  })
+})
+
+describe('neededCountByList', () => {
+  it('counts needed items per list', () => {
+    const items = [
+      item({ id: '1', listId: 'l1', status: 'need' }),
+      item({ id: '2', listId: 'l1', status: 'need' }),
+      item({ id: '3', listId: 'l2', status: 'need' }),
+    ]
+    const counts = neededCountByList(items)
+    expect(counts.get('l1')).toBe(2)
+    expect(counts.get('l2')).toBe(1)
+  })
+
+  it('excludes stocked items from the count', () => {
+    const items = [
+      item({ id: '1', listId: 'l1', status: 'need' }),
+      item({ id: '2', listId: 'l1', status: 'stocked' }),
+    ]
+    expect(neededCountByList(items).get('l1')).toBe(1)
+  })
+
+  it('omits a list entirely when it has zero needed items', () => {
+    const items = [item({ id: '1', listId: 'l1', status: 'stocked' })]
+    const counts = neededCountByList(items)
+    expect(counts.has('l1')).toBe(false)
+    expect(counts.get('l1')).toBeUndefined()
+  })
+
+  it('returns an empty map for no items', () => {
+    expect(neededCountByList([]).size).toBe(0)
   })
 })
 

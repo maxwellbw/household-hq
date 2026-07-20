@@ -13,6 +13,7 @@ function renderDashboard(props: Partial<Parameters<typeof DashboardHome>[0]> = {
       onNavigateTasks={vi.fn()}
       onNavigateGroceries={vi.fn()}
       onNavigateFeed={vi.fn()}
+      onOpenWalkPlanner={vi.fn()}
       {...props}
     />,
   )
@@ -203,6 +204,7 @@ describe('DashboardHome', () => {
             onNavigateTasks={vi.fn()}
             onNavigateGroceries={vi.fn()}
             onNavigateFeed={vi.fn()}
+            onOpenWalkPlanner={vi.fn()}
           />
         </QueryClientProvider>,
       )

@@ -119,7 +119,7 @@ export function SnoozeDialog({ task, onClose }: SnoozeDialogProps) {
             min={today}
             value={customDate}
             onChange={handleCustomChange}
-            className="w-full rounded-control border border-border bg-surface px-3 py-2 text-sm text-ink focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+            className="w-full rounded-control border border-border bg-surface px-3 py-2 text-ink focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
           />
         </div>
 

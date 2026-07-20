@@ -20,7 +20,6 @@ import { SevenDayStrip } from '@/components/dashboard/SevenDayStrip'
 import { DayPeekPanel } from '@/components/dashboard/DayPeekPanel'
 import { AckNotices } from '@/components/dashboard/AckNotices'
 import { DogWalkNotice } from '@/components/dashboard/DogWalkNotice'
-import { DogWalkPlanner } from '@/components/dashboard/DogWalkPlanner'
 import { GroceryNudge } from '@/components/dashboard/GroceryNudge'
 import { Highlights } from '@/components/dashboard/Highlights'
 import { ErrorState } from '@/components/shell/ErrorState'
@@ -36,9 +35,19 @@ interface DashboardHomeProps {
   onNavigateGroceries: () => void
   /** Navigates to More → Feed (Lately strip's "See all", FR-009). */
   onNavigateFeed: () => void
+  /** Opens the App-level dog-walk planner sheet for a date (feature 033 US4, FR-010,
+   *  research R4) — day-card walk rows and the walk notice's action both route through this
+   *  rather than each surface owning its own planner sheet state. */
+  onOpenWalkPlanner: (dateKey: string) => void
 }
 
-export function DashboardHome({ onOpenDate, onNavigateTasks, onNavigateGroceries, onNavigateFeed }: DashboardHomeProps) {
+export function DashboardHome({
+  onOpenDate,
+  onNavigateTasks,
+  onNavigateGroceries,
+  onNavigateFeed,
+  onOpenWalkPlanner,
+}: DashboardHomeProps) {
   const tasksQuery = useTasks()
   const eventsQuery = useEvents()
   const recurringQuery = useRecurring()
@@ -52,7 +61,6 @@ export function DashboardHome({ onOpenDate, onNavigateTasks, onNavigateGroceries
   const [peekDateKey, setPeekDateKey] = useState<string | null>(() => todayKey(timezone))
   const [detailTask, setDetailTask] = useState<Task | null>(null)
   const [detailEventId, setDetailEventId] = useState<string | null>(null)
-  const [plannerDateKey, setPlannerDateKey] = useState<string | null>(null)
 
   const isPending = tasksQuery.isPending || eventsQuery.isPending || recurringQuery.isPending
   const isError = tasksQuery.isError || eventsQuery.isError || recurringQuery.isError
@@ -158,7 +166,9 @@ export function DashboardHome({ onOpenDate, onNavigateTasks, onNavigateGroceries
   return (
     <div className="flex flex-col py-2">
       <AckNotices notices={notices} />
-      <DogWalkNotice notices={dogWalkNoticeItems} onOpenDate={onOpenDate} />
+      {/* FR-010, US4 scenario 3: the walk notice's action opens the planner for that date,
+          not the calendar at today. */}
+      <DogWalkNotice notices={dogWalkNoticeItems} onOpenDate={onOpenWalkPlanner} />
       <GroceryNudge show={showGroceryNudge} onNavigate={onNavigateGroceries} />
       <OverdueSection tasks={views.overdue.tasks} timezone={timezone} onViewAll={onNavigateTasks} />
       <SevenDayStrip tiles={strip} activeDateKey={peekDateKey} onToggleDate={toggleDate} />
@@ -173,7 +183,7 @@ export function DashboardHome({ onOpenDate, onNavigateTasks, onNavigateGroceries
           onOpenCalendar={onOpenDate}
           onOpenTask={setDetailTask}
           onOpenEvent={(event) => setDetailEventId(event.id)}
-          onOpenWalkPlanner={setPlannerDateKey}
+          onOpenWalkPlanner={onOpenWalkPlanner}
         />
       )}
       <LatelyStrip onSeeAll={onNavigateFeed} />
@@ -182,9 +192,6 @@ export function DashboardHome({ onOpenDate, onNavigateTasks, onNavigateGroceries
       <Highlights items={highlightItems} />
       {detailTask && <TaskDetailSheet task={detailTask} onClose={() => setDetailTask(null)} />}
       {detailEvent && <EventDetailSheet event={detailEvent} timezone={timezone} onClose={() => setDetailEventId(null)} />}
-      {plannerDateKey && (
-        <DogWalkPlanner dateKey={plannerDateKey} timezone={timezone} onClose={() => setPlannerDateKey(null)} />
-      )}
     </div>
   )
 }
