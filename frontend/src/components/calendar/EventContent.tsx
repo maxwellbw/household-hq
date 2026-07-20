@@ -2,14 +2,14 @@ import { ownerStyle } from '@/lib/owners'
 import { formatTime, isAllDay } from '@/lib/datetime'
 import { cn } from '@/lib/utils'
 import type { EventWithTasks } from '@/lib/tether'
-import type { Event, Owner, Task } from '@/types/domain'
+import type { DogWalk, Event, Owner, Task } from '@/types/domain'
 
 interface ScheduleXEventProps {
   calendarEvent: {
     id: string | number
     title?: string
     owner?: Owner
-    _raw?: Event | EventWithTasks | Task
+    _raw?: Event | EventWithTasks | Task | DogWalk
     _kind?: 'event' | 'task' | 'dogwalk' | 'dogwalk-flag'
     _overdue?: boolean
     _reason?: string | null
@@ -24,12 +24,16 @@ const DOG_WALK_FLAG_REASON: Record<string, string> = {
   'calendar-unreadable': 'calendar issue',
 }
 
-function isEventRaw(raw: Event | EventWithTasks | Task | undefined): raw is Event | EventWithTasks {
+function isEventRaw(raw: Event | EventWithTasks | Task | DogWalk | undefined): raw is Event | EventWithTasks {
   return !!raw && 'start' in raw
 }
 
-function isTaskRaw(raw: Event | EventWithTasks | Task | undefined): raw is Task {
-  return !!raw && 'status' in raw
+function isTaskRaw(raw: Event | EventWithTasks | Task | DogWalk | undefined): raw is Task {
+  return !!raw && 'status' in raw && !('windowStart' in raw)
+}
+
+function isDogWalkRaw(raw: Event | EventWithTasks | Task | DogWalk | undefined): raw is DogWalk {
+  return !!raw && 'windowStart' in raw
 }
 
 const OWNER_EDGE: Record<Owner, string> = {
@@ -52,6 +56,22 @@ const OWNER_TINT: Record<Owner, string> = {
  * for tasks displayed on today past their real due date (feature 017).
  */
 export function EventContent({ calendarEvent }: ScheduleXEventProps) {
+  // Feature 033 US4/F-03 (research R5): a booked/suggested walk carries the same 🐾
+  // vocabulary the seven-day strip and Day Peek panel already use, with its time window
+  // when known — read-only here too (tapping opens the planner, see CalendarHome).
+  if (calendarEvent._kind === 'dogwalk') {
+    const walk = isDogWalkRaw(calendarEvent._raw) ? calendarEvent._raw : undefined
+    const time =
+      walk?.windowStart && walk?.windowEnd ? `${formatTime(walk.windowStart)}–${formatTime(walk.windowEnd)}` : null
+    return (
+      <div className="flex h-full w-full items-center gap-1 rounded-control border-l-[3px] border-l-owner-both bg-owner-both-soft px-1.5 py-1 text-left text-xs text-ink">
+        <span aria-hidden="true">🐾</span>
+        <span className="truncate font-medium">Dog walk</span>
+        {time && <span className="ml-auto shrink-0 tabular-nums text-ink-muted">{time}</span>}
+      </div>
+    )
+  }
+
   // Feature 011: a needs-decision day is a read-only warning marker — amber left edge + a
   // ⚠️, text in high-contrast ink (owner tint/badge would misread it as a booked walk).
   if (calendarEvent._kind === 'dogwalk-flag') {
@@ -66,7 +86,9 @@ export function EventContent({ calendarEvent }: ScheduleXEventProps) {
     )
   }
 
-  const raw = calendarEvent._raw
+  // 'dogwalk'/'dogwalk-flag' both return above — every remaining kind's `_raw` is an
+  // Event/EventWithTasks/Task, never a DogWalk (which lacks `owner`/`title`).
+  const raw = calendarEvent._raw as Event | EventWithTasks | Task | undefined
   const owner = calendarEvent.owner ?? raw?.owner ?? 'both'
   const style = ownerStyle(owner)
   const eventRaw = isEventRaw(raw) ? raw : undefined

@@ -38,6 +38,7 @@ export function DayColumn({ dateKey, isToday, items, onItemClick }: DayColumnPro
                 _raw: item.raw,
                 _kind: item.kind,
                 _overdue: item.overdue,
+                _reason: item.reason,
               }}
             />
           </button>

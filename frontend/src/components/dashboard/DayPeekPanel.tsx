@@ -173,7 +173,9 @@ function PeekWalkRow({ walk, timezone, onOpen }: PeekWalkRowProps) {
       <span className="flex-1 text-sm text-ink">
         Dog walk
         {needsDecision && (
-          <span className="ml-2 text-xs text-ink-muted" aria-label="Needs a decision">
+          // FR-012: today's needs-decision walk reads as urgent (warning tone), not a quiet
+          // muted note, since it's the day this actually needs a human decision.
+          <span className="ml-2 text-xs font-medium text-warning" aria-label="Needs a decision">
             ⚠️ needs a decision
           </span>
         )}

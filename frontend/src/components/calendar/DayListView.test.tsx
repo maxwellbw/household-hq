@@ -1,8 +1,8 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, fireEvent } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DayListView } from './DayListView'
 import type { EventWithTasks } from '@/lib/tether'
-import type { Task } from '@/types/domain'
+import type { DogWalk, Task } from '@/types/domain'
 
 const TZ = 'America/Los_Angeles'
 
@@ -83,5 +83,84 @@ describe('DayListView', () => {
     )
     expect(screen.getByText('Dentist')).toBeInTheDocument()
     expect(screen.queryByText(/Jul 11/)).not.toBeInTheDocument()
+  })
+
+  describe('dog-walk items (feature 033 US4, T017/T020)', () => {
+    const bookedWalk: DogWalk = {
+      id: 'w1',
+      date: '2026-07-08',
+      slot: 'primary',
+      status: 'booked',
+      windowStart: '2026-07-08T08:00:00-07:00',
+      windowEnd: '2026-07-08T08:30:00-07:00',
+      durationMin: 30,
+      reason: null,
+    }
+
+    const flaggedWalk: DogWalk = {
+      id: 'w2',
+      date: '2026-07-09',
+      slot: 'primary',
+      status: 'needs-decision',
+      windowStart: null,
+      windowEnd: null,
+      durationMin: null,
+      reason: null,
+    }
+
+    it('renders a booked walk item in its date column with its time window', () => {
+      render(
+        <DayListView
+          mode="week"
+          anchorDate="2026-07-10"
+          events={[]}
+          standaloneTasks={[]}
+          dogWalks={[bookedWalk]}
+          timezone={TZ}
+          onItemClick={vi.fn()}
+          onNavigate={vi.fn()}
+        />,
+      )
+      expect(screen.getByText('Dog walk')).toBeInTheDocument()
+      expect(screen.getByText('8:00 AM–8:30 AM')).toBeInTheDocument()
+    })
+
+    it('renders a needs-decision walk flag item in its date column', () => {
+      render(
+        <DayListView
+          mode="week"
+          anchorDate="2026-07-10"
+          events={[]}
+          standaloneTasks={[]}
+          dogWalkFlags={[flaggedWalk]}
+          timezone={TZ}
+          onItemClick={vi.fn()}
+          onNavigate={vi.fn()}
+        />,
+      )
+      expect(
+        screen.getByText((_, element) => element?.tagName.toLowerCase() === 'span' && element.textContent === 'Dog walk — needs a decision'),
+      ).toBeInTheDocument()
+    })
+
+    it('tapping a walk item calls onItemClick with the dogwalk item (tap-through to the planner)', () => {
+      const onItemClick = vi.fn()
+      render(
+        <DayListView
+          mode="week"
+          anchorDate="2026-07-10"
+          events={[]}
+          standaloneTasks={[]}
+          dogWalks={[bookedWalk]}
+          timezone={TZ}
+          onItemClick={onItemClick}
+          onNavigate={vi.fn()}
+        />,
+      )
+      fireEvent.click(screen.getByText('8:00 AM–8:30 AM'))
+      expect(onItemClick).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'dogwalk-w1', kind: 'dogwalk', raw: bookedWalk }),
+      )
+    })
   })
 })

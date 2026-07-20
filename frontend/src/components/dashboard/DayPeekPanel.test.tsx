@@ -179,6 +179,24 @@ describe('DayPeekPanel', () => {
     expect(screen.getByText(/needs a decision/)).toBeInTheDocument()
   })
 
+  it('styles a needs-decision walk as urgent, not a quiet muted note (feature 033 US4/T019, FR-012)', () => {
+    const flagged: DogWalk = { ...walk, status: 'needs-decision', windowStart: null, windowEnd: null, reason: 'no-good-weather' }
+    render(
+      <DayPeekPanel
+        dateKey="2026-07-11"
+        events={[]}
+        tasks={[]}
+        walks={[flagged]}
+        timezone={TZ}
+        onOpenCalendar={vi.fn()}
+        onOpenTask={vi.fn()}
+        onOpenEvent={vi.fn()}
+        onOpenWalkPlanner={vi.fn()}
+      />,
+    )
+    expect(screen.getByLabelText('Needs a decision')).toHaveClass('text-warning')
+  })
+
   it('renders no walk row when there are none, without affecting events/tasks', () => {
     render(
       <DayPeekPanel

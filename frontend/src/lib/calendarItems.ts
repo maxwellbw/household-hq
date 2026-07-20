@@ -2,7 +2,7 @@
 // Reuses the same in-memory model CalendarHome already builds from
 // buildCalendarModel — no new fetch, no backend change.
 
-import type { Owner, Task } from '@/types/domain'
+import type { DogWalk, Owner, Task } from '@/types/domain'
 import type { EventWithTasks } from '@/lib/tether'
 import { dayKey, isOverdue } from '@/lib/datetime'
 
@@ -10,9 +10,11 @@ export interface CalendarItem {
   id: string
   title: string
   owner: Owner
-  kind: 'event' | 'task'
+  kind: 'event' | 'task' | 'dogwalk' | 'dogwalk-flag'
   overdue?: boolean
-  raw: EventWithTasks | Task
+  /** Set for `dogwalk-flag` items — the finder's reason code (F-03/FR-009). */
+  reason?: string | null
+  raw: EventWithTasks | Task | DogWalk
 }
 
 export interface DayBucket {
@@ -32,10 +34,14 @@ export function taskDisplayDateKey(task: Task, timezone: string, todayKeyValue: 
 }
 
 /**
- * Buckets events + dated standalone tasks into the given `dateKeys`. A
- * multi-day event appears in every day it spans (matches lib/dashboard.ts's
- * smartViews convention). Tasks bucket by their display date, which remaps
- * overdue open tasks onto today (see `taskDisplayDateKey`).
+ * Buckets events + dated standalone tasks + dog-walk items into the given `dateKeys`. A
+ * multi-day event appears in every day it spans (matches lib/dashboard.ts's smartViews
+ * convention). Tasks bucket by their display date, which remaps overdue open tasks onto
+ * today (see `taskDisplayDateKey`). `dogWalks`/`dogWalkFlags` are the same
+ * `upcomingWalks`/`needsDecisionDays`-filtered rows CalendarHome's month grid already
+ * builds (feature 033 US4/F-03, research R5) — bucketed by their own `date` field so the
+ * bespoke week/next-7/day views carry the same walk vocabulary the month grid and seven-day
+ * strip do.
  */
 export function bucketByDay(
   events: EventWithTasks[],
@@ -43,6 +49,8 @@ export function bucketByDay(
   dateKeys: string[],
   timezone: string,
   todayKeyValue: string,
+  dogWalks: DogWalk[] = [],
+  dogWalkFlags: DogWalk[] = [],
 ): DayBucket[] {
   const buckets = new Map<string, CalendarItem[]>()
   for (const k of dateKeys) buckets.set(k, [])
@@ -68,6 +76,25 @@ export function bucketByDay(
         kind: 'task',
         overdue: isOverdue(task, todayKeyValue),
         raw: task,
+      })
+    }
+  }
+
+  for (const walk of dogWalks) {
+    if (keySet.has(walk.date)) {
+      buckets.get(walk.date)?.push({ id: `dogwalk-${walk.id}`, title: 'Dog walk', owner: 'both', kind: 'dogwalk', raw: walk })
+    }
+  }
+
+  for (const walk of dogWalkFlags) {
+    if (keySet.has(walk.date)) {
+      buckets.get(walk.date)?.push({
+        id: `dogwalk-flag-${walk.id}`,
+        title: 'Dog walk — needs a decision',
+        owner: 'both',
+        kind: 'dogwalk-flag',
+        reason: walk.reason,
+        raw: walk,
       })
     }
   }
