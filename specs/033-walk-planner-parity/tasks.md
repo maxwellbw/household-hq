@@ -101,12 +101,12 @@ tap-through), walk parity (US4), planner rework (US5), and notices (US6) all sit
 compact timeline, human status copy — all in `frontend/src/components/dashboard/DogWalkPlanner.tsx` (+ its test file). Backend untouched.
 **Independent test**: quickstart §D 1–5.
 
-- [ ] T021 [US5] Selected-hour visible state + confirm bar `sticky bottom-0` inside the sheet scroll container (F-06/FR-014); a11y: selection announced via `aria-pressed`/label update
-- [ ] T022 [US5] Start ±15-min steppers + duration segmented control seeded from the day plan's `primaryDurationsMin`/`secondDurationMin`; client pre-validation against busy blocks + hourly gates (disable Confirm with reason); booking payload uses adjusted `windowStart/windowEnd/durationMin` (F-07/FR-015)
-- [ ] T023 [US5] Backup-slot booking: offer "Book backup" wiring `slot:'backup'` when the day plan carries a backup candidate (F-07/FR-016)
-- [ ] T024 [US5] Compressed timeline: fully-ineligible hour stretches collapse to a compact band with expand affordance; eligible hours keep `PX_PER_MIN` (F-22/FR-017; band still ends 17:00)
-- [ ] T025 [US5] Status copy: `"Live forecast · updated N min ago"` / cached fallback with time (F-21/FR-018)
-- [ ] T026 [US5] Tests in `DogWalkPlanner.test.tsx`: selection state, sticky confirm presence without scroll assumptions, stepper bounds (band edge + busy overlap disables), duration options from payload, backup booking payload, compressed-band rendering, status copy variants
+- [x] T021 [US5] Selected-hour visible state + confirm bar `sticky bottom-0` inside the sheet scroll container (F-06/FR-014); a11y: selection announced via `aria-pressed`/label update
+- [x] T022 [US5] Start ±15-min steppers + duration segmented control seeded from the day plan's `primaryDurationsMin`/`secondDurationMin`; client pre-validation against busy blocks + hourly gates (disable Confirm with reason); booking payload uses adjusted `windowStart/windowEnd/durationMin` (F-07/FR-015)
+- [x] T023 [US5] Backup-slot booking: offer "Book backup" wiring `slot:'backup'` when the day plan carries a backup candidate (F-07/FR-016)
+- [x] T024 [US5] Compressed timeline: fully-ineligible hour stretches collapse to a compact band with expand affordance; eligible hours keep `PX_PER_MIN` (F-22/FR-017; band still ends 17:00)
+- [x] T025 [US5] Status copy: `"Live forecast · updated N min ago"` / cached fallback with time (F-21/FR-018)
+- [x] T026 [US5] Tests in `DogWalkPlanner.test.tsx`: selection state, sticky confirm presence without scroll assumptions, stepper bounds (band edge + busy overlap disables), duration options from payload, backup booking payload, compressed-band rendering, status copy variants
 
 **Checkpoint**: SC-005 met.
 
