@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/useToast'
 import { useLists, useListItems } from '@/hooks/useLists'
 import { useCreateList, useDeleteList, useCreateListItem } from '@/hooks/useListMutations'
-import { filterItemsByName, groupNeededBySection, LIST_SECTION_LABELS } from '@/lib/lists'
+import { filterItemsByName, groupNeededBySection, LIST_SECTION_LABELS, neededCountByList } from '@/lib/lists'
 import { ListItemRow } from '@/components/lists/ListItemRow'
 import { ErrorState } from '@/components/shell/ErrorState'
 import { ApiError } from '@/lib/api'
@@ -60,6 +60,7 @@ export function ListsView({ focusListName }: ListsViewProps = {}) {
     [itemsForList, searchQuery],
   )
   const neededGroups = useMemo(() => groupNeededBySection(filteredItemsForList), [filteredItemsForList])
+  const neededCounts = useMemo(() => neededCountByList(itemsQuery.data ?? []), [itemsQuery.data])
   const searchHasNoMatches = searchQuery.trim().length > 0 && filteredItemsForList.length === 0
 
   const isPending = listsQuery.isPending || itemsQuery.isPending
@@ -127,27 +128,31 @@ export function ListsView({ focusListName }: ListsViewProps = {}) {
     <div className="flex flex-col gap-4 px-4 py-4">
       {/* List switcher */}
       <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Lists">
-        {lists.map((list) => (
-          <button
-            key={list.id}
-            type="button"
-            aria-pressed={selectedListId === list.id}
-            onClick={() => {
-              setSelectedListId(list.id)
-              setConfirmDeleteList(false)
-              setSearchQuery('')
-            }}
-            className={cn(
-              'min-h-[44px] rounded-full border px-3 text-sm font-medium',
-              'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
-              selectedListId === list.id
-                ? 'border-accent bg-accent-soft text-ink'
-                : 'border-border bg-surface text-ink-muted',
-            )}
-          >
-            {list.name}
-          </button>
-        ))}
+        {lists.map((list) => {
+          const neededCount = neededCounts.get(list.id) ?? 0
+          return (
+            <button
+              key={list.id}
+              type="button"
+              aria-pressed={selectedListId === list.id}
+              onClick={() => {
+                setSelectedListId(list.id)
+                setConfirmDeleteList(false)
+                setSearchQuery('')
+              }}
+              className={cn(
+                'min-h-[44px] rounded-full border px-3 text-sm font-medium',
+                'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
+                selectedListId === list.id
+                  ? 'border-accent bg-accent-soft text-ink'
+                  : 'border-border bg-surface text-ink-muted',
+              )}
+            >
+              {list.name}
+              {neededCount > 0 ? ` · ${neededCount}` : ''}
+            </button>
+          )
+        })}
         {creatingList ? (
           <form onSubmit={handleCreateList} className="flex items-center gap-1">
             <input
@@ -157,7 +162,7 @@ export function ListsView({ focusListName }: ListsViewProps = {}) {
               onChange={(e) => setNewListName(e.target.value)}
               onBlur={() => !newListName.trim() && setCreatingList(false)}
               placeholder="List name"
-              className="min-h-[44px] w-32 rounded-control border border-border bg-surface px-3 text-sm text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+              className="min-h-[44px] w-32 rounded-control border border-border bg-surface px-3 text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
             />
           </form>
         ) : (
@@ -195,7 +200,7 @@ export function ListsView({ focusListName }: ListsViewProps = {}) {
               onChange={(e) => setNewItemName(e.target.value)}
               placeholder="Add an item…"
               aria-label="Add an item"
-              className="min-h-[44px] flex-1 rounded-control border border-border bg-surface px-3 text-sm text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+              className="min-h-[44px] flex-1 rounded-control border border-border bg-surface px-3 text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
             />
             <button
               type="submit"
@@ -238,7 +243,7 @@ export function ListsView({ focusListName }: ListsViewProps = {}) {
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search items…"
               aria-label="Search items"
-              className="min-h-[44px] w-full rounded-control border border-border bg-surface py-2 pl-9 pr-11 text-sm text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+              className="min-h-[44px] w-full rounded-control border border-border bg-surface py-2 pl-9 pr-11 text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
             />
             {searchQuery && (
               <button

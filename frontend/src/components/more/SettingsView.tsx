@@ -118,7 +118,7 @@ function FieldRow({
 }
 
 const selectClass =
-  'min-h-[40px] rounded-control border border-border bg-surface px-2 text-sm text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent'
+  'min-h-[40px] rounded-control border border-border bg-surface px-2 text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent'
 
 /** Per-device push opt-in (feature 010 US2). Reflects the true capability state — on /
  *  off / blocked-by-OS / unsupported-on-this-platform — and explains the next step rather

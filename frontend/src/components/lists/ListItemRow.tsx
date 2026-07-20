@@ -111,7 +111,7 @@ function ListItemEditPanel({ item, onDone }: { item: ListItem; onDone: () => voi
           <select
             value={section}
             onChange={(e) => setSection(e.target.value as ListSection)}
-            className="min-h-[44px] w-full rounded-control border border-border bg-surface px-3 text-sm text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+            className="min-h-[44px] w-full rounded-control border border-border bg-surface px-3 text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
           >
             <option value="">Unsectioned</option>
             {LIST_SECTIONS.filter((s) => s !== 'other').map((s) => (
@@ -136,7 +136,7 @@ function ListItemEditPanel({ item, onDone }: { item: ListItem; onDone: () => voi
           value={note}
           onChange={(e) => setNote(e.target.value)}
           placeholder="e.g. 2 bags, the good brand"
-          className="min-h-[44px] w-full rounded-control border border-border bg-surface px-3 text-sm text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+          className="min-h-[44px] w-full rounded-control border border-border bg-surface px-3 text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
         />
       </label>
 

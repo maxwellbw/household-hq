@@ -122,13 +122,23 @@ compact timeline, human status copy — all in `frontend/src/components/dashboar
 
 ## Phase 10: US8 — List pills show needed counts (P2) — Chunk B starts here
 
-- [ ] T034 [P] [US8] `neededCountByList(items)` selector in `frontend/src/lib/lists.ts` + `lists.test.ts` (needed-only, per-list, zero-absent)
-- [ ] T035 [US8] Render counts in list pills in `frontend/src/components/lists/ListsView.tsx` (hidden at zero, applies to new lists, live via cached `useListItems`) + `ListsView.test.tsx` (FR-026, SC-008)
+- [x] T034 [P] [US8] `neededCountByList(items)` selector in `frontend/src/lib/lists.ts` + `lists.test.ts` (needed-only, per-list, zero-absent)
+- [x] T035 [US8] Render counts in list pills in `frontend/src/components/lists/ListsView.tsx` (hidden at zero, applies to new lists, live via cached `useListItems`) + `ListsView.test.tsx` (FR-026, SC-008)
 
 ## Phase 11: US9 — No focus zoom (P2) — Chunk B continued
 
-- [ ] T036 [US9] Fix `frontend/src/index.css`: de-duplicate the two identical `@media (pointer: coarse)` 16px blocks into one with `font-size: 16px !important` (research R1); confirm `frontend/index.html` viewport keeps pinch-zoom enabled (FR-027)
-- [ ] T037 [US9] Sweep all `<input>/<select>/<textarea>` for `text-sm`/`text-xs` utilities (Lists add-item/search/new-list-name are the known offenders; audit Quick Add, task/event edit sheets, Settings, planner) — remove dead size utilities where the 16px rule governs touch; note surviving desktop-only sizing inline; add a test or lint-style check if cheap (SC-007)
+- [x] T036 [US9] Fix `frontend/src/index.css`: de-duplicate the two identical `@media (pointer: coarse)` 16px blocks into one with `font-size: 16px !important` (research R1); confirm `frontend/index.html` viewport keeps pinch-zoom enabled (FR-027)
+- [x] T037 [US9] Sweep all `<input>/<select>/<textarea>` for `text-sm`/`text-xs` utilities (Lists add-item/search/new-list-name are the known offenders; audit Quick Add, task/event edit sheets, Settings, planner) — remove dead size utilities where the 16px rule governs touch; note surviving desktop-only sizing inline; add a test or lint-style check if cheap (SC-007)
+  — swept every `<input>/<select>/<textarea>` app-wide (11 files carrying `text-sm`/`text-xs`
+    anywhere). Removed the class from the actual form controls that had it: `ListItemRow.tsx`
+    (section select, note input), `ListsView.tsx` (list-name, add-item, search inputs),
+    `SettingsView.tsx`'s shared `selectClass` (3 selects + the reminder-minutes input),
+    `SnoozeDialog.tsx` and `ScheduleTaskDialog.tsx` date inputs. `RecurringManager.tsx`,
+    `TemplatesManager.tsx`, `RecurringEventsManager.tsx`, `QuickAddSheet.tsx`,
+    `TaskEditSheet.tsx`, `EventEditSheet.tsx` matched the file-level grep only via `text-sm`/
+    `text-xs` on labels/buttons/error text, not on their form controls — nothing to remove
+    there. No control anywhere kept an intentional desktop-only `text-sm`/`text-xs` size, so
+    there's no surviving case to flag.
 
 ---
 

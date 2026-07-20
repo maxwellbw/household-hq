@@ -126,12 +126,15 @@
   /* Feature 032 T033: the viewport meta no longer sets user-scalable=no (WCAG
    * 1.4.4), so sub-16px form controls would trigger iOS Safari's focus
    * auto-zoom. Touch devices get 16px controls; pointer devices keep the
-   * app's tighter 14px sizing. */
+   * app's tighter 14px sizing. `!important` because Tailwind's `text-sm`/`text-xs`
+   * utilities (specificity 0,1,0) otherwise outrank this element selector
+   * (0,0,1) on any input that carries one — the exact cause of the 033 US9
+   * zoom regression (research R1). */
   @media (pointer: coarse) {
     input,
     select,
     textarea {
-      font-size: 16px;
+      font-size: 16px !important;
     }
   }
 }
@@ -181,17 +184,6 @@ select,
 textarea,
 [role='button'] {
   touch-action: manipulation;
-}
-
-/* Feature 028 US3: iOS Safari auto-zooms on focus of any control under 16px — belt-and-braces
- * even though the viewport meta's maximum-scale already blocks it (research R3). Touch-only so
- * desktop's smaller form-control text is unaffected. */
-@media (pointer: coarse) {
-  input,
-  select,
-  textarea {
-    font-size: 16px;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {
