@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { EventContent } from './EventContent'
 import type { EventWithTasks } from '@/lib/tether'
-import type { Event, Task } from '@/types/domain'
+import type { DogWalk, Event, Task } from '@/types/domain'
 
 const baseEvent: Event = {
   id: 'e1',
@@ -112,5 +112,37 @@ describe('EventContent', () => {
       />,
     )
     expect(screen.getByText('Water plants')).not.toHaveClass('line-through')
+  })
+
+  describe('title-priority layout (feature 033 US7, T029 — badge yields before title reads zero chars)', () => {
+    it('gives the Task badge a much higher shrink factor than the title so it yields first', () => {
+      render(
+        <EventContent
+          calendarEvent={{ id: 't1', title: 'Water plants', owner: 'max', _raw: overdueTask, _kind: 'task' }}
+        />,
+      )
+      expect(screen.getByText('Task')).toHaveClass('shrink-[9999]')
+      expect(screen.getByText('Water plants')).toHaveClass('min-w-0')
+    })
+
+    it('gives the Overdue badge a much higher shrink factor than the title so it yields first', () => {
+      render(
+        <EventContent
+          calendarEvent={{ id: 't1', title: 'Water plants', owner: 'max', _raw: overdueTask, _kind: 'task', _overdue: true }}
+        />,
+      )
+      expect(screen.getByText('Overdue')).toHaveClass('shrink-[9999]')
+    })
+
+    it('gives the dog-walk time badge a much higher shrink factor than the title so it yields first', () => {
+      const walk: DogWalk = { id: 'w1', date: '2026-07-20', slot: 'primary', status: 'booked', windowStart: '2026-07-20T08:00:00-07:00', windowEnd: '2026-07-20T08:30:00-07:00', durationMin: 30, reason: null }
+      render(
+        <EventContent
+          calendarEvent={{ id: 'dogwalk-w1', title: 'Dog walk', _raw: walk, _kind: 'dogwalk' }}
+        />,
+      )
+      expect(screen.getByText('8:00 AM–8:30 AM')).toHaveClass('shrink-[9999]')
+      expect(screen.getByText('Dog walk')).toHaveClass('min-w-0')
+    })
   })
 })

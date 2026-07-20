@@ -103,8 +103,22 @@ describe('dogWalkNotices', () => {
     ]
     const result = dogWalkNotices(rows, TZ)
     expect(result).toEqual([
-      { key: dogWalkNoticeKey('2026-07-10', 'primary', 'no-mutual-free'), date: '2026-07-10', slot: 'primary', reason: 'no-mutual-free' },
-      { key: dogWalkNoticeKey('2026-07-14', 'primary', 'no-good-weather'), date: '2026-07-14', slot: 'primary', reason: 'no-good-weather' },
+      {
+        key: dogWalkNoticeKey('2026-07-10', 'primary', 'no-mutual-free'),
+        date: '2026-07-10',
+        slot: 'primary',
+        reason: 'no-mutual-free',
+        tier: 'urgent',
+        dayPhrase: 'today',
+      },
+      {
+        key: dogWalkNoticeKey('2026-07-14', 'primary', 'no-good-weather'),
+        date: '2026-07-14',
+        slot: 'primary',
+        reason: 'no-good-weather',
+        tier: 'quiet',
+        dayPhrase: 'on Tue',
+      },
     ])
   })
 
@@ -118,7 +132,31 @@ describe('dogWalkNotices', () => {
     dismiss(dogWalkNoticeKey('2026-07-14', 'primary', 'no-good-weather'))
     const rows = [walk({ id: 'a', date: '2026-07-14', status: 'needs-decision', reason: 'forecast-turned-bad' })]
     expect(dogWalkNotices(rows, TZ)).toEqual([
-      { key: dogWalkNoticeKey('2026-07-14', 'primary', 'forecast-turned-bad'), date: '2026-07-14', slot: 'primary', reason: 'forecast-turned-bad' },
+      {
+        key: dogWalkNoticeKey('2026-07-14', 'primary', 'forecast-turned-bad'),
+        date: '2026-07-14',
+        slot: 'primary',
+        reason: 'forecast-turned-bad',
+        tier: 'quiet',
+        dayPhrase: 'on Tue',
+      },
     ])
+  })
+
+  describe('urgency tiering (feature 033 US6, T027)', () => {
+    it('tiers today as urgent with dayPhrase "today"', () => {
+      const rows = [walk({ id: 'a', date: '2026-07-10', status: 'needs-decision' })]
+      expect(dogWalkNotices(rows, TZ)).toEqual([expect.objectContaining({ tier: 'urgent', dayPhrase: 'today' })])
+    })
+
+    it('tiers tomorrow as urgent with dayPhrase "tomorrow"', () => {
+      const rows = [walk({ id: 'a', date: '2026-07-11', status: 'needs-decision' })]
+      expect(dogWalkNotices(rows, TZ)).toEqual([expect.objectContaining({ tier: 'urgent', dayPhrase: 'tomorrow' })])
+    })
+
+    it('tiers 2+ days out as quiet with a formatted weekday dayPhrase', () => {
+      const rows = [walk({ id: 'a', date: '2026-07-15', status: 'needs-decision' })]
+      expect(dogWalkNotices(rows, TZ)).toEqual([expect.objectContaining({ tier: 'quiet', dayPhrase: 'on Wed' })])
+    })
   })
 })

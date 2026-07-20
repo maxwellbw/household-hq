@@ -123,3 +123,29 @@ describe('EventDetailSheet — notes and location (019 US3/US4)', () => {
     expect(screen.queryByText('123 Main St')).not.toBeInTheDocument()
   })
 })
+
+describe('EventDetailSheet — location link and Delete separation (feature 033 US7, T032/FR-024)', () => {
+  it('renders a URL location as a labeled "Open map ↗" link, not the raw URL', () => {
+    const event = { ...makeEvent([]), location: 'https://maps.example.com/?q=123+Main+St' }
+    render(<EventDetailSheet event={event} timezone="America/Los_Angeles" onClose={vi.fn()} />)
+    const link = screen.getByRole('link', { name: /Open map/ })
+    expect(link).toHaveAttribute('href', 'https://maps.example.com/?q=123+Main+St')
+    expect(screen.queryByText('https://maps.example.com/?q=123+Main+St')).not.toBeInTheDocument()
+  })
+
+  it('keeps a plain-text location as plain text (no link)', () => {
+    const event = { ...makeEvent([]), location: '123 Main St' }
+    render(<EventDetailSheet event={event} timezone="America/Los_Angeles" onClose={vi.fn()} />)
+    expect(screen.getByText('123 Main St')).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /Open map/ })).not.toBeInTheDocument()
+  })
+
+  it('keeps Delete out of the header, in its own separated section from Edit', () => {
+    render(<EventDetailSheet event={makeEvent([])} timezone="America/Los_Angeles" onClose={vi.fn()} />)
+    const editButton = screen.getByRole('button', { name: 'Edit event' })
+    const deleteButton = screen.getByRole('button', { name: 'Delete event' })
+    // Not siblings: Delete lives in a later section of the sheet, not the header button
+    // cluster Edit/Close share (guards against a regression back into one tight row).
+    expect(editButton.parentElement).not.toBe(deleteButton.parentElement)
+  })
+})

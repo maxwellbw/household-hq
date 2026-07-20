@@ -13,6 +13,7 @@ import { needsDecisionDays, upcomingWalks } from '@/lib/dogwalks'
 import { buildCalendarModel, type EventWithTasks } from '@/lib/tether'
 import { taskDisplayDateKey, type CalendarItem } from '@/lib/calendarItems'
 import { EventContent } from '@/components/calendar/EventContent'
+import { MonthAgendaDateDots } from '@/components/calendar/MonthAgendaDateDots'
 import { EmptyState } from '@/components/calendar/EmptyState'
 import { CalendarViewSwitcher } from '@/components/calendar/CalendarViewSwitcher'
 import { DayListView, type CalendarViewMode } from '@/components/calendar/DayListView'
@@ -48,7 +49,13 @@ interface CalendarDateRange {
 // while `calendarApp.events.set()` was never even invoked). Hoisting this object to module
 // scope keeps its reference stable — `EventContent` is a stable import — so the effect
 // no-ops on an unchanged refetch and the flash is gone.
-const CUSTOM_COMPONENTS = { monthGridEvent: EventContent, monthAgendaEvent: EventContent }
+const CUSTOM_COMPONENTS = { monthGridEvent: EventContent, monthAgendaEvent: EventContent, monthAgendaDateDots: MonthAgendaDateDots }
+
+// Feature 033 T030/FR-022: Schedule-X pre-slices the month-agenda day's `events` to this
+// count before our MonthAgendaDateDots component ever sees them — set well above any
+// plausible daily item count so the owner-dedup there sees the true day, not an
+// arbitrarily truncated one (the dedup's own 3-owner cap is what actually bounds the UI).
+const MONTH_AGENDA_EVENT_INDICATORS_PER_DAY = 20
 
 // Desktop month-grid per-day chip cap before collapsing into "+N more"
 // (feature 017 FR-008) — tuned to stay within one grid-cell row at the
@@ -190,6 +197,7 @@ export function CalendarHome({ visibleOwners, focusDate, onConsumedFocusDate, on
     // FirstDayOfWeek enum: MONDAY=1 … SATURDAY=6, SUNDAY=7.
     firstDayOfWeek: 7,
     monthGridOptions: { nEventsPerDay: MONTH_GRID_EVENTS_PER_DAY },
+    monthAgendaOptions: { nEventIndicatorsPerDay: MONTH_AGENDA_EVENT_INDICATORS_PER_DAY },
     // Schedule-X's own breakpoint-based view-switcher (default true) fights our
     // useIsMobile() choice and destroys/recreates the event DOM on every resize
     // (address-bar show/hide, orientation change) — a likely cause of taps

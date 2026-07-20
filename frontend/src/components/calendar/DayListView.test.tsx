@@ -163,4 +163,85 @@ describe('DayListView', () => {
       )
     })
   })
+
+  describe('done-task collapse (feature 033 US7, T031 — F-16/FR-023)', () => {
+    const doneTask: Task = { id: 'd1', title: 'Recycling', owner: 'max', status: 'done', dueDate: '2026-07-08' }
+    const openTask: Task = { id: 'o1', title: 'Water plants', owner: 'max', status: 'open', dueDate: '2026-07-08' }
+
+    it('collapses a day of only-done tasks behind an "N done ✓" affordance instead of a struck-through wall', () => {
+      render(
+        <DayListView
+          mode="day"
+          anchorDate="2026-07-08"
+          events={[]}
+          standaloneTasks={[doneTask]}
+          timezone={TZ}
+          onItemClick={vi.fn()}
+          onNavigate={vi.fn()}
+        />,
+      )
+      expect(screen.getByText('1 done ✓')).toBeInTheDocument()
+      expect(screen.queryByText('Recycling')).not.toBeInTheDocument()
+      expect(screen.queryByText('Nothing scheduled')).not.toBeInTheDocument()
+    })
+
+    it('expands the done-task affordance in place on tap', () => {
+      render(
+        <DayListView
+          mode="day"
+          anchorDate="2026-07-08"
+          events={[]}
+          standaloneTasks={[doneTask]}
+          timezone={TZ}
+          onItemClick={vi.fn()}
+          onNavigate={vi.fn()}
+        />,
+      )
+      const toggle = screen.getByRole('button', { name: '1 done ✓' })
+      expect(toggle).toHaveAttribute('aria-expanded', 'false')
+      fireEvent.click(toggle)
+      expect(toggle).toHaveAttribute('aria-expanded', 'true')
+      expect(screen.getByText('Recycling')).toBeInTheDocument()
+    })
+
+    it('shows open items normally alongside a collapsed done-task affordance', () => {
+      // Both due "today" (FIXED_NOW) so the open task's real due date isn't remapped by
+      // taskDisplayDateKey's overdue-onto-today rule — keeping it co-located with the done
+      // task (whose display date is never remapped, since isOverdue excludes done status).
+      const todayDone = { ...doneTask, dueDate: '2026-07-10' }
+      const todayOpen = { ...openTask, dueDate: '2026-07-10' }
+      render(
+        <DayListView
+          mode="day"
+          anchorDate="2026-07-10"
+          events={[]}
+          standaloneTasks={[todayDone, todayOpen]}
+          timezone={TZ}
+          onItemClick={vi.fn()}
+          onNavigate={vi.fn()}
+        />,
+      )
+      expect(screen.getByText('Water plants')).toBeInTheDocument()
+      expect(screen.getByText('1 done ✓')).toBeInTheDocument()
+      expect(screen.queryByText('Recycling')).not.toBeInTheDocument()
+    })
+
+    it('tapping a done task inside the expanded affordance still calls onItemClick', () => {
+      const onItemClick = vi.fn()
+      render(
+        <DayListView
+          mode="day"
+          anchorDate="2026-07-08"
+          events={[]}
+          standaloneTasks={[doneTask]}
+          timezone={TZ}
+          onItemClick={onItemClick}
+          onNavigate={vi.fn()}
+        />,
+      )
+      fireEvent.click(screen.getByRole('button', { name: '1 done ✓' }))
+      fireEvent.click(screen.getByText('Recycling'))
+      expect(onItemClick).toHaveBeenCalledWith(expect.objectContaining({ id: 'd1', kind: 'task' }))
+    })
+  })
 })

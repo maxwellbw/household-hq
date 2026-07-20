@@ -66,8 +66,12 @@ export function EventContent({ calendarEvent }: ScheduleXEventProps) {
     return (
       <div className="flex h-full w-full items-center gap-1 rounded-control border-l-[3px] border-l-owner-both bg-owner-both-soft px-1.5 py-1 text-left text-xs text-ink">
         <span aria-hidden="true">🐾</span>
-        <span className="truncate font-medium">Dog walk</span>
-        {time && <span className="ml-auto shrink-0 tabular-nums text-ink-muted">{time}</span>}
+        <span className="min-w-0 truncate font-medium">Dog walk</span>
+        {/* Feature 033 T029/FR-021: shrink-[9999] (vs. the title's default shrink-1) makes
+            the time badge give up its space first — flexbox's multi-pass shrink resolution
+            freezes it at 0 width before the title (whose truncate already zeroes its own
+            floor via overflow:hidden) loses any room, so the title never reads zero chars. */}
+        {time && <span className="ml-auto shrink-[9999] overflow-hidden whitespace-nowrap tabular-nums text-ink-muted">{time}</span>}
       </div>
     )
   }
@@ -119,18 +123,21 @@ export function EventContent({ calendarEvent }: ScheduleXEventProps) {
         >
           {style.initial}
         </span>
-        <span className={cn('truncate font-medium', isDoneTask ? 'text-ink-muted line-through' : 'text-ink')}>
+        <span className={cn('min-w-0 truncate font-medium', isDoneTask ? 'text-ink-muted line-through' : 'text-ink')}>
           {calendarEvent.title ?? raw?.title}
         </span>
         {calendarEvent._overdue ? (
-          <span className="ml-auto shrink-0 rounded-full bg-danger px-1.5 text-[9px] font-medium uppercase tracking-wide text-surface">
+          // Feature 033 T029/FR-021 (SC-006): shrink-[9999] gives the badge priority to
+          // yield its space before the title (min-w-0 + truncate) ever reads zero chars —
+          // see the dogwalk chip's time badge above for the full mechanism note.
+          <span className="ml-auto shrink-[9999] overflow-hidden whitespace-nowrap rounded-full bg-danger px-1.5 text-[9px] font-medium uppercase tracking-wide text-surface">
             Overdue
           </span>
         ) : (
           // ink-muted, not ink-faint: this tag sits on an owner-soft tint, where
           // faint lands at 3.97–4.39:1 in both themes (T033 / audit F-20).
           calendarEvent._kind === 'task' && (
-            <span className="ml-auto shrink-0 text-[9px] uppercase tracking-wide text-ink-muted">Task</span>
+            <span className="ml-auto shrink-[9999] overflow-hidden whitespace-nowrap text-[9px] uppercase tracking-wide text-ink-muted">Task</span>
           )
         )}
       </div>

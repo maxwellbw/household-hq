@@ -78,6 +78,20 @@
   border-bottom: 1px solid var(--border);
 }
 
+/*
+ * Feature 033 T033 (F-11): Schedule-X's own header renders a "Date" text-jump control and
+ * a "View" dropdown (month-grid/month-agenda — one real option, so effectively dead)
+ * alongside our own CalendarViewSwitcher, which already owns every mode (month/week/
+ * next7/day — the latter two entirely bespoke, outside Schedule-X's view system
+ * altogether). Two view-switching controls confused users; hide both here, keeping the
+ * prev/next month arrows, "Today" button, and month-title heading — genuine,
+ * non-duplicated chrome that stays (restyle-not-hide, research R8).
+ */
+.sx-react-calendar-wrapper .sx__date-input-wrapper,
+.sx-react-calendar-wrapper .sx__view-selection {
+  display: none;
+}
+
 .sx-react-calendar-wrapper .sx__month-grid-day--in-month .sx__month-grid-day {
   background: var(--surface);
 }

@@ -1,7 +1,8 @@
 import { useRef, useState } from 'react'
-import { MapPin } from 'lucide-react'
+import { MapPin, Trash2 } from 'lucide-react'
 import { formatDate, formatTime, isAllDay, dayKey } from '@/lib/datetime'
 import { ownerStyle } from '@/lib/owners'
+import { linkify } from '@/lib/linkify'
 import { TaskRow } from '@/components/task/TaskRow'
 import { EventEditSheet } from '@/components/event/EventEditSheet'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
@@ -31,6 +32,10 @@ export function EventDetailSheet({ event, timezone, onClose }: EventDetailSheetP
   const deleteEvent = useDeleteEvent()
   const toast = useToast()
   const prepCount = event.tasks.length
+  // Feature 033 T032/FR-024: a location that's (or contains) a URL renders as a labeled
+  // "Open map ↗" action instead of the raw link text (F-16) — reuses the same http(s)
+  // detection NotesText already uses for note bodies.
+  const mapLink = event.location ? linkify(event.location).find((s) => s.type === 'link') : undefined
 
   function handleDelete() {
     deleteEvent.mutate(event.id, {
@@ -78,10 +83,22 @@ export function EventDetailSheet({ event, timezone, onClose }: EventDetailSheetP
               {formatDate(event.start, timezone)}
             </p>
             {event.location && (
-              <p className="mt-1 flex items-center gap-1 text-sm text-ink-muted">
-                <MapPin size={14} aria-hidden="true" className="shrink-0" />
-                {event.location}
-              </p>
+              mapLink ? (
+                <a
+                  href={mapLink.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-1 inline-flex items-center gap-1 text-sm text-accent-hover underline hover:no-underline"
+                >
+                  <MapPin size={14} aria-hidden="true" className="shrink-0" />
+                  Open map ↗
+                </a>
+              ) : (
+                <p className="mt-1 flex items-center gap-1 text-sm text-ink-muted">
+                  <MapPin size={14} aria-hidden="true" className="shrink-0" />
+                  {event.location}
+                </p>
+              )
             )}
           </div>
           <div className="flex items-center gap-1">
@@ -92,14 +109,6 @@ export function EventDetailSheet({ event, timezone, onClose }: EventDetailSheetP
               className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-control text-sm font-medium text-ink-muted hover:bg-surface-alt focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
             >
               Edit
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowDelete(true)}
-              aria-label="Delete event"
-              className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-control text-sm font-medium text-danger hover:bg-surface-alt focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-danger"
-            >
-              Delete
             </button>
             <button
               type="button"
@@ -124,6 +133,20 @@ export function EventDetailSheet({ event, timezone, onClose }: EventDetailSheetP
         ) : (
           <p className="text-sm text-ink-faint">No prep tasks for this event.</p>
         )}
+
+        {/* Feature 033 T032/FR-024: Delete lives in its own bordered section, away from Edit
+            in the header, so an adjacent-button mis-tap can't delete an event (F-16). */}
+        <div className="mt-5 border-t border-border pt-4">
+          <button
+            type="button"
+            onClick={() => setShowDelete(true)}
+            aria-label="Delete event"
+            className="flex min-h-[44px] w-full items-center justify-center gap-2 rounded-control text-sm font-medium text-danger hover:bg-surface-alt focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-danger"
+          >
+            <Trash2 size={16} aria-hidden="true" />
+            Delete event
+          </button>
+        </div>
       </div>
     </div>
     {showEdit && (

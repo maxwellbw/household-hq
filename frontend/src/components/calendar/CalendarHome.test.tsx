@@ -225,4 +225,32 @@ describe('CalendarHome', () => {
       expect(onOpenWalkPlanner).toHaveBeenCalledWith('2026-07-22')
     })
   })
+
+  describe('mobile month-agenda owner dots (feature 033 US7, T030 — F-12/FR-022)', () => {
+    const originalMatchMedia = window.matchMedia
+
+    beforeEach(() => {
+      window.matchMedia = ((query: string) =>
+        ({
+          matches: query.includes('max-width: 640px'),
+          media: query,
+          onchange: null,
+          addListener: () => {},
+          removeListener: () => {},
+          addEventListener: () => {},
+          removeEventListener: () => {},
+          dispatchEvent: () => false,
+        }) as MediaQueryList) as typeof window.matchMedia
+    })
+
+    afterEach(() => {
+      window.matchMedia = originalMatchMedia
+    })
+
+    it('renders an owner-colored dot on the day containing an event, in the mobile agenda view', async () => {
+      renderCalendar()
+      const day20 = await screen.findByRole('button', { name: 'July 20, 2026' })
+      expect(day20.querySelector('.bg-owner-jaz')).toBeInTheDocument()
+    })
+  })
 })
