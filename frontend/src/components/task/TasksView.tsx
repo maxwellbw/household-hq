@@ -197,7 +197,8 @@ export function TasksView({ onScheduleSomeday }: TasksViewProps) {
                     key={task.id}
                     task={task}
                     timezone={timezone}
-                    onDetail={() => onScheduleSomeday?.(task.id)}
+                    onDetail={() => { setDetailTask(task); setDetailEdit(false) }}
+                    onSchedule={() => onScheduleSomeday?.(task.id)}
                   />
                 ))}
               </div>

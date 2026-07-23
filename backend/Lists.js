@@ -61,6 +61,9 @@ function setListItemStatus_(id, targetStatus, actor) {
     }
     var merged = stripInternal_(rec);
     merged.status = targetStatus;
+    // Feature 034 US3: stamp the last-stocked date when (and only when) an item becomes
+    // stocked; leave it untouched on the return to `need` so it means "last time stocked".
+    if (targetStatus === 'stocked') merged.stockedAt = nowIso_();
     writeRowAsText_(t.sheet, rec._row, buildRowArray_(t, merged, t.values[rec._row - 1]));
     appendLog_(actor, targetStatus === 'need' ? 'list-item-need' : 'list-item-stocked',
       id, merged.name || '');
@@ -82,6 +85,9 @@ function createListItem_(payload, actor) {
       String(payload.status).trim() !== 'need') {
     fail_('BAD_REQUEST', 'New list items always start "need"; use listItems.toggle afterwards.', 'status');
   }
+  if (payload.hasOwnProperty('stockedAt')) {
+    fail_('BAD_REQUEST', 'stockedAt is server-managed; it is stamped when an item is marked stocked.', 'stockedAt');
+  }
   validateFields_(TABS.LIST_ITEMS, payload);
 
   var listId = String(payload.listId).trim();
@@ -98,6 +104,7 @@ function createListItem_(payload, actor) {
 
   var rec = fullRecord_(TABS.LIST_ITEMS, payload);
   rec.status = 'need';
+  rec.stockedAt = ''; // always empty on create; only listItems.toggle → stocked stamps it
   if (!rec.staple) rec.staple = 'FALSE';
   return { item: createRecord_(TABS.LIST_ITEMS, rec, actor) };
 }
@@ -110,6 +117,9 @@ function updateListItem_(payload, actor) {
   requireFields_(payload, ['id']);
   if (payload.hasOwnProperty('status')) {
     fail_('BAD_REQUEST', 'Use listItems.toggle to change status; "status" is not editable via listItems.update.', 'status');
+  }
+  if (payload.hasOwnProperty('stockedAt')) {
+    fail_('BAD_REQUEST', 'stockedAt is server-managed; it is stamped when an item is marked stocked.', 'stockedAt');
   }
   if (payload.hasOwnProperty('listId')) {
     fail_('BAD_REQUEST', 'listId cannot be changed via listItems.update.', 'listId');

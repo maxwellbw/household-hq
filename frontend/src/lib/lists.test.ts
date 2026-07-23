@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  arrangeAllView,
   DEFAULT_GROCERY_NUDGE_THRESHOLD,
   filterItemsByName,
   groceryNeededStapleCount,
@@ -151,5 +152,64 @@ describe('filterItemsByName', () => {
 
   it('returns no items when nothing matches', () => {
     expect(filterItemsByName(items, 'xyz not present')).toEqual([])
+  })
+})
+
+describe('arrangeAllView (034 US4)', () => {
+  const items = [
+    item({ id: 'a', name: 'Bananas', status: 'need', section: 'produce' }),
+    item({ id: 'b', name: 'Apples', status: 'stocked', section: 'produce' }),
+    item({ id: 'c', name: 'Milk', status: 'need', section: 'dairy' }),
+    item({ id: 'd', name: 'Cheese', status: 'stocked', section: 'dairy' }),
+    item({ id: 'e', name: 'Batteries', status: 'need', section: '' }),
+  ]
+
+  function flatIds(groups: ReturnType<typeof arrangeAllView>): string[] {
+    return groups.flatMap((g) => g.items.map((i) => i.id))
+  }
+
+  it('splits into a stocked block above a needed block in every combination', () => {
+    for (const alphabetical of [false, true]) {
+      for (const groupBySection of [false, true]) {
+        const groups = arrangeAllView(items, { alphabetical, groupBySection })
+        const blocks = groups.map((g) => g.block)
+        // Every stocked group precedes every needed group (unchecked sinks to the bottom).
+        const firstNeed = blocks.indexOf('need')
+        const lastStocked = blocks.lastIndexOf('stocked')
+        expect(lastStocked).toBeLessThan(firstNeed)
+      }
+    }
+  })
+
+  it('default (no toggles): two ungrouped blocks in natural order', () => {
+    const groups = arrangeAllView(items, { alphabetical: false, groupBySection: false })
+    expect(groups.map((g) => ({ block: g.block, section: g.section }))).toEqual([
+      { block: 'stocked', section: null },
+      { block: 'need', section: null },
+    ])
+    // Natural (input) order preserved within each block.
+    expect(flatIds(groups)).toEqual(['b', 'd', 'a', 'c', 'e'])
+  })
+
+  it('alphabetical sorts by name within each block', () => {
+    const groups = arrangeAllView(items, { alphabetical: true, groupBySection: false })
+    expect(flatIds(groups)).toEqual(['b', 'd', 'a', 'e', 'c']) // Apples,Cheese | Bananas,Batteries,Milk
+  })
+
+  it('groups by section within each block, unsectioned under "other", empty sections omitted', () => {
+    const groups = arrangeAllView(items, { alphabetical: false, groupBySection: true })
+    expect(groups.map((g) => `${g.block}:${g.section}`)).toEqual([
+      'stocked:produce',
+      'stocked:dairy',
+      'need:produce',
+      'need:dairy',
+      'need:other',
+    ])
+  })
+
+  it('is stable/deterministic for the same input and options', () => {
+    const a = arrangeAllView(items, { alphabetical: true, groupBySection: true })
+    const b = arrangeAllView(items, { alphabetical: true, groupBySection: true })
+    expect(flatIds(a)).toEqual(flatIds(b))
   })
 })

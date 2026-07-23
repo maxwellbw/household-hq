@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/useToast'
 import { useLists, useListItems } from '@/hooks/useLists'
 import { useCreateList, useDeleteList, useCreateListItem } from '@/hooks/useListMutations'
-import { filterItemsByName, groupNeededBySection, LIST_SECTION_LABELS, neededCountByList } from '@/lib/lists'
+import { arrangeAllView, filterItemsByName, groupNeededBySection, LIST_SECTION_LABELS, neededCountByList } from '@/lib/lists'
 import { ListItemRow } from '@/components/lists/ListItemRow'
 import { ErrorState } from '@/components/shell/ErrorState'
 import { ApiError } from '@/lib/api'
@@ -34,6 +34,9 @@ export function ListsView({ focusListName }: ListsViewProps = {}) {
   const [newItemName, setNewItemName] = useState('')
   const [confirmDeleteList, setConfirmDeleteList] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
+  // All-view arrangement toggles (034 US4): independent; default off (natural order).
+  const [allSort, setAllSort] = useState(false)
+  const [allGroup, setAllGroup] = useState(false)
 
   const lists = listsQuery.data ?? []
 
@@ -60,6 +63,10 @@ export function ListsView({ focusListName }: ListsViewProps = {}) {
     [itemsForList, searchQuery],
   )
   const neededGroups = useMemo(() => groupNeededBySection(filteredItemsForList), [filteredItemsForList])
+  const allViewGroups = useMemo(
+    () => arrangeAllView(filteredItemsForList, { alphabetical: allSort, groupBySection: allGroup }),
+    [filteredItemsForList, allSort, allGroup],
+  )
   const neededCounts = useMemo(() => neededCountByList(itemsQuery.data ?? []), [itemsQuery.data])
   const searchHasNoMatches = searchQuery.trim().length > 0 && filteredItemsForList.length === 0
 
@@ -265,6 +272,36 @@ export function ListsView({ focusListName }: ListsViewProps = {}) {
             Staple — stays on the list and counts toward the shopping nudge
           </p>
 
+          {/* All-view arrangement controls (034 US4) — independent toggles, All view only. */}
+          {viewMode === 'all' && !searchHasNoMatches && filteredItemsForList.length > 0 && (
+            <div className="flex gap-2 px-1" role="group" aria-label="Arrange">
+              <button
+                type="button"
+                aria-pressed={allSort}
+                onClick={() => setAllSort((v) => !v)}
+                className={cn(
+                  'min-h-[44px] rounded-full border px-3 text-xs font-medium',
+                  'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
+                  allSort ? 'border-accent bg-accent-soft text-ink' : 'border-border bg-surface text-ink-muted',
+                )}
+              >
+                Sort A–Z
+              </button>
+              <button
+                type="button"
+                aria-pressed={allGroup}
+                onClick={() => setAllGroup((v) => !v)}
+                className={cn(
+                  'min-h-[44px] rounded-full border px-3 text-xs font-medium',
+                  'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
+                  allGroup ? 'border-accent bg-accent-soft text-ink' : 'border-border bg-surface text-ink-muted',
+                )}
+              >
+                Group by section
+              </button>
+            </div>
+          )}
+
           {searchHasNoMatches ? (
             <div className="flex flex-col items-center justify-center gap-1 py-8 text-center">
               <p className="text-sm font-medium text-ink">No items match "{searchQuery.trim()}"</p>
@@ -298,11 +335,24 @@ export function ListsView({ focusListName }: ListsViewProps = {}) {
               <p className="text-xs text-ink-muted">Add one above to get started.</p>
             </div>
           ) : (
-            <ul className="rounded-card bg-surface shadow-card">
-              {filteredItemsForList.map((item) => (
-                <ListItemRow key={item.id} item={item} />
+            // All view (034 US4): stocked block above needed block; each grouped by section
+            // when the toggle is on, otherwise one run per block. Rows show the stocked date.
+            <div className="flex flex-col gap-4">
+              {allViewGroups.map((group) => (
+                <section key={`${group.block}:${group.section ?? 'all'}`}>
+                  {group.section && (
+                    <h3 className="mb-1 px-1 text-xs font-medium uppercase tracking-wide text-ink-faint">
+                      {LIST_SECTION_LABELS[group.section]}
+                    </h3>
+                  )}
+                  <ul className="rounded-card bg-surface shadow-card">
+                    {group.items.map((item) => (
+                      <ListItemRow key={item.id} item={item} showStockedDate />
+                    ))}
+                  </ul>
+                </section>
               ))}
-            </ul>
+            </div>
           )}
 
           {confirmDeleteList ? (

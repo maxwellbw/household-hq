@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, fireEvent } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { ListsView } from './ListsView'
 import type { List, ListItem } from '@/types/domain'
@@ -32,6 +32,10 @@ vi.mock('@/hooks/useToast', () => ({
   useToast: () => ({ show: vi.fn() }),
 }))
 
+vi.mock('@/hooks/useSettings', () => ({
+  useSettings: () => ({ timezone: 'America/Los_Angeles' }),
+}))
+
 describe('ListsView — staple discoverability (feature 032 US5, FR-021, audit F-15)', () => {
   it('explains what the staple star means, in-product, without opening an item', () => {
     render(<ListsView />)
@@ -54,5 +58,38 @@ describe('ListsView — needed-item pill counts (US8, FR-026)', () => {
     expect(groceriesPill).toBeInTheDocument()
     const notGroceryPill = screen.getByRole('button', { name: 'Not grocery' })
     expect(notGroceryPill).toBeInTheDocument()
+  })
+})
+
+describe('ListsView — All-view arrangement (034 US4)', () => {
+  it('shows the Sort A–Z and Group-by-section toggles only in the All view', () => {
+    render(<ListsView />)
+    // Needed view (default): no arrangement toggles.
+    expect(screen.queryByRole('button', { name: 'Sort A–Z' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Group by section' })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'All' }))
+    expect(screen.getByRole('button', { name: 'Sort A–Z' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Group by section' })).toBeInTheDocument()
+  })
+
+  it('places stocked items above needed items (unchecked sinks to the bottom)', () => {
+    render(<ListsView />)
+    fireEvent.click(screen.getByRole('button', { name: 'All' }))
+    const rows = screen.getAllByRole('listitem').map((li) => li.textContent ?? '')
+    const butter = rows.findIndex((t) => t.includes('Butter')) // stocked
+    const milk = rows.findIndex((t) => t.includes('Milk')) // needed
+    const eggs = rows.findIndex((t) => t.includes('Eggs')) // needed
+    expect(butter).toBeLessThan(milk)
+    expect(butter).toBeLessThan(eggs)
+  })
+
+  it('groups by section (with headings) when the toggle is on', () => {
+    render(<ListsView />)
+    fireEvent.click(screen.getByRole('button', { name: 'All' }))
+    expect(screen.queryByText('Dairy')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Group by section' }))
+    // A Dairy heading appears in each block that has dairy items (stocked Butter + needed Milk/Eggs).
+    expect(screen.getAllByText('Dairy').length).toBeGreaterThan(0)
   })
 })

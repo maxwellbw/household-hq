@@ -76,7 +76,9 @@ var HEADERS = {
   Settings: ['key', 'value', 'notes'],
   // Feature 024 — Grocery & household lists (data-model.md). seedKey added feature 027.
   Lists: ['id', 'name', 'seedKey'],
-  ListItems: ['id', 'listId', 'name', 'status', 'section', 'staple', 'note', 'seedKey'],
+  // Feature 034: stockedAt — server-managed nowIso_() stamp set when an item is marked
+  // stocked (preserved when it returns to need); empty until first stocked.
+  ListItems: ['id', 'listId', 'name', 'status', 'section', 'staple', 'note', 'seedKey', 'stockedAt'],
   // Feature 025 — Recurring events (data-model.md). seedKey added feature 027.
   RecurringEvents: ['id', 'title', 'cadence', 'anchorDate', 'startTime', 'durationMinutes',
                      'defaultOwner', 'templateId', 'location', 'notes', 'seasonStart',

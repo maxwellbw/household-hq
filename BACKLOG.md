@@ -16,8 +16,9 @@ work not yet merged.
 
 | Order | # | Feature | Stage | Spec folder | PR |
 |---|---|---|---|---|---|
-| 1 | 033 | Dog-walk planner rework + dashboard↔calendar parity + household notifications (audit F-02..F-33 + Max's 5 asks 2026-07-19: morning overdue push, night-before walk push, list pill counts, focus-zoom fix, dashboard task completion) | 🟨 implemented, pending PR (2026-07-20; all chunks A–G done — T001–T042 — gates/audit/live validation/write-backs complete; §F real-iPhone check is the standing device-gated follow-up) | [specs/033-walk-planner-parity](specs/033-walk-planner-parity/spec.md) | — |
-| 2 | 026 | Inbound gcal import (personal calendars) | ⬜ not started | — | — |
+| 1 | 034 | UX fix batch 4 — dog-walk bookable conflicts (US1/P1 bug), someday-task scheduling UX (US2), per-item last-stocked date (US3), All-view sort/group/unchecked-at-bottom (US4), staples-needed count on dashboard nudge (US5) | 🟨 implemented, pending PR (2026-07-22; all 28 tasks done; backend `stockedAt` column live via `setupDatabase()` + `clasp deploy @33`, selfTest skipped per Max; US1–US4 live-validated in browser, US5 unit-tested; 2 pre-existing 033 calendar-chip test failures are date-flaky & unrelated) | [specs/034-ux-fix-batch-4](specs/034-ux-fix-batch-4/spec.md) | — |
+| 2 | 033 | Dog-walk planner rework + dashboard↔calendar parity + household notifications (audit F-02..F-33 + Max's 5 asks 2026-07-19: morning overdue push, night-before walk push, list pill counts, focus-zoom fix, dashboard task completion) | 🟨 implemented, pending PR (2026-07-20; all chunks A–G done — T001–T042 — gates/audit/live validation/write-backs complete; §F real-iPhone check is the standing device-gated follow-up) | [specs/033-walk-planner-parity](specs/033-walk-planner-parity/spec.md) | — |
+| 3 | 026 | Inbound gcal import (personal calendars) | ⬜ not started | — | — |
 
 **Phase 0 tooling (no spec folder — infra, 2026-07-16/17):** `clasp run` works from the CLI
 (standard GCP project `household-hq-501817` associated, `executionApi` manifest block, Desktop

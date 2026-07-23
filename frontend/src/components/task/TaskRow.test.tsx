@@ -99,3 +99,39 @@ describe('TaskRow — completing is undoable, not confirmed (feature 032 US3, co
     expect(reopenMutate).toHaveBeenCalledWith('t1')
   })
 })
+
+describe('TaskRow — overflow menu renders only wired actions (034 US2)', () => {
+  it('omits the ⋮ trigger entirely when no menu actions are wired (e.g. a someday row before wiring)', () => {
+    render(<TaskRow task={task({ id: 't1', title: 'Park it', status: 'open' })} timezone="America/Los_Angeles" />)
+    expect(screen.queryByRole('button', { name: /More options/ })).not.toBeInTheDocument()
+  })
+
+  it('shows a working Schedule item and no dead Snooze/Edit-due when only onSchedule is wired', () => {
+    const onSchedule = vi.fn()
+    render(
+      <TaskRow task={task({ id: 't1', title: 'Park it', status: 'open' })} timezone="America/Los_Angeles" onSchedule={onSchedule} />,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'More options for Park it' }))
+    expect(screen.getByRole('menuitem', { name: 'Schedule' })).toBeInTheDocument()
+    expect(screen.queryByRole('menuitem', { name: 'Snooze' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('menuitem', { name: 'Edit due' })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Schedule' }))
+    expect(onSchedule).toHaveBeenCalledTimes(1)
+  })
+
+  it('shows Snooze and Edit due (and no Schedule) for a dated open row', () => {
+    render(
+      <TaskRow
+        task={task({ id: 't1', title: 'Do it', status: 'open', dueDate: '2026-07-25' })}
+        timezone="America/Los_Angeles"
+        onSnooze={vi.fn()}
+        onEditDue={vi.fn()}
+      />,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'More options for Do it' }))
+    expect(screen.getByRole('menuitem', { name: 'Snooze' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'Edit due' })).toBeInTheDocument()
+    expect(screen.queryByRole('menuitem', { name: 'Schedule' })).not.toBeInTheDocument()
+  })
+})

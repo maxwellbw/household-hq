@@ -61,6 +61,9 @@ export interface ListItem {
   section: ListSection
   staple: 'TRUE' | 'FALSE'
   note?: string
+  /** Feature 034 US3: household-tz timestamp of the last time this item was marked stocked
+   *  (server-managed); absent/empty until first stocked. */
+  stockedAt?: string
 }
 
 export interface RecurringRule {

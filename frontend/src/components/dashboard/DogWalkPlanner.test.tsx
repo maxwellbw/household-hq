@@ -276,7 +276,9 @@ describe('DogWalkPlanner', () => {
     expect(screen.getByRole('button', { name: 'Start 15 minutes later' })).toBeDisabled()
   })
 
-  it('disables Confirm with a reason when the adjusted window overlaps a busy block', () => {
+  // US1 (feature 034): a busy conflict is *overridable*, not a hard block — Book stays enabled,
+  // shows the reason, and routes through the backend's OVERRIDE_REQUIRED → "Book anyway" flow.
+  it('keeps Book (and Book backup) enabled on a conflict and books anyway on confirmation (US1, FR-001)', () => {
     const plan = basePlan({
       busyBlocks: [{ start: '2026-07-20T08:00:00-07:00', end: '2026-07-20T08:30:00-07:00', owner: 'max', title: 'Standup' }],
     })
@@ -286,6 +288,39 @@ describe('DogWalkPlanner', () => {
     fireEvent.click(screen.getByRole('button', { name: /8:00 AM.*tap to book the primary walk here/ }))
 
     expect(screen.getByText(/Conflicts with Max \(Standup\)/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Book' })).not.toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Book backup' })).not.toBeDisabled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Book' }))
+    const [, options] = bookMutate.mock.calls[0] as [unknown, { onError: (err: unknown) => void }]
+    act(() => {
+      options.onError(
+        new ApiError('OVERRIDE_REQUIRED', 'Window fails a check.', undefined, {
+          failedGates: [],
+          conflicts: [{ owner: 'max', title: 'Standup', start: '2026-07-20T08:00:00-07:00', end: '2026-07-20T08:30:00-07:00' }],
+        }),
+      )
+    })
+    expect(screen.getByText(/conflicts with Max \(Standup\)/i)).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Book anyway' }))
+    expect(bookMutate).toHaveBeenLastCalledWith(expect.objectContaining({ confirmOverride: true }), expect.any(Object))
+  })
+
+  // US1: the one genuinely non-overridable case — a window outside the walk-eligible band
+  // (mirrors the backend's non-overridable BAD_REQUEST) keeps Book disabled.
+  it('keeps Book disabled only for an out-of-band window (US1, FR-005)', () => {
+    const plan = basePlan({
+      hours: [{ hour: '2026-07-20T08', tempF: 66, precipProbPct: 5, wmoCode: 1, passes: true, failedGates: [] }],
+      // A primary candidate whose 60-min window (8:30–9:30) runs past the single-hour band end (9:00).
+      candidates: [{ start: '2026-07-20T08:30:00-07:00', end: '2026-07-20T09:30:00-07:00', durationMin: 60, chosen: false, slot: 'primary' }],
+    })
+    mockUseDogWalkDay.mockReturnValue({ data: plan, isPending: false, isError: false })
+    render(<DogWalkPlanner dateKey="2026-07-20" timezone={TZ} onClose={vi.fn()} />)
+
+    fireEvent.click(screen.getByRole('button', { name: /Candidate window: 8:30 AM.*tap to book/i }))
+
+    expect(screen.getByText(/Outside the walk-eligible hours/)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Book' })).toBeDisabled()
   })
 

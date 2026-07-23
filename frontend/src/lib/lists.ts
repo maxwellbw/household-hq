@@ -77,3 +77,54 @@ export function filterItemsByName(items: ListItem[], query: string): ListItem[] 
   if (!needle) return items
   return items.filter((item) => item.name.toLowerCase().includes(needle))
 }
+
+/** Options for the All-view arrangement (feature 034 US4). Both toggles are independent. */
+export interface AllViewOptions {
+  /** Sort items by name within each block/section (else natural/insertion order). */
+  alphabetical: boolean
+  /** Group each block by store section (else one ungrouped run per block). */
+  groupBySection: boolean
+}
+
+/** One rendered run of the All view: a status block, optionally a section within it. */
+export interface AllViewGroup {
+  /** Which global block — stocked items always sort above needed ones (clarified 2026-07-22). */
+  block: 'stocked' | 'need'
+  /** The store section when `groupBySection` is on; `null` for an ungrouped block. */
+  section: ListSection | null
+  items: ListItem[]
+}
+
+/**
+ * Arranges the All view (US4, FR-017..FR-020, clarified 2026-07-22):
+ *
+ * 1. Two global blocks — all `stocked` (checked) items above all `need` (unchecked) items, so
+ *    unchecked items always sink to the bottom regardless of the toggles.
+ * 2. Within each block, when `groupBySection`, group by `LIST_SECTIONS` order (unsectioned →
+ *    'other'), emitting only non-empty sections; otherwise one ungrouped run (`section: null`).
+ * 3. Within each group/run, when `alphabetical`, sort by name (locale, case-insensitive,
+ *    stable); otherwise preserve the incoming (natural/insertion) order.
+ *
+ * Deterministic and stable for a given input + options. Empty blocks are omitted.
+ */
+export function arrangeAllView(items: ListItem[], opts: AllViewOptions): AllViewGroup[] {
+  const order = (list: ListItem[]): ListItem[] =>
+    opts.alphabetical
+      ? [...list].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }))
+      : list
+
+  const groups: AllViewGroup[] = []
+  for (const block of ['stocked', 'need'] as const) {
+    const inBlock = items.filter((item) => item.status === block)
+    if (inBlock.length === 0) continue
+    if (opts.groupBySection) {
+      for (const section of LIST_SECTIONS) {
+        const inSection = inBlock.filter((item) => (item.section || 'other') === section)
+        if (inSection.length > 0) groups.push({ block, section, items: order(inSection) })
+      }
+    } else {
+      groups.push({ block, section: null, items: order(inBlock) })
+    }
+  }
+  return groups
+}

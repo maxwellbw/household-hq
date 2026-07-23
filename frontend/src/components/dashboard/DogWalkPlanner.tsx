@@ -97,21 +97,30 @@ interface PendingBooking {
   durationMin: number
 }
 
+/** How a pending window fares against the client-side pre-check.
+ *  - `out-of-band` is the ONE blocking category — it mirrors the backend's non-overridable
+ *    `BAD_REQUEST` (window outside the walk-eligible range), so Book stays disabled.
+ *  - `conflict` / `gate` are *overridable*: the backend answers `OVERRIDE_REQUIRED` and the
+ *    "Book anyway" confirmation takes over, so Book must stay *enabled* with the reason shown
+ *    (feature 034 US1 / FR-001..FR-005). */
+type WindowCategory = 'ok' | 'out-of-band' | 'conflict' | 'gate'
+
 /** Client-side mirror of the backend's booking checks (band, busy overlap, hourly weather
- *  gates) — a best-effort pre-check so Confirm can be disabled with a reason before a round
- *  trip, not a replacement for `bookWalkManually_`, which remains authoritative (data-model.md
- *  "Validation rules"). Hours the day plan doesn't cover are treated as passing (no known
- *  failure) rather than blocking, so sparse/partial `hours` data degrades gracefully. */
+ *  gates) — a best-effort pre-check so the reason can be shown (and out-of-band windows
+ *  blocked) before a round trip, not a replacement for `bookWalkManually_`, which remains
+ *  authoritative (data-model.md "Validation rules"). Hours the day plan doesn't cover are
+ *  treated as passing (no known failure) rather than blocking, so sparse/partial `hours` data
+ *  degrades gracefully. Only `out-of-band` blocks Book; `conflict`/`gate` are overridable. */
 function validatePendingWindow(
   plan: DogWalkDayPlan,
   startMin: number,
   durationMin: number,
   range: [number, number],
   timezone: string,
-): { ok: true } | { ok: false; reason: string } {
+): { category: WindowCategory; reason: string | null } {
   const endMin = startMin + durationMin
   if (startMin < range[0] || endMin > range[1]) {
-    return { ok: false, reason: 'Outside the walk-eligible hours' }
+    return { category: 'out-of-band', reason: 'Outside the walk-eligible hours' }
   }
   const conflict = plan.busyBlocks.find((b) => {
     const bStart = minutesOfDay(b.start, timezone)
@@ -119,7 +128,10 @@ function validatePendingWindow(
     return bStart < endMin && bEnd > startMin
   })
   if (conflict) {
-    return { ok: false, reason: `Conflicts with ${ownerStyle(conflict.owner).label}${conflict.title ? ` (${conflict.title})` : ''}` }
+    return {
+      category: 'conflict',
+      reason: `Conflicts with ${ownerStyle(conflict.owner).label}${conflict.title ? ` (${conflict.title})` : ''}`,
+    }
   }
   const failedLabels = new Set<string>()
   plan.hours.forEach((gate) => {
@@ -130,9 +142,9 @@ function validatePendingWindow(
     }
   })
   if (failedLabels.size > 0) {
-    return { ok: false, reason: `Fails: ${[...failedLabels].join(', ')}` }
+    return { category: 'gate', reason: `Fails: ${[...failedLabels].join(', ')}` }
   }
-  return { ok: true }
+  return { category: 'ok', reason: null }
 }
 
 /** True when every 15-min slot in `hourStartMin`..+60 is covered by a busy block — used to
@@ -697,6 +709,10 @@ export function DogWalkPlanner({ dateKey, timezone, onClose }: DogWalkPlannerPro
   const backupWindow = backupAvailable && pendingBook && plan ? windowIsoFromMinutes(dateKey, pendingBook.startMin, plan.secondDurationMin, timezone) : null
   const backupValidation =
     backupAvailable && pendingBook && plan && range ? validatePendingWindow(plan, pendingBook.startMin, plan.secondDurationMin, range, timezone) : null
+  // Only an out-of-band window blocks booking client-side; conflict/gate windows stay bookable
+  // and route through the backend's OVERRIDE_REQUIRED → "Book anyway" flow (US1, FR-005).
+  const pendingBlocked = pendingValidation?.category === 'out-of-band'
+  const backupBlocked = backupValidation?.category === 'out-of-band'
 
   function stepPendingStart(deltaMin: number) {
     setPendingBook((p) => (p ? { ...p, startMin: p.startMin + deltaMin } : p))
@@ -929,7 +945,12 @@ export function DogWalkPlanner({ dateKey, timezone, onClose }: DogWalkPlannerPro
               </div>
             )}
 
-            {pendingValidation && !pendingValidation.ok && <p className="text-xs text-warning">{pendingValidation.reason}</p>}
+            {pendingValidation && pendingValidation.category !== 'ok' && pendingValidation.reason && (
+              <p className="text-xs text-warning">
+                {pendingValidation.reason}
+                {!pendingBlocked && ' — you can still book it below.'}
+              </p>
+            )}
 
             <div className="flex justify-end gap-2">
               <button
@@ -943,7 +964,7 @@ export function DogWalkPlanner({ dateKey, timezone, onClose }: DogWalkPlannerPro
                 <button
                   type="button"
                   onClick={confirmBackup}
-                  disabled={bookWalk.isPending || !(backupValidation?.ok ?? false)}
+                  disabled={bookWalk.isPending || backupBlocked}
                   className="min-h-[44px] rounded-control border border-accent px-3 text-xs font-medium text-ink hover:bg-accent-soft focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:opacity-50"
                 >
                   {bookWalk.isPending ? '…' : 'Book backup'}
@@ -952,7 +973,7 @@ export function DogWalkPlanner({ dateKey, timezone, onClose }: DogWalkPlannerPro
               <button
                 type="button"
                 onClick={confirmPending}
-                disabled={bookWalk.isPending || !(pendingValidation?.ok ?? false)}
+                disabled={bookWalk.isPending || pendingBlocked}
                 className="min-h-[44px] rounded-control bg-accent px-3 text-xs font-medium text-surface hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:opacity-50"
               >
                 {bookWalk.isPending ? 'Booking…' : 'Book'}
