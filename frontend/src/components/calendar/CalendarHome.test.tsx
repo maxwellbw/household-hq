@@ -180,10 +180,17 @@ describe('CalendarHome', () => {
     ]
 
     beforeEach(() => {
+      // Pin the clock to the booked-walk fixture's day: `upcomingWalks` keeps only
+      // today-forward walks, so once the real date moves past 2026-07-20 the booked chip
+      // (w1) drops and these assertions flake. Fake only Date (not setTimeout), so Testing
+      // Library's findBy* polling still runs on real timers.
+      vi.useFakeTimers({ toFake: ['Date'] })
+      vi.setSystemTime(new Date('2026-07-20T12:00:00-07:00'))
       mockUseDogWalks.mockReturnValue({ data: walkFixtures, isPending: false, isError: false })
     })
 
     afterEach(() => {
+      vi.useRealTimers()
       mockUseDogWalks.mockReturnValue({ data: [], isPending: false, isError: false })
     })
 
