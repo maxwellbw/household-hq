@@ -21,6 +21,10 @@ vi.mock('@/hooks/useToast', () => ({
   useToast: () => ({ show: showToast, showUndo }),
 }))
 
+vi.mock('@/hooks/useSettings', () => ({
+  useSettings: () => ({ timezone: 'America/Los_Angeles' }),
+}))
+
 const item: ListItem = {
   id: 'i1',
   listId: 'l1',
@@ -36,6 +40,25 @@ describe('ListItemRow', () => {
     render(<ListItemRow item={item} />)
     fireEvent.click(screen.getByRole('button', { name: 'Mark Milk stocked' }))
     expect(toggleMutate).toHaveBeenCalledWith('i1')
+  })
+
+  describe('last-stocked date (034 US3)', () => {
+    const stocked: ListItem = { ...item, status: 'stocked', stockedAt: '2026-07-20T14:30' }
+
+    it('shows the stocked date in the All view when the item has one', () => {
+      render(<ListItemRow item={stocked} showStockedDate />)
+      expect(screen.getByText('stocked Jul 20')).toBeInTheDocument()
+    })
+
+    it('shows nothing for an item that has never been stocked', () => {
+      render(<ListItemRow item={{ ...item, stockedAt: undefined }} showStockedDate />)
+      expect(screen.queryByText(/stocked /)).not.toBeInTheDocument()
+    })
+
+    it('does not show the date when showStockedDate is off (Needed view)', () => {
+      render(<ListItemRow item={stocked} />)
+      expect(screen.queryByText('stocked Jul 20')).not.toBeInTheDocument()
+    })
   })
 
   describe('delete — undoable, not a blocking confirm (feature 032 US3, contract C3)', () => {

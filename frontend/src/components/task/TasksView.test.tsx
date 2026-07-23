@@ -138,11 +138,23 @@ describe('TasksView — Someday section (021 US1)', () => {
     expect(screen.getByText('Event prep')).toBeInTheDocument()
   })
 
-  it('tapping a someday task title calls onScheduleSomeday with its id', () => {
+  // 034 US2: a someday row now behaves like every other task row — the title opens the
+  // detail sheet (not the schedule dialog); scheduling moved to a real menu item.
+  it('tapping a someday task title opens the detail sheet, not the schedule dialog', () => {
     mockTasks = [{ id: 's1', title: 'Air-duct cleaning', owner: 'max', status: 'open' } as Task]
     const onScheduleSomeday = vi.fn()
     render(<TasksView onScheduleSomeday={onScheduleSomeday} />)
     fireEvent.click(screen.getByText('Air-duct cleaning'))
+    expect(screen.getByRole('button', { name: 'Edit task' })).toBeInTheDocument()
+    expect(onScheduleSomeday).not.toHaveBeenCalled()
+  })
+
+  it('selecting Schedule from a someday row menu calls onScheduleSomeday with its id', () => {
+    mockTasks = [{ id: 's1', title: 'Air-duct cleaning', owner: 'max', status: 'open' } as Task]
+    const onScheduleSomeday = vi.fn()
+    render(<TasksView onScheduleSomeday={onScheduleSomeday} />)
+    fireEvent.click(screen.getByRole('button', { name: 'More options for Air-duct cleaning' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Schedule' }))
     expect(onScheduleSomeday).toHaveBeenCalledWith('s1')
   })
 

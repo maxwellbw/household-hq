@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import { useDialogA11y } from '@/hooks/useDialogA11y'
 import { useScheduleTask } from '@/hooks/useMutations'
 import { useSettings } from '@/hooks/useSettings'
+import { useTasks } from '@/hooks/useTasks'
 import { useToast } from '@/hooks/useToast'
 import { canConfirm } from '@/lib/schedule'
 import { cn } from '@/lib/utils'
@@ -12,6 +13,10 @@ interface ScheduleTaskDialogProps {
   taskId: string
   /** Pre-filled date (from drag drop); empty string = no pre-fill (tap path). */
   initialDate?: string
+  /** Owner to pre-select. When omitted, the dialog seeds it from the task's current owner
+   *  (feature 034 US2) — scheduling a task that already has an owner shouldn't force a
+   *  redundant re-pick. Explicit prop is for tests/overrides. */
+  initialOwner?: Owner
   onClose: () => void
 }
 
@@ -21,16 +26,21 @@ const OWNERS: { value: Owner; label: string; bg: string }[] = [
   { value: 'both', label: 'Both', bg: 'bg-owner-both' },
 ]
 
-export function ScheduleTaskDialog({ taskId, initialDate = '', onClose }: ScheduleTaskDialogProps) {
+export function ScheduleTaskDialog({ taskId, initialDate = '', initialOwner, onClose }: ScheduleTaskDialogProps) {
   const panelRef = useRef<HTMLDivElement>(null)
   useDialogA11y(panelRef, onClose)
 
   const { timezone } = useSettings()
   const schedule = useScheduleTask()
   const toast = useToast()
+  // Seed the owner from the task itself (the 'tasks' query is already warm wherever this
+  // dialog is opened from) so an already-owned task needs only a date, not a redundant
+  // owner re-pick (US2). An explicit initialOwner prop wins for tests/overrides.
+  const { data: tasks } = useTasks()
+  const seededOwner = initialOwner ?? tasks?.find((t) => t.id === taskId)?.owner ?? null
 
   const [date, setDate] = useState(initialDate)
-  const [owner, setOwner] = useState<Owner | null>(null)
+  const [owner, setOwner] = useState<Owner | null>(seededOwner)
 
   const draft = { taskId, date, owner }
   const ready = canConfirm(draft)
@@ -89,7 +99,7 @@ export function ScheduleTaskDialog({ taskId, initialDate = '', onClose }: Schedu
           />
         </div>
 
-        {/* Owner segmented control — no pre-selection (FR-007) */}
+        {/* Owner segmented control — pre-seeded from the task's current owner (034 US2); changeable */}
         <fieldset className="mb-6">
           <legend className="mb-1 block text-sm font-medium text-ink">Owner</legend>
           <div className="flex gap-2">

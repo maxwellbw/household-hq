@@ -3,18 +3,23 @@ import { Pencil, Trash2, Star } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useToggleListItem, useUpdateListItem, useDeleteListItem, useCreateListItem } from '@/hooks/useListMutations'
 import { useUndoableMutation } from '@/hooks/useUndoableMutation'
+import { useSettings } from '@/hooks/useSettings'
+import { formatDate } from '@/lib/datetime'
 import { LIST_SECTIONS, LIST_SECTION_LABELS } from '@/lib/lists'
 import type { ListItem, ListSection } from '@/types/domain'
 
 interface ListItemRowProps {
   item: ListItem
+  /** Feature 034 US3: show the last-stocked date on the row (All view only). */
+  showStockedDate?: boolean
 }
 
 /** One list item: one-tap need⇄stocked toggle (US1, optimistic via useToggleListItem),
  *  plus an expandable edit panel for section/staple/note and delete (US2/Polish). */
-export function ListItemRow({ item }: ListItemRowProps) {
+export function ListItemRow({ item, showStockedDate = false }: ListItemRowProps) {
   const [editing, setEditing] = useState(false)
   const toggle = useToggleListItem()
+  const { timezone } = useSettings()
   const isStocked = item.status === 'stocked'
 
   return (
@@ -56,6 +61,9 @@ export function ListItemRow({ item }: ListItemRowProps) {
             </span>
           )}
           {item.note && <span className="ml-2 text-xs text-ink-muted">{item.note}</span>}
+          {showStockedDate && item.stockedAt && (
+            <span className="ml-2 text-xs text-ink-faint">stocked {formatDate(item.stockedAt, timezone)}</span>
+          )}
         </button>
 
         <button

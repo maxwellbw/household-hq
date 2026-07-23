@@ -2697,6 +2697,24 @@ function liveListItemsCrud_() {
   assertFails_('NOT_FOUND', function () { toggleListItem_({ id: 'nope-' + Utilities.getUuid() }, actor); },
     'toggling an unknown item is NOT_FOUND');
 
+  // Feature 034 US3: stockedAt is stamped on the → stocked transition, preserved on the
+  // return to need, and never client-writable.
+  var fresh = createListItem_({ listId: listId, name: 'Butter' }, actor).item;
+  assert_(!fresh.stockedAt, 'a newly created item has no stockedAt');
+  var freshStocked = toggleListItem_({ id: fresh.id }, actor).item;
+  assert_(!!freshStocked.stockedAt && freshStocked.status === 'stocked',
+    'toggling to stocked stamps stockedAt');
+  var stampedAt = freshStocked.stockedAt;
+  var freshNeed = toggleListItem_({ id: fresh.id }, actor).item;
+  assert_(freshNeed.status === 'need' && freshNeed.stockedAt === stampedAt,
+    'toggling back to need preserves the stockedAt stamp');
+  assertFails_('BAD_REQUEST', function () {
+    createListItem_({ listId: listId, name: 'Sneaky', stockedAt: '2020-01-01T00:00' }, actor);
+  }, 'stockedAt on create is rejected (server-managed)');
+  assertFails_('BAD_REQUEST', function () {
+    updateListItem_({ id: fresh.id, stockedAt: '2020-01-01T00:00' }, actor);
+  }, 'stockedAt on update is rejected (server-managed)');
+
   // listItems.update: section/staple/note editable; status/listId are not (use toggle;
   // moving between lists isn't supported).
   var updated = updateListItem_({ id: milk.id, section: 'dairy', staple: 'TRUE', note: '2 bags' }, actor).item;

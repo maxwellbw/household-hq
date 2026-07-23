@@ -20,12 +20,14 @@ interface TaskRowProps {
   onSnooze?: () => void
   /** Called when the user picks Edit due from the overflow menu (wired in US4). */
   onEditDue?: () => void
+  /** Called when the user picks Schedule from the overflow menu — someday tasks (034 US2). */
+  onSchedule?: () => void
   /** Called when the user taps the task title to open the detail sheet (wired in US3). */
   onDetail?: () => void
 }
 
 /** DESIGN.md "Task row": checkbox · title · owner chip · due label · overflow menu. */
-export function TaskRow({ task, timezone, eventStartKey, onSnooze, onEditDue, onDetail }: TaskRowProps) {
+export function TaskRow({ task, timezone, eventStartKey, onSnooze, onEditDue, onSchedule, onDetail }: TaskRowProps) {
   const style = ownerStyle(task.owner)
   const due = relativeDue(task.dueDate, timezone, eventStartKey)
   const isDone = task.status === 'done'
@@ -197,44 +199,62 @@ export function TaskRow({ task, timezone, eventStartKey, onSnooze, onEditDue, on
         <span className="w-20 shrink-0 text-right text-xs tabular-nums text-ink-muted">{due}</span>
       )}
 
-      {/* Overflow menu */}
-      <div ref={menuRef} className="relative">
-        <button
-          ref={triggerRef}
-          type="button"
-          onClick={() => setMenuOpen((v) => !v)}
-          aria-haspopup="menu"
-          aria-expanded={menuOpen}
-          aria-label={`More options for ${task.title}`}
-          className="flex h-11 w-11 shrink-0 -m-2.5 items-center justify-center rounded-full text-ink-muted hover:bg-surface-alt focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-        >
-          <MoreVertical size={16} aria-hidden="true" />
-        </button>
-
-        {menuOpen && (
-          <div
-            role="menu"
-            className="absolute right-0 z-10 mt-1 min-w-[140px] rounded-control border border-border bg-surface py-1 shadow-card"
+      {/* Overflow menu — only the actions actually wired for this row render, so there are
+          never dead no-op items (034 US2). When nothing is wired (e.g. an unactionable row),
+          the trigger itself is omitted rather than opening an empty menu. */}
+      {(onSnooze || onEditDue || onSchedule) && (
+        <div ref={menuRef} className="relative">
+          <button
+            ref={triggerRef}
+            type="button"
+            onClick={() => setMenuOpen((v) => !v)}
+            aria-haspopup="menu"
+            aria-expanded={menuOpen}
+            aria-label={`More options for ${task.title}`}
+            className="flex h-11 w-11 shrink-0 -m-2.5 items-center justify-center rounded-full text-ink-muted hover:bg-surface-alt focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
           >
-            <button
-              type="button"
-              role="menuitem"
-              onClick={() => { setMenuOpen(false); onSnooze?.() }}
-              className="flex min-h-[44px] w-full items-center gap-2 px-4 text-left text-sm text-ink hover:bg-surface-alt focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+            <MoreVertical size={16} aria-hidden="true" />
+          </button>
+
+          {menuOpen && (
+            <div
+              role="menu"
+              className="absolute right-0 z-10 mt-1 min-w-[140px] rounded-control border border-border bg-surface py-1 shadow-card"
             >
-              Snooze
-            </button>
-            <button
-              type="button"
-              role="menuitem"
-              onClick={() => { setMenuOpen(false); onEditDue?.() }}
-              className="flex min-h-[44px] w-full items-center gap-2 px-4 text-left text-sm text-ink hover:bg-surface-alt focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-            >
-              Edit due
-            </button>
-          </div>
-        )}
-      </div>
+              {onSchedule && (
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => { setMenuOpen(false); onSchedule() }}
+                  className="flex min-h-[44px] w-full items-center gap-2 px-4 text-left text-sm text-ink hover:bg-surface-alt focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                >
+                  Schedule
+                </button>
+              )}
+              {onSnooze && (
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => { setMenuOpen(false); onSnooze() }}
+                  className="flex min-h-[44px] w-full items-center gap-2 px-4 text-left text-sm text-ink hover:bg-surface-alt focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                >
+                  Snooze
+                </button>
+              )}
+              {onEditDue && (
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => { setMenuOpen(false); onEditDue() }}
+                  className="flex min-h-[44px] w-full items-center gap-2 px-4 text-left text-sm text-ink hover:bg-surface-alt focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                >
+                  Edit due
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }

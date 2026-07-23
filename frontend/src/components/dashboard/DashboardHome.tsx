@@ -9,7 +9,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { highlights, itemsForDay, loadBalance, resolveViewer, sevenDayTiles, smartViews } from '@/lib/dashboard'
 import { ackNotices } from '@/lib/ackNotices'
 import { dogWalkNotices, walksForDay } from '@/lib/dogwalks'
-import { shouldShowGroceryNudge } from '@/lib/lists'
+import { groceryNeededStapleCount, shouldShowGroceryNudge } from '@/lib/lists'
 import { buildCalendarModel } from '@/lib/tether'
 import { monthRange, todayKey, weekRange } from '@/lib/datetime'
 import { WeekendSection } from '@/components/dashboard/WeekendSection'
@@ -128,6 +128,10 @@ export function DashboardHome({
     () => shouldShowGroceryNudge(listItemsQuery.data ?? [], settingsData?.settings.groceryStapleNudgeThreshold),
     [listItemsQuery.data, settingsData],
   )
+  const neededStapleCount = useMemo(
+    () => groceryNeededStapleCount(listItemsQuery.data ?? []),
+    [listItemsQuery.data],
+  )
 
   if (isPending) {
     return (
@@ -169,7 +173,7 @@ export function DashboardHome({
       {/* FR-010, US4 scenario 3: the walk notice's action opens the planner for that date,
           not the calendar at today. */}
       <DogWalkNotice notices={dogWalkNoticeItems} onOpenDate={onOpenWalkPlanner} />
-      <GroceryNudge show={showGroceryNudge} onNavigate={onNavigateGroceries} />
+      <GroceryNudge show={showGroceryNudge} count={neededStapleCount} onNavigate={onNavigateGroceries} />
       <OverdueSection tasks={views.overdue.tasks} timezone={timezone} onViewAll={onNavigateTasks} />
       <SevenDayStrip tiles={strip} activeDateKey={peekDateKey} onToggleDate={toggleDate} />
       {peekDateKey && peekItems && (
